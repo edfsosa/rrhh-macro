@@ -26,7 +26,7 @@ class PayrollFactory extends Factory
         $netSalary = $gross - $totalDeductions;
 
         return [
-            'employee_id' => Employee::factory(),
+            'employee_id' => $this->faker->randomElement(Employee::pluck('id')->toArray()),
             'period' => $this->faker->date('Y-m'),
             'base_salary' => $baseSalary,
             'bonuses' => $bonuses,
