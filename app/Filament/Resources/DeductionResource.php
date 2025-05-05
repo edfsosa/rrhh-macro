@@ -23,9 +23,11 @@ class DeductionResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('employee_id')
-                    ->relationship('employee', 'name')
+                Forms\Components\Select::make('employee_id')
+                    ->label('Empleado')
+                    ->relationship('employee', 'id')
                     ->searchable()
+                    ->preload()
                     ->required(),
                 Forms\Components\Select::make('type')
                     ->label('Tipo')
@@ -39,15 +41,27 @@ class DeductionResource extends Resource
                 Forms\Components\TextInput::make('description')
                     ->label('Descripción')
                     ->maxLength(255),
+                Forms\Components\Select::make('mode')
+                    ->label('Modo')
+                    ->options([
+                        'monto_fijo' => 'Monto Fijo',
+                        'porcentaje' => 'Porcentaje',
+                    ])
+                    ->default('monto_fijo')
+                    ->required(),
                 Forms\Components\TextInput::make('amount')
                     ->label('Monto')
                     ->integer()
-                    ->minValue(0),
+                    ->minValue(0)
+                    ->visible(fn (callable $get) => $get('mode') === 'monto_fijo')
+                    ->required(),
                 Forms\Components\TextInput::make('percentage')
                     ->label('Porcentaje')
                     ->integer()
                     ->minValue(0)
-                    ->maxValue(100),
+                    ->maxValue(100)
+                    ->visible(fn (callable $get) => $get('mode') === 'porcentaje')
+                    ->required(),
                 Forms\Components\Toggle::make('is_active')
                     ->label('Activo')
                     ->default(true)
@@ -76,14 +90,11 @@ class DeductionResource extends Resource
                     ->label('Tipo')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('amount')
-                    ->label('Monto')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('percentage')
-                    ->label('Porcentaje')
-                    ->numeric()
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('mode')
+                    ->label('Modo')
+                    ->searchable()
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => $state === 'monto_fijo' ? 'Monto Fijo' : 'Porcentaje'),
                 Tables\Columns\ToggleColumn::make('is_active')
                     ->label('Activo'),
                 Tables\Columns\TextColumn::make('created_at')

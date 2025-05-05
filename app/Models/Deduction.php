@@ -17,6 +17,7 @@ class Deduction extends Model
         'amount',
         'percentage',
         'is_active',
+        'mode',
     ];
 
     protected $casts = [

@@ -24,6 +24,7 @@ class DeductionFactory extends Factory
             'amount' => $this->faker->numberBetween(50000, 1000000),
             'percentage' => $this->faker->numberBetween(0, 100),
             'is_active' => $this->faker->boolean(),
+            'mode' => $this->faker->randomElement(['monto_fijo', 'porcentaje']),
         ];
     }
 }
