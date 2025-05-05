@@ -28,7 +28,6 @@ class Employee extends Model
     protected $casts = [
         'hire_date' => 'date',
         'base_salary' => 'integer',
-        'status' => 'boolean',
     ];
 
     public function deductions()

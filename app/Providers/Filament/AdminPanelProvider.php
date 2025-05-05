@@ -27,6 +27,10 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('')
             ->login()
+            ->registration()
+            ->profile(isSimple: false)
+            ->font('Poppins')
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Teal,
             ])

@@ -9,6 +9,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -16,22 +17,51 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class VacationResource extends Resource
 {
     protected static ?string $model = Vacation::class;
-
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationLabel = 'Vacaciones';
+    protected static ?string $label = 'Vacación';
+    protected static ?string $pluralLabel = 'Vacaciones';
+    protected static ?string $slug = 'vacaciones';
+    protected static ?string $navigationIcon = 'heroicon-o-sun';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\Select::make('employee_id')
-                    ->relationship('employee', 'first_name')
+                    ->label('Empleado')
+                    ->relationship('employee', 'ci')
                     ->searchable()
+                    ->preload()
+                    ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->displayFormat('d/m/Y')
+                    ->placeholder('dd/mm/aaaa')
+                    ->minDate(now())
+                    ->maxDate(now()->addYear())
+                    ->closeOnDateSelection()
+                    ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
+                    ->label('Fecha de Fin')
+                    ->displayFormat('d/m/Y')
+                    ->placeholder('dd/mm/aaaa')
+                    ->minDate(now())
+                    ->maxDate(now()->addYear())
+                    ->closeOnDateSelection()
+                    ->native(false)
                     ->required(),
-                Forms\Components\TextInput::make('status')
+                Forms\Components\Select::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'pendiente' => 'Pendiente',
+                        'aprobado' => 'Aprobado',
+                        'rechazado' => 'Rechazado',
+                    ])
+                    ->default('pendiente')
+                    ->native(false)
+                    ->hiddenOn('create')
                     ->required(),
             ]);
     }
@@ -40,10 +70,15 @@ class VacationResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('employee.ci')
                     ->label('CI')
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->copyable(),
                 Tables\Columns\TextColumn::make('employee.first_name')
                     ->label('Nombre')
                     ->sortable()
@@ -53,12 +88,12 @@ class VacationResource extends Resource
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('start_date')
-                    ->label('Fecha de Inicio')
-                    ->date()
+                    ->label('Inicio')
+                    ->date('d/m/Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('end_date')
-                    ->label('Fecha de Fin')
-                    ->date()
+                    ->label('Fin')
+                    ->date('d/m/Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('total_days')
                     ->label('Días Totales')
@@ -76,17 +111,39 @@ class VacationResource extends Resource
                     ]),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
-                    ->dateTime()
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Actualizado')
-                    ->dateTime()
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('employee')
+                    ->relationship('employee', 'ci')
+                    ->label('Empleado')
+                    ->placeholder('Seleccionar empleado')
+                    ->options(function (Builder $query) {
+                        return $query->pluck('ci', 'id');
+                    })
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->native(false),
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->placeholder('Seleccionar estado')
+                    ->options([
+                        'pendiente' => 'Pendiente',
+                        'aprobado' => 'Aprobado',
+                        'rechazado' => 'Rechazado',
+                    ])
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
