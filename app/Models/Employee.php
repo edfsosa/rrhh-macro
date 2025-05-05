@@ -22,7 +22,8 @@ class Employee extends Model
         'payment_method',
         'position',
         'department',
-        'status'
+        'status',
+        'photo',
     ];
 
     protected $casts = [
@@ -43,5 +44,15 @@ class Employee extends Model
     public function payrolls()
     {
         return $this->hasMany(Payroll::class);
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(Document::class);
     }
 }

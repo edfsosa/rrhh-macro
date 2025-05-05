@@ -84,8 +84,8 @@ class AttendanceResource extends Resource
                     ->label('Tipo')
                     ->badge()
                     ->colors([
-                        'entrada' => 'success',
-                        'salida' => 'danger',
+                        'success' => 'entrada',
+                        'danger' => 'salida',
                     ])
                     ->searchable()
                     ->sortable(),

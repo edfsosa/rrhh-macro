@@ -28,6 +28,18 @@ class EmployeeResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\FileUpload::make('photo')
+                    ->label('Foto')
+                    ->disk('public')
+                    ->directory('employees')
+                    ->image()
+                    ->avatar()
+                    ->imageEditor()
+                    ->circleCropper()
+                    ->imageCropAspectRatio('1:1')
+                    ->downloadable()
+                    ->openable()
+                    ->nullable(),
                 Forms\Components\TextInput::make('first_name')
                     ->label('Nombre(s)')
                     ->required()
@@ -117,6 +129,9 @@ class EmployeeResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\ImageColumn::make('photo')
+                    ->label('Foto')
+                    ->circular(),
                 Tables\Columns\TextColumn::make('ci')
                     ->label('CI')
                     ->searchable()
@@ -267,7 +282,7 @@ class EmployeeResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\DocumentsRelationManager::class,
         ];
     }
 
