@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PayrollService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,16 +33,39 @@ class Employee extends Model
         'base_salary' => 'integer',
     ];
 
+    /**
+     * Deducciones aplicadas al empleado
+     */
     public function deductions()
     {
-        return $this->hasMany(Deduction::class);
+        return $this->hasMany(EmployeeDeduction::class);
     }
 
+    /**
+     * Percepciones aplicadas al empleado
+     */
     public function perceptions()
     {
-        return $this->hasMany(Perception::class);
+        return $this->hasMany(EmployeePerception::class);
     }
 
+    /**
+     * Recibos de sueldo generados
+     */
+    public function paySlips()
+    {
+        return $this->hasMany(PaySlip::class);
+    }
+
+    /**
+     * Genera o actualiza el recibo de sueldo para un período dado
+     */
+    public function generatePaySlip(PayPeriod $period)
+    {
+        return app(PayrollService::class)->generatePaySlip($this, $period);
+    }
+
+    // Relación con el modelo Payroll, un empleado puede tener muchas nóminas
     public function payrolls()
     {
         return $this->hasMany(Payroll::class);
@@ -53,13 +77,17 @@ class Employee extends Model
         return $this->hasMany(Attendance::class);
     }
 
-    // Relación con el modelo EmployeeSchedule, un empleado puede tener muchos horarios
+    /**
+     * Asignaciones de horario
+     */
     public function schedules()
     {
         return $this->hasMany(EmployeeSchedule::class);
     }
 
-    // Relación con el modelo EmployeeSchedule, un empleado puede tener muchos tipos de horarios
+    /**
+     * Tipos de turno a través de la tabla intermedia
+     */
     public function scheduleTypes()
     {
         return $this->hasManyThrough(
@@ -72,6 +100,9 @@ class Employee extends Model
         );
     }
 
+    /**
+     * Relación con el modelo Document, un empleado puede tener muchos documentos
+     */
     public function documents()
     {
         return $this->hasMany(Document::class);

@@ -11,8 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('employees', function (Blueprint $table) {
-            $table->string('photo')->nullable()->after('status');
+        Schema::create('pay_periods', function (Blueprint $table) {
+            $table->id();
+            $table->date('start_date'); // fecha de inicio del periodo
+            $table->date('end_date'); // fecha de fin del periodo
+            $table->timestamps();
         });
     }
 
@@ -21,8 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('employees', function (Blueprint $table) {
-            //
-        });
+        Schema::dropIfExists('pay_periods');
     }
 };

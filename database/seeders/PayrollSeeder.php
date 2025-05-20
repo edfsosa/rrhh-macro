@@ -21,6 +21,6 @@ class PayrollSeeder extends Seeder
         }
 
         // Generar 50 nóminas de prueba
-        Payroll::factory()->count(50)->create();
+        Payroll::factory()->count(5)->create();
     }
 }

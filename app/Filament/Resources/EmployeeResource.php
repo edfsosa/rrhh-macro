@@ -312,6 +312,8 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\DocumentsRelationManager::class,
+            RelationManagers\DeductionsRelationManager::class,
+            RelationManagers\PerceptionsRelationManager::class,
         ];
     }
 

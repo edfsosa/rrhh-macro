@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
+            $table->string('photo')->nullable(); // foto
             $table->string('first_name', 60); // nombre
             $table->string('last_name', 60); // apellido
             $table->string('ci', 20)->unique(); // cédula
