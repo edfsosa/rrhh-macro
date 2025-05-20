@@ -6,11 +6,20 @@ use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
 use Filament\Forms;
+use Filament\Forms\Components\Section;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -24,104 +33,120 @@ class EmployeeResource extends Resource
     protected static ?string $slug = 'empleados';
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
 
+    // Formulario de creación y edición
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\FileUpload::make('photo')
-                    ->label('Foto')
-                    ->disk('public')
-                    ->directory('employees')
-                    ->image()
-                    ->avatar()
-                    ->imageEditor()
-                    ->circleCropper()
-                    ->imageCropAspectRatio('1:1')
-                    ->downloadable()
-                    ->openable()
-                    ->nullable(),
-                Forms\Components\TextInput::make('first_name')
-                    ->label('Nombre(s)')
-                    ->required()
-                    ->maxLength(60),
-                Forms\Components\TextInput::make('last_name')
-                    ->label('Apellido(s)')
-                    ->required()
-                    ->maxLength(60),
-                Forms\Components\TextInput::make('ci')
-                    ->label('Cédula de Identidad')
-                    ->integer()
-                    ->minValue(1)
-                    ->required()
-                    ->maxLength(20),
-                Forms\Components\TextInput::make('phone')
-                    ->label('Teléfono')
-                    ->tel()
-                    ->prefix('+595')
-                    ->minLength(7)
-                    ->maxLength(30),
-                Forms\Components\TextInput::make('email')
-                    ->label('Correo Electrónico')
-                    ->email()
-                    ->required()
-                    ->maxLength(60)
-                    ->unique(Employee::class, 'email', ignoreRecord: true),
-                Forms\Components\DatePicker::make('hire_date')
-                    ->label('Fecha de Contratación')
-                    ->native(false)
-                    ->placeholder('dd/mm/yyyy')
-                    ->displayFormat('d/m/Y')
-                    ->minDate(now()->subYears(10))
-                    ->maxDate(now()->addYears(10))
-                    ->default(now())
-                    ->required(),
-                Forms\Components\Select::make('contract_type')
-                    ->label('Tipo de Contrato')
-                    ->options([
-                        'mensualero' => 'Mensualero',
-                        'jornalero' => 'Jornalero',
-                    ])
-                    ->searchable()
-                    ->native(false)
-                    ->required(),
-                Forms\Components\TextInput::make('base_salary')
-                    ->label('Salario Base')
-                    ->required()
-                    ->integer()
-                    ->minValue(0)
-                    ->maxLength(10)
-                    ->prefix('Gs.')
-                    ->default(0),
-                Forms\Components\Select::make('payment_method')
-                    ->label('Método de Pago')
-                    ->options([
-                        'debito' => 'Tarjeta de Débito',
-                        'efectivo' => 'Efectivo',
-                        'cheque' => 'Cheque',
-                    ])
-                    ->searchable()
-                    ->native(false)
-                    ->required(),
-                Forms\Components\TextInput::make('position')
-                    ->label('Cargo')
-                    ->required()
-                    ->maxLength(60),
-                Forms\Components\TextInput::make('department')
-                    ->label('Departamento')
-                    ->required()
-                    ->maxLength(60),
-                Forms\Components\Select::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'activo' => 'Activo',
-                        'inactivo' => 'Inactivo',
-                        'suspendido' => 'Suspendido',
-                    ])
-                    ->searchable()
-                    ->native(false)
-                    ->hiddenOn('create')
-                    ->default('activo')
-                    ->required(),
+                Section::make('Datos Personales')
+                    ->description('Información básica del empleado')
+                    ->schema([
+                        FileUpload::make('photo')
+                            ->label('Foto')
+                            ->disk('public')
+                            ->directory('employees')
+                            ->image()
+                            ->avatar()
+                            ->imageEditor()
+                            ->circleCropper()
+                            ->nullable(),
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('first_name')
+                                    ->label('Nombre(s)')
+                                    ->required()
+                                    ->maxLength(60),
+                                TextInput::make('last_name')
+                                    ->label('Apellido(s)')
+                                    ->required()
+                                    ->maxLength(60),
+                            ]),
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('ci')
+                                    ->label('Cédula de Identidad')
+                                    ->integer()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->maxLength(20),
+                                TextInput::make('phone')
+                                    ->label('Teléfono')
+                                    ->tel()
+                                    ->prefix('+595')
+                                    ->minLength(7)
+                                    ->maxLength(30),
+                                TextInput::make('email')
+                                    ->label('Correo Electrónico')
+                                    ->email()
+                                    ->required()
+                                    ->maxLength(60)
+                                    ->unique(Employee::class, 'email', ignoreRecord: true),
+                            ]),
+                    ]),
+
+                Section::make('Detalles de contratación')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                DatePicker::make('hire_date')
+                                    ->label('Fecha de Contratación')
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
+                                    ->minDate(now()->subYears(10))
+                                    ->maxDate(now()->addYears(10))
+                                    ->default(now())
+                                    ->required(),
+                                Select::make('contract_type')
+                                    ->label('Tipo de Contrato')
+                                    ->options([
+                                        'mensualero' => 'Mensualero',
+                                        'jornalero' => 'Jornalero',
+                                    ])
+                                    ->native(false)
+                                    ->required(),
+                                TextInput::make('base_salary')
+                                    ->label('Salario Base')
+                                    ->required()
+                                    ->integer()
+                                    ->minValue(0)
+                                    ->maxLength(10)
+                                    ->prefix('Gs.')
+                                    ->default(0),
+                            ]),
+                        Grid::make(4)
+                            ->schema([
+                                Select::make('payment_method')
+                                    ->label('Método de Pago')
+                                    ->options([
+                                        'debito' => 'Tarjeta de Débito',
+                                        'efectivo' => 'Efectivo',
+                                        'cheque' => 'Cheque',
+                                    ])
+                                    ->searchable()
+                                    ->native(false)
+                                    ->required(),
+                                TextInput::make('position')
+                                    ->label('Cargo')
+                                    ->required()
+                                    ->maxLength(60),
+                                TextInput::make('department')
+                                    ->label('Departamento')
+                                    ->required()
+                                    ->maxLength(60),
+                                Select::make('status')
+                                    ->label('Estado')
+                                    ->options([
+                                        'activo' => 'Activo',
+                                        'inactivo' => 'Inactivo',
+                                        'suspendido' => 'Suspendido',
+                                    ])
+                                    ->searchable()
+                                    ->native(false)
+                                    ->hiddenOn('create')
+                                    ->default('activo')
+                                    ->required(),
+                            ]),
+                    ]),
             ]);
     }
 
@@ -129,36 +154,38 @@ class EmployeeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('photo')
+                ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular(),
-                Tables\Columns\TextColumn::make('ci')
+                TextColumn::make('ci')
                     ->label('CI')
                     ->searchable()
                     ->numeric()
                     ->sortable()
                     ->copyable(),
-                Tables\Columns\TextColumn::make('first_name')
+                TextColumn::make('first_name')
                     ->label('Nombre(s)')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('last_name')
+                TextColumn::make('last_name')
                     ->label('Apellido(s)')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('phone')
+                TextColumn::make('phone')
                     ->label('Teléfono')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('email')
+                TextColumn::make('email')
                     ->label('Correo Electrónico')
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('hire_date')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('hire_date')
                     ->label('Contratación')
                     ->date('d/m/Y')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('contract_type')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('contract_type')
                     ->label('Tipo de Contrato')
                     ->badge()
                     ->colors([
@@ -166,13 +193,14 @@ class EmployeeResource extends Resource
                         'warning' => 'jornalero',
                     ])
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('base_salary')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('base_salary')
                     ->label('Salario (Gs.)')
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('payment_method')
+                TextColumn::make('payment_method')
                     ->label('Método de Pago')
                     ->badge()
                     ->colors([
@@ -181,18 +209,19 @@ class EmployeeResource extends Resource
                         'danger' => 'cheque',
                     ])
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('position')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('position')
                     ->label('Cargo')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('department')
+                TextColumn::make('department')
                     ->label('Departamento')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
                     ->colors([
@@ -202,19 +231,19 @@ class EmployeeResource extends Resource
                     ])
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
                         'activo' => 'Activo',
@@ -223,7 +252,7 @@ class EmployeeResource extends Resource
                     ])
                     ->placeholder('Seleccionar estado')
                     ->native(false),
-                Tables\Filters\SelectFilter::make('contract_type')
+                SelectFilter::make('contract_type')
                     ->label('Tipo de Contrato')
                     ->options([
                         'mensualero' => 'Mensualero',
@@ -231,7 +260,7 @@ class EmployeeResource extends Resource
                     ])
                     ->placeholder('Seleccionar tipo de contrato')
                     ->native(false),
-                Tables\Filters\SelectFilter::make('payment_method')
+                SelectFilter::make('payment_method')
                     ->label('Método de Pago')
                     ->options([
                         'debito' => 'Tarjeta de Débito',

@@ -16,6 +16,7 @@ class Attendance extends Model
         'location',
     ];
 
+    // Marcación pertenece a un empleado
     public function employee()
     {
         return $this->belongsTo(Employee::class);
