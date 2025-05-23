@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('employee_id')->constrained()->onDelete('cascade');
             $table->enum('type', ['entrada', 'salida']);
+            $table->enum('session', ['jornada', 'desayuno', 'almuerzo']);
             $table->string('location')->nullable(); // Ej: lat,lng o texto
             $table->timestamps();
         });

@@ -13,6 +13,7 @@ class Attendance extends Model
     protected $fillable = [
         'employee_id',
         'type',
+        'session',
         'location',
     ];
 

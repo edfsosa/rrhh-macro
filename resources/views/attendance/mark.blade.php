@@ -101,6 +101,15 @@
     <h1>Registro de Marcación</h1>
 
     <div class="container">
+        <!-- Nueva selección de sesión -->
+        <label for="session">Sesión:</label>
+        <select id="session">
+            <option value="jornada">Jornada</option>
+            <option value="desayuno">Desayuno</option>
+            <option value="almuerzo">Almuerzo</option>
+        </select>
+
+        <!-- Selección de tipo existente -->
         <label for="type">Tipo:</label>
         <select id="type">
             <option value="entrada">Entrada 🟢</option>
@@ -125,56 +134,94 @@
         let currentLocation = '';
         let recognitionEnabled = true;
 
+        // 1) Carga lista de empleados
         async function loadEmployees() {
             const res = await fetch('/api/employees');
             employees = await res.json();
+            console.log(`🔍 Empleados cargados: ${employees.length}`);
         }
 
+        // 2) Prepara la cámara y espera a que el vídeo arranque
         async function setupCamera() {
             const video = document.getElementById('video');
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: true
             });
             video.srcObject = stream;
+            await new Promise(resolve => {
+                video.onloadedmetadata = () => {
+                    video.play();
+                    console.log('📹 Cámara lista');
+                    resolve();
+                };
+            });
         }
 
+        // 3) Carga los modelos desde public/models
         async function loadModels() {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+            const MODEL_URL = '/models';
+            console.log('🚧 Cargando modelos desde', MODEL_URL);
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+            console.log('✅ Modelos cargados');
         }
 
+        // 4) Construye los descriptores etiquetados y crea el FaceMatcher
         async function loadLabeledDescriptors() {
-            const labeledDescriptors = await Promise.all(
-                employees.filter(e => e.photo).map(async employee => {
-                    const img = await faceapi.fetchImage(`/storage/${employee.photo}`);
-                    const detection = await faceapi
+            const descriptors = [];
+
+            for (const emp of employees) {
+                if (!emp.photo) continue;
+                try {
+                    const imgUrl = `/storage/${emp.photo}`;
+                    const img = await faceapi.fetchImage(imgUrl);
+                    const det = await faceapi
                         .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
                         .withFaceLandmarks()
                         .withFaceDescriptor();
-                    return detection ?
-                        new faceapi.LabeledFaceDescriptors(`${employee.id}`, [detection.descriptor]) :
-                        null;
-                })
-            );
-            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors.filter(d => d), 0.6);
+
+                    if (det) {
+                        descriptors.push(
+                            new faceapi.LabeledFaceDescriptors(
+                                `${emp.id}`,
+                                [det.descriptor]
+                            )
+                        );
+                        console.log(`👍 Descriptor cargado para empleado ${emp.id}`);
+                    } else {
+                        console.warn(`⚠️ No se detectó rostro en la foto de ${emp.id}`);
+                    }
+                } catch (err) {
+                    console.error(`❌ Error cargando foto de ${emp.id}:`, err);
+                }
+            }
+
+            if (descriptors.length === 0) {
+                throw new Error('No se encontró ningún descriptor válido. Revisa tus fotos/modelos.');
+            }
+
+            faceMatcher = new faceapi.FaceMatcher(descriptors, 0.6);
+            console.log(`🤖 FaceMatcher listo con ${descriptors.length} etiquetas`);
         }
 
+        // utilitarios
         function getLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
-                    position => currentLocation = `${position.coords.latitude},${position.coords.longitude}`,
-                    error => console.warn('No se pudo obtener ubicación.')
+                    pos => currentLocation = `${pos.coords.latitude},${pos.coords.longitude}`,
+                    () => console.warn('No se pudo obtener ubicación.')
                 );
             }
         }
 
         function updateClock() {
-            const now = new Date();
-            document.getElementById('clock').textContent = `🕒 Hora actual: ${now.toLocaleTimeString()}`;
+            document.getElementById('clock').textContent =
+                `🕒 Hora actual: ${new Date().toLocaleTimeString()}`;
         }
         setInterval(updateClock, 1000);
 
+        // 5) Inicia el bucle de reconocimiento
         async function startLiveRecognition() {
             const video = document.getElementById('video');
             const overlay = document.getElementById('overlay');
@@ -186,7 +233,7 @@
             setInterval(async () => {
                 if (!recognitionEnabled) return;
 
-                const detection = await faceapi
+                const result = await faceapi
                     .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptor();
@@ -199,25 +246,25 @@
                 const ctx = overlay.getContext('2d');
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-                if (!detection) {
+                if (!result) {
                     messageBox.textContent = 'Buscando rostro...';
                     messageBox.className = 'alert alert-warning';
                     return;
                 }
 
-                const resizedDetections = faceapi.resizeResults(detection, displaySize);
-                faceapi.draw.drawDetections(overlay, resizedDetections);
+                const resized = faceapi.resizeResults(result, displaySize);
+                faceapi.draw.drawDetections(overlay, resized);
 
-                const match = faceMatcher.findBestMatch(detection.descriptor);
+                const match = faceMatcher.findBestMatch(result.descriptor);
                 if (match.label !== 'unknown') {
-                    const employee = employees.find(e => e.id == match.label);
+                    const emp = employees.find(e => `${e.id}` === match.label);
                     recognitionEnabled = false;
                     messageBox.textContent =
-                        `✅ ${employee.first_name} ${employee.last_name} (${employee.ci}) reconocido. Registrando...`;
+                        `✅ ${emp.first_name} ${emp.last_name} reconocido. Registrando...`;
                     messageBox.className = 'alert alert-success';
 
                     try {
-                        const response = await fetch('/marcar', {
+                        const res = await fetch('/marcar', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -225,23 +272,21 @@
                             },
                             body: JSON.stringify({
                                 type: typeSelect.value,
+                                 session: document.getElementById('session').value,
                                 employee_id: match.label,
                                 location: currentLocation
                             })
                         });
-                        const result = await response.json();
-
-                        if (response.ok && result.success) {
-                            messageBox.textContent = '✅ Marcación registrada. Espera 5 segundos...';
+                        const json = await res.json();
+                        if (res.ok && json.success) {
+                            messageBox.textContent = '✅ Marcación registrada.';
                             successSound.play();
                         } else {
-                            messageBox.textContent = `⚠️ ${result.message || 'Error al registrar.'}`;
-                            messageBox.className = 'alert alert-warning';
-                            errorSound.play();
+                            throw new Error(json.message || 'Error al registrar.');
                         }
-                    } catch (error) {
-                        console.error('Error al marcar:', error);
-                        messageBox.textContent = '❌ Error de conexión con el servidor.';
+                    } catch (err) {
+                        console.error('Error al marcar:', err);
+                        messageBox.textContent = `❌ ${err.message}`;
                         messageBox.className = 'alert alert-danger';
                         errorSound.play();
                     }
@@ -258,16 +303,23 @@
             }, 1500);
         }
 
+        // 6) Punto de entrada con manejo de errores
         window.onload = async () => {
-            getLocation();
-            await loadEmployees();
-            await loadModels();
-            await setupCamera();
-            await loadLabeledDescriptors();
-            document.getElementById('messageBox').textContent = 'Listo para reconocimiento facial ✅';
-            document.getElementById('messageBox').className = 'alert alert-success';
-            updateClock();
-            startLiveRecognition();
+            const messageBox = document.getElementById('messageBox');
+            try {
+                getLocation();
+                await loadEmployees();
+                await loadModels();
+                await setupCamera();
+                await loadLabeledDescriptors();
+                messageBox.textContent = 'Listo para reconocimiento facial ✅';
+                messageBox.className = 'alert alert-success';
+                startLiveRecognition();
+            } catch (err) {
+                console.error('Error de inicialización:', err);
+                messageBox.textContent = `❌ ${err.message}`;
+                messageBox.className = 'alert alert-danger';
+            }
         };
     </script>
 </body>

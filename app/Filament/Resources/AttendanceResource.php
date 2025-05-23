@@ -45,6 +45,16 @@ class AttendanceResource extends Resource
                     ->inline()
                     ->inlineLabel(false)
                     ->required(),
+                Forms\Components\Radio::make('session')
+                    ->label('Sesión')
+                    ->options([
+                        'jornada' => 'Jornada',
+                        'desayuno' => 'Desayuno',
+                        'almuerzo' => 'Almuerzo',
+                    ])
+                    ->inline()
+                    ->inlineLabel(false)
+                    ->required(),
                 Forms\Components\TextInput::make('location')
                     ->label('Ubicación')
                     ->placeholder('Ej: lat,lng o texto')
@@ -89,9 +99,15 @@ class AttendanceResource extends Resource
                     ])
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('session')
+                    ->label('Sesión')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('location')
                     ->label('Ubicación')
-                    ->searchable(),
+                    ->searchable()
+                    ->url(fn(Attendance $record): string => $record->location ? "https://www.google.com/maps/search/?api=1&query={$record->location}" : null)
+                    ->openUrlInNewTab(),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
