@@ -15,6 +15,8 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class AttendanceResource extends Resource
 {
@@ -108,11 +110,6 @@ class AttendanceResource extends Resource
                     ->searchable()
                     ->url(fn(Attendance $record): string => $record->location ? "https://www.google.com/maps/search/?api=1&query={$record->location}" : null)
                     ->openUrlInNewTab(),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('employee')
@@ -169,6 +166,11 @@ class AttendanceResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    ExportBulkAction::make()
+                        ->exports([
+                            ExcelExport::make()
+                                ->withFilename('marcaciones')
+                        ])
                 ]),
             ]);
     }
