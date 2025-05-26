@@ -113,7 +113,7 @@ class EmployeeResource extends Resource
                                     ->native(false)
                                     ->required(),
                             ]),
-                        Grid::make(3)
+                        Grid::make(4)
                             ->schema([
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
@@ -137,6 +137,13 @@ class EmployeeResource extends Resource
                                             })
                                             ->toArray();
                                     })
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->required(),
+                                Select::make('branch_id')
+                                    ->label('Sucursal')
+                                    ->relationship('branch', 'name')
                                     ->searchable()
                                     ->preload()
                                     ->native(false)

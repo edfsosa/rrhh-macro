@@ -23,6 +23,7 @@ class Employee extends Model
         'base_salary',
         'payment_method',
         'position_id',
+        'branch_id',
         'status',
         'photo',
     ];
@@ -38,6 +39,14 @@ class Employee extends Model
     public function position()
     {
         return $this->belongsTo(Position::class);
+    }
+
+    /**
+     * Relación con el modelo Branch, un empleado pertenece a una sucursal
+     */
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     /**
