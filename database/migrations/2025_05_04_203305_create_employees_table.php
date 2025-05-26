@@ -23,8 +23,7 @@ return new class extends Migration
             $table->enum('contract_type', ['mensualero', 'jornalero']); // tipo de contrato
             $table->integer('base_salary'); // salario base en Guaranies (PYG)
             $table->enum('payment_method', ['debito', 'efectivo', 'cheque']); // forma de pago
-            $table->string('position', 60); // cargo
-            $table->string('department', 60); // departamento
+            $table->foreignId('position_id')->constrained('positions')->onDelete('cascade'); // posición
             $table->enum('status', ['activo', 'inactivo', 'suspendido'])->default('activo'); // estado
             $table->timestamps();
         });

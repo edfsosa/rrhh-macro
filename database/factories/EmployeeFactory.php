@@ -30,8 +30,7 @@ class EmployeeFactory extends Factory
             'contract_type' => $this->faker->randomElement($contractTypes),
             'base_salary' => $this->faker->numberBetween(2500000, 8000000), // Guaraníes
             'payment_method' => $this->faker->randomElement($paymentMethods),
-            'position' => $this->faker->jobTitle,
-            'department' => $this->faker->randomElement(['Ventas', 'Logística', 'Administración', 'Finanzas', 'RRHH']),
+            'position_id' => \App\Models\Position::factory(),
             'status' => $this->faker->randomElement($statuses),
         ];
     }

@@ -12,7 +12,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -86,14 +86,13 @@ class EmployeeResource extends Resource
 
                 Section::make('Detalles de contratación')
                     ->schema([
-                        Grid::make(4)
+                        Grid::make(3)
                             ->schema([
                                 DatePicker::make('hire_date')
                                     ->label('Fecha de Contratación')
-                                    ->native(false)
                                     ->displayFormat('d/m/Y')
-                                    ->minDate(now()->subYears(10))
-                                    ->maxDate(now()->addYears(10))
+                                    ->minDate(now()->subYears(30))
+                                    ->maxDate(now()->addYears(1))
                                     ->default(now())
                                     ->required(),
                                 Select::make('contract_type')
@@ -104,6 +103,18 @@ class EmployeeResource extends Resource
                                     ])
                                     ->native(false)
                                     ->required(),
+                                Select::make('payment_method')
+                                    ->label('Método de Pago')
+                                    ->options([
+                                        'debito' => 'Tarjeta de Débito',
+                                        'efectivo' => 'Efectivo',
+                                        'cheque' => 'Cheque',
+                                    ])
+                                    ->native(false)
+                                    ->required(),
+                            ]),
+                        Grid::make(3)
+                            ->schema([
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
                                     ->required()
@@ -112,27 +123,24 @@ class EmployeeResource extends Resource
                                     ->maxLength(10)
                                     ->prefix('Gs.')
                                     ->default(0),
-                            ]),
-                        Grid::make(4)
-                            ->schema([
-                                Select::make('payment_method')
-                                    ->label('Método de Pago')
-                                    ->options([
-                                        'debito' => 'Tarjeta de Débito',
-                                        'efectivo' => 'Efectivo',
-                                        'cheque' => 'Cheque',
-                                    ])
+                                Select::make('position_id')
+                                    ->label('Cargo')
+                                    ->options(function () {
+                                        return \App\Models\Position::with('department')
+                                            ->get()
+                                            ->mapWithKeys(function ($position) {
+                                                $label = $position->name;
+                                                if ($position->department) {
+                                                    $label .= ' (' . $position->department->name . ')';
+                                                }
+                                                return [$position->id => $label];
+                                            })
+                                            ->toArray();
+                                    })
                                     ->searchable()
+                                    ->preload()
                                     ->native(false)
                                     ->required(),
-                                TextInput::make('position')
-                                    ->label('Cargo')
-                                    ->required()
-                                    ->maxLength(60),
-                                TextInput::make('department')
-                                    ->label('Departamento')
-                                    ->required()
-                                    ->maxLength(60),
                                 Select::make('status')
                                     ->label('Estado')
                                     ->options([
@@ -160,7 +168,6 @@ class EmployeeResource extends Resource
                 TextColumn::make('ci')
                     ->label('CI')
                     ->searchable()
-                    ->numeric()
                     ->sortable()
                     ->copyable(),
                 TextColumn::make('first_name')
@@ -173,10 +180,14 @@ class EmployeeResource extends Resource
                     ->searchable(),
                 TextColumn::make('phone')
                     ->label('Teléfono')
+                    ->prefix('+595')
+                    ->url(fn(Employee $record): ?string => $record->phone ? 'https://api.whatsapp.com/send?phone=595' . $record->phone : null)
+                    ->openUrlInNewTab()
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('email')
                     ->label('Correo Electrónico')
+                    ->url(fn(Employee $record): ?string => $record->email ? 'mailto:' . $record->email : null)
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -196,7 +207,7 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('base_salary')
-                    ->label('Salario (Gs.)')
+                    ->label('Salario base (₲)')
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -211,12 +222,12 @@ class EmployeeResource extends Resource
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('position')
+                TextColumn::make('position.name')
                     ->label('Cargo')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('department')
+                TextColumn::make('position.department.name')
                     ->label('Departamento')
                     ->sortable()
                     ->searchable()
