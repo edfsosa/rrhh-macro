@@ -25,8 +25,19 @@ class DocumentsRelationManager extends RelationManager
                     ->required(),
                 FileUpload::make('file_path')
                     ->label('Archivo')
+                    ->helperText('Sube un archivo PDF, imagen (jpeg, jpg, png, gif) o documento de Office (Word, Excel, PowerPoint).')
                     ->disk('public')
                     ->directory('documents')
+                    ->acceptedFileTypes([
+                        'application/pdf', // PDF
+                        'image/jpeg', // imagenes JPEG
+                        'image/jpg', // imagenes JPG
+                        'image/png', // imagenes PNG
+                        'image/gif', // imagenes GIF
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  // Word 2007+
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Excel 2007+
+                        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // PowerPoint 2007+
+                    ])
                     ->required(),
 
             ]);

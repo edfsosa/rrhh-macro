@@ -7,6 +7,9 @@ use App\Filament\Resources\DocumentResource\RelationManagers;
 use App\Models\Document;
 use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -29,23 +32,23 @@ class DocumentResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
+                Select::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'ci')
                     ->searchable()
                     ->preload()
                     ->native(false)
+                    ->hiddenOn('edit')
                     ->required(),
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->label('Nombre')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\FileUpload::make('file_path')
+                FileUpload::make('file_path')
                     ->label('Archivo')
                     ->disk('public')
                     ->directory('documents')
-                    ->required()
-                    ->maxLength(255),
+                    ->required(),
             ]);
     }
 
