@@ -15,6 +15,8 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class AttendanceResource extends Resource
 {
@@ -41,6 +43,16 @@ class AttendanceResource extends Resource
                     ->options([
                         'entrada' => 'Entrada',
                         'salida' => 'Salida',
+                    ])
+                    ->inline()
+                    ->inlineLabel(false)
+                    ->required(),
+                Forms\Components\Radio::make('session')
+                    ->label('Sesión')
+                    ->options([
+                        'jornada' => 'Jornada',
+                        'desayuno' => 'Desayuno',
+                        'almuerzo' => 'Almuerzo',
                     ])
                     ->inline()
                     ->inlineLabel(false)
@@ -89,14 +101,15 @@ class AttendanceResource extends Resource
                     ])
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('session')
+                    ->label('Sesión')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('location')
                     ->label('Ubicación')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->searchable()
+                    ->url(fn(Attendance $record): string => $record->location ? "https://www.google.com/maps/search/?api=1&query={$record->location}" : null)
+                    ->openUrlInNewTab(),
             ])
             ->filters([
                 SelectFilter::make('employee')
@@ -153,6 +166,11 @@ class AttendanceResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    ExportBulkAction::make()
+                        ->exports([
+                            ExcelExport::make()
+                                ->withFilename('marcaciones')
+                        ])
                 ]),
             ]);
     }

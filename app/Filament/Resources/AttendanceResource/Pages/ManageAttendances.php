@@ -16,14 +16,6 @@ class ManageAttendances extends ManageRecords
     {
         return [
             Actions\CreateAction::make(),
-            Actions\Action::make('export')
-                ->label('Exportar Excel')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('success')
-                ->action(function () {
-                    return Excel::download(new AttendanceExport, 'marcaciones.xlsx');
-                }),
-
         ];
     }
 }

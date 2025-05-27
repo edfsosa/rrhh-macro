@@ -22,8 +22,8 @@ class Employee extends Model
         'contract_type',
         'base_salary',
         'payment_method',
-        'position',
-        'department',
+        'position_id',
+        'branch_id',
         'status',
         'photo',
     ];
@@ -32,6 +32,22 @@ class Employee extends Model
         'hire_date' => 'date',
         'base_salary' => 'integer',
     ];
+
+    /**
+     * Relación con el modelo Position, un empleado pertenece a una posición
+     */
+    public function position()
+    {
+        return $this->belongsTo(Position::class);
+    }
+
+    /**
+     * Relación con el modelo Branch, un empleado pertenece a una sucursal
+     */
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     /**
      * Deducciones aplicadas al empleado
