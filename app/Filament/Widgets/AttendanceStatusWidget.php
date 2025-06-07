@@ -1,8 +1,8 @@
 <?php
-
 namespace App\Filament\Widgets;
 
 use App\Models\Attendance;
+use App\Models\Branch;
 use App\Models\Employee;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -12,35 +12,46 @@ class AttendanceStatusWidget extends BaseWidget
     protected function getStats(): array
     {
         $today = now()->toDateString();
+        $stats = [];
 
-        // Empleados activos
-        $totalEmpleados = Employee::where('status', 'activo')->count();
+        // Obtener todas las sucursales activas
+        $sucursales = Branch::all();
 
-        // Empleados que marcaron entrada de jornada hoy
-        $empleadosConEntrada = Attendance::where('session', 'jornada')
-            ->where('type', 'entrada')
-            ->whereDate('created_at', $today)
-            ->distinct('employee_id')
-            ->count('employee_id');
+        foreach ($sucursales as $sucursal) {
+            // Total de empleados activos en la sucursal
+            $totalEmpleados = Employee::where('branch_id', $sucursal->id)
+                ->where('status', 'activo')
+                ->count();
 
-        // Empleados que no marcaron
-        $empleadosSinEntrada = $totalEmpleados - $empleadosConEntrada;
+            // Empleados que marcaron entrada de jornada hoy en la sucursal
+            $empleadosConEntrada = Employee::where('branch_id', $sucursal->id)
+                ->whereHas('attendances', function ($query) use ($today) {
+                    $query->whereDate('created_at', $today)
+                    ->where('type', 'entrada')
+                    ->where('session', 'jornada');
+                })
+                ->count();
 
-        return [
-            Stat::make('Entraron hoy', $empleadosConEntrada)
-                ->description('Empleados que marcaron entrada de jornada')
+            // Empleados que no marcaron entrada en la sucursal
+            $empleadosSinEntrada = $totalEmpleados - $empleadosConEntrada;
+
+            // Agregar estadísticas de la sucursal
+            $stats[] = Stat::make("Entraron hoy ({$sucursal->name})", $empleadosConEntrada)
+                ->description("Empleados que marcaron entrada en {$sucursal->name}")
                 ->icon('heroicon-o-check-circle')
-                ->color('success'),
+                ->color('success');
 
-            Stat::make('No marcaron', $empleadosSinEntrada)
-                ->description('Empleados activos sin marcación de entrada')
+            $stats[] = Stat::make("No marcaron ({$sucursal->name})", $empleadosSinEntrada)
+                ->description("Empleados activos sin marcación en {$sucursal->name}")
                 ->icon('heroicon-o-x-circle')
-                ->color('danger'),
+                ->color('danger');
 
-            Stat::make('Total', $totalEmpleados)
-                ->description('Total de empleados activos')
-                ->color('primary')
+            $stats[] = Stat::make("Total ({$sucursal->name})", $totalEmpleados)
+                ->description("Total de empleados activos en {$sucursal->name}")
                 ->icon('heroicon-o-users')
-        ];
+                ->color('primary');
+        }
+
+        return $stats;
     }
 }
