@@ -25,6 +25,7 @@ class BranchResource extends Resource
     protected static ?string $pluralLabel = 'Sucursales';
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?string $slug = 'sucursales';
+    protected static ?string $navigationGroup = 'Empresa';
 
     public static function form(Form $form): Form
     {

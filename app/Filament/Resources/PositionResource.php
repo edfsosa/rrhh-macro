@@ -25,6 +25,7 @@ class PositionResource extends Resource
     protected static ?string $navigationLabel = 'Cargos';
     protected static ?string $label = 'Cargo';
     protected static ?string $pluralLabel = 'Cargos';
+    protected static ?string $navigationGroup = 'Empresa';
 
     public static function form(Form $form): Form
     {
