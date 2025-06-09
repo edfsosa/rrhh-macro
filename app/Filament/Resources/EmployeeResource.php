@@ -169,6 +169,10 @@ class EmployeeResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->searchable()
+                    ->sortable(),
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular(),

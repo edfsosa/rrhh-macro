@@ -121,7 +121,7 @@
 
         .time {
             margin-top: 1rem;
-            font-size: 1.1rem;
+            font-size: 0.8rem;
             color: #6366f1;
             text-align: center;
             letter-spacing: 1px;
@@ -144,9 +144,15 @@
 </head>
 
 <body>
-    <h1>Registrar Marcación</h1>
+    <h1>Registro Biométrico</h1>
 
     <div class="container">
+        <!-- Selección de sucursal -->
+        <label for="branch">Sucursal:</label>
+        <select id="branch">
+            <option value="" disabled selected>Seleccione una sucursal</option>
+        </select>
+
         <!-- Nueva selección de sesión -->
         <label for="session">Sesión:</label>
         <select id="session">
@@ -176,205 +182,355 @@
     <audio id="errorSound" src="/sounds/error.mp3" preload="auto"></audio>
 
     <script>
-        let employees = [];
-        let faceMatcher;
-        let currentLocation = '';
-        let recognitionEnabled = false;
+    // Variables globales
+    let employees = [];
+    let faceMatcher;
+    let currentLocation = '';
+    let recognitionEnabled = false;
+    let recognitionStarted = false; // Bandera para evitar múltiples inicios
 
-        // 1) Obtener ubicación obligatoria
-        function requireLocation() {
-            return new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    return reject('Geolocalización no soportada.');
-                }
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        currentLocation = `${pos.coords.latitude},${pos.coords.longitude}`;
-                        resolve(currentLocation);
-                    },
-                    () => reject('Debes habilitar la ubicación para continuar.')
-                );
+    // 0) Cargar sucursales en el <select>
+    async function loadBranches() {
+        const branchSelect = document.getElementById('branch');
+        try {
+            const response = await fetch('/api/branches');
+            if (!response.ok) {
+                throw new Error(`Error al cargar sucursales: ${response.statusText}`);
+            }
+            const branches = await response.json();
+            branches.forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch.id;
+                option.textContent = branch.name;
+                branchSelect.appendChild(option);
             });
+        } catch (error) {
+            console.error('Error al cargar sucursales:', error);
+            alert('No se pudieron cargar las sucursales. Intente nuevamente.');
+        }
+    }
+
+    // 1) Obtener ubicación
+    async function requireLocation() {
+        if (!navigator.geolocation) {
+            throw new Error('Geolocalización no soportada.');
         }
 
-        // 2) Carga empleados
-        async function loadEmployees() {
-            const res = await fetch('/api/employees');
-            employees = await res.json();
-        }
+        return new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+                ({ coords: { latitude, longitude } }) => {
+                    currentLocation = `${latitude},${longitude}`;
+                    resolve(currentLocation);
+                },
+                () => reject(new Error('Debes permitir el acceso a la ubicación para continuar.'))
+            );
+        });
+    }
 
-        // 3) Setup cámara con permiso obligatorio
-        async function setupCamera() {
-            const video = document.getElementById('video');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: true
-                });
-                video.srcObject = stream;
-                await new Promise(res => video.onloadedmetadata = res);
-                video.play();
-                video.style.display = 'block';
-            } catch (err) {
-                throw 'Debes permitir acceso a la cámara para continuar.';
+    // 2) Carga empleados
+    async function loadEmployees(branchId) {
+        try {
+            const response = await fetch(`/api/employees?branch_id=${branchId}`);
+            if (!response.ok) {
+                throw new Error(`Error al cargar empleados: ${response.statusText}`);
             }
+            employees = await response.json();
+        } catch (error) {
+            console.error('Error al cargar empleados:', error);
+            throw new Error('No se pudieron cargar los empleados. Intente nuevamente.');
         }
+    }
 
-        // 4) Carga modelos
-        async function loadModels() {
-            const MODEL_URL = '/models';
-            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        }
+    // Manejar selección de sucursal
+    document.getElementById('branch').addEventListener('change', async (event) => {
+        const branchId = event.target.value;
+        if (!branchId) return;
 
-        // 5) Carga descriptores
-        async function loadLabeledDescriptors() {
-            const descriptors = [];
-            for (const emp of employees) {
-                if (!emp.photo) continue;
-                try {
-                    const img = await faceapi.fetchImage(`/storage/${emp.photo}`);
-                    const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-                        .withFaceLandmarks()
-                        .withFaceDescriptor();
-                    if (det) {
-                        descriptors.push(new faceapi.LabeledFaceDescriptors(`${emp.id}`, [det.descriptor]));
-                    }
-                } catch {}
+        const messageBox = document.getElementById('messageBox');
+        messageBox.textContent = 'Cargando empleados…';
+        messageBox.className = 'alert alert-info';
+
+        try {
+            // Pausar reconocimiento si estaba activo
+            recognitionEnabled = false;
+            
+            await loadEmployees(branchId);
+            
+            // Cargar modelos si es la primera vez
+            if (!recognitionStarted) {
+                messageBox.textContent = 'Cargando modelos de reconocimiento…';
+                await loadModels();
             }
-            if (descriptors.length === 0) {
-                throw 'No se encontraron descriptores faciales válidos.';
+
+            messageBox.textContent = 'Cargando descriptores faciales…';
+            await loadLabeledDescriptors();
+
+            // Iniciar reconocimiento solo si es la primera vez
+            if (!recognitionStarted) {
+                startLiveRecognition();
+                recognitionStarted = true;
             }
-            faceMatcher = new faceapi.FaceMatcher(descriptors, 0.6);
-        }
-
-        // Reloj
-        function updateClock() {
-            document.getElementById('clock').textContent =
-                `🕒 Hora actual: ${new Date().toLocaleTimeString()}`;
-        }
-        setInterval(updateClock, 1000);
-
-        // 6) Reconocimiento en vivo
-        async function startLiveRecognition() {
-            const video = document.getElementById('video');
-            const overlay = document.getElementById('overlay');
-            const messageBox = document.getElementById('messageBox');
-            const sessionSelect = document.getElementById('session');
-            const typeSelect = document.getElementById('type');
-            const successSound = document.getElementById('successSound');
-            const errorSound = document.getElementById('errorSound');
 
             recognitionEnabled = true;
+            messageBox.textContent = 'Sistema listo para reconocimiento ✅';
+            messageBox.className = 'alert alert-success';
+        } catch (error) {
+            console.error('Error en selección de sucursal:', error);
+            messageBox.textContent = `❌ ${error.message}`;
+            messageBox.className = 'alert alert-danger';
+        }
+    });
 
-            setInterval(async () => {
-                if (!recognitionEnabled) return;
-                const result = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-                const displaySize = {
-                    width: video.width,
-                    height: video.height
-                };
-                faceapi.matchDimensions(overlay, displaySize);
-                const ctx = overlay.getContext('2d');
-                ctx.clearRect(0, 0, overlay.width, overlay.height);
+    // 3) Setup cámara con permiso obligatorio
+    async function setupCamera() {
+        const video = document.getElementById('video');
 
-                if (!result) {
-                    messageBox.textContent = 'Buscando rostro...';
-                    messageBox.className = 'alert alert-warning';
-                    return;
-                }
-
-                const resized = faceapi.resizeResults(result, displaySize);
-                faceapi.draw.drawDetections(overlay, resized);
-                const match = faceMatcher.findBestMatch(result.descriptor);
-                if (match.label !== 'unknown') {
-                    recognitionEnabled = false;
-                    const emp = employees.find(e => `${e.id}` === match.label);
-                    messageBox.textContent =
-                        `✅ ${emp.first_name} ${emp.last_name} reconocido. Registrando...`;
-                    messageBox.className = 'alert alert-success';
-
-                    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                    try {
-                        const res = await fetch('/marcar', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrf,
-                            },
-                            body: JSON.stringify({
-                                session: sessionSelect.value,
-                                type: typeSelect.value,
-                                employee_id: match.label,
-                                location: currentLocation,
-                            }),
-                        });
-                        const json = await res.json();
-                        if (res.ok && json.success) {
-                            messageBox.textContent = '✅ Marcación registrada.';
-                            successSound.play();
-                        } else {
-                            throw json.message || 'Error al registrar.';
-                        }
-                    } catch (err) {
-                        messageBox.textContent = `❌ ${err}`;
-                        messageBox.className = 'alert alert-danger';
-                        errorSound.play();
-                    }
-
-                    setTimeout(() => {
-                        recognitionEnabled = true;
-                        messageBox.textContent = 'Listo para el próximo usuario.';
-                        messageBox.className = 'alert alert-warning';
-                    }, 5000);
-                } else {
-                    messageBox.textContent = '❌ Rostro no reconocido';
-                    messageBox.className = 'alert alert-danger';
-                }
-            }, 1500);
+        if (!video) {
+            throw new Error('Elemento de video no encontrado.');
         }
 
-        // Entrada principal
-        window.onload = async () => {
-            const messageBox = document.getElementById('messageBox');
-            try {
-                messageBox.textContent = 'Obteniendo ubicación…';
-                messageBox.className = 'alert alert-info';
-                await requireLocation();
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
 
-                messageBox.textContent = 'Permitiendo cámara…';
-                messageBox.className = 'alert alert-info';
-                await setupCamera();
+            await new Promise(resolve => {
+                video.onloadedmetadata = resolve;
+            });
 
-                // Habilitar selects
-                document.getElementById('session').disabled = false;
-                document.getElementById('type').disabled = false;
+            video.play();
+            video.style.display = 'block';
+        } catch (error) {
+            console.error('Error al acceder a la cámara:', error);
+            throw new Error('Debes permitir el acceso a la cámara para continuar.');
+        }
+    }
 
-                messageBox.textContent = 'Cargando datos…';
-                messageBox.className = 'alert alert-info';
-                await loadEmployees();
-                await loadModels();
-                await loadLabeledDescriptors();
+    // 4) Carga modelos
+    async function loadModels() {
+        const MODEL_URL = '/models';
+        const models = [
+            faceapi.nets.tinyFaceDetector,
+            faceapi.nets.faceLandmark68Net,
+            faceapi.nets.faceRecognitionNet
+        ];
 
-                messageBox.textContent = 'Listo para reconocimiento facial ✅';
-                messageBox.className = 'alert alert-success';
-                startLiveRecognition();
-            } catch (err) {
-                messageBox.textContent = `❌ ${err}`;
-                messageBox.className = 'alert alert-danger';
-                // opcional: mostramos un botón para reintentar
-                const btn = document.createElement('button');
-                btn.textContent = 'Reintentar';
-                btn.className = 'btn btn-primary mt-2';
-                btn.onclick = () => window.location.reload();
-                messageBox.appendChild(btn);
+        try {
+            await Promise.all(models.map(net => net.loadFromUri(MODEL_URL)));
+            console.log('Modelos cargados correctamente.');
+        } catch (error) {
+            console.error('Error al cargar los modelos:', error);
+            throw new Error('No se pudieron cargar los modelos. Verifique la ruta o la conexión.');
+        }
+    }
+
+    // 5) Carga descriptores
+    async function loadLabeledDescriptors() {
+        const descriptors = [];
+
+        try {
+            for (const emp of employees) {
+                if (!emp.photo) {
+                    console.warn(`Empleado ${emp.id} sin foto registrada`);
+                    continue;
+                }
+
+                const img = await faceapi.fetchImage(`/storage/${emp.photo}`);
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detection) {
+                    descriptors.push(new faceapi.LabeledFaceDescriptors(`${emp.id}`, [detection.descriptor]));
+                } else {
+                    console.warn(`No se detectó rostro en foto de empleado ID: ${emp.id}`);
+                }
             }
+
+            if (descriptors.length === 0) {
+                throw new Error('No se encontraron rostros válidos en los registros');
+            }
+
+            faceMatcher = new faceapi.FaceMatcher(descriptors, 0.5);
+            console.log('Descriptores faciales cargados:', descriptors.length);
+        } catch (error) {
+            console.error('Error en carga de descriptores:', error);
+            throw new Error('Error procesando rostros: ' + error.message);
+        }
+    }
+
+    // Reloj
+    function updateClock() {
+        const clockElement = document.getElementById('clock');
+        if (!clockElement) return;
+        
+        const now = new Date();
+        clockElement.textContent = `${now.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            })} | ${now.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            })}`;
+    }
+
+    // 6) Reconocimiento en vivo
+    async function startLiveRecognition() {
+        const elements = {
+            video: document.getElementById('video'),
+            overlay: document.getElementById('overlay'),
+            messageBox: document.getElementById('messageBox'),
+            sessionSelect: document.getElementById('session'),
+            typeSelect: document.getElementById('type'),
+            successSound: document.getElementById('successSound'),
+            errorSound: document.getElementById('errorSound'),
         };
-    </script>
+
+        recognitionEnabled = true;
+
+        const updateOverlay = (overlay, video) => {
+            const displaySize = { width: video.width, height: video.height };
+            faceapi.matchDimensions(overlay, displaySize);
+            return displaySize;
+        };
+
+        const handleRecognitionSuccess = async (match, elements) => {
+            recognitionEnabled = false;
+            const emp = employees.find(e => `${e.id}` === match.label);
+            
+            if (!emp) {
+                elements.messageBox.textContent = '❌ Empleado no registrado';
+                elements.messageBox.className = 'alert alert-danger';
+                elements.errorSound.play();
+                setTimeout(() => recognitionEnabled = true, 3000);
+                return;
+            }
+
+            elements.messageBox.textContent = `✅ ${emp.first_name} ${emp.last_name} reconocido. Registrando...`;
+            elements.messageBox.className = 'alert alert-success';
+
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                const res = await fetch('/marcar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: JSON.stringify({
+                        session: elements.sessionSelect.value,
+                        type: elements.typeSelect.value,
+                        employee_id: match.label,
+                        location: currentLocation,
+                    }),
+                });
+
+                const json = await res.json();
+                if (res.ok && json.success) {
+                    elements.messageBox.textContent = '✅ Marcación registrada.';
+                    elements.successSound.play();
+                } else {
+                    throw new Error(json.message || 'Error en servidor');
+                }
+            } catch (err) {
+                elements.messageBox.textContent = `❌ ${err.message}`;
+                elements.messageBox.className = 'alert alert-danger';
+                elements.errorSound.play();
+            }
+
+            setTimeout(() => {
+                recognitionEnabled = true;
+                elements.messageBox.textContent = 'Listo para reconocimiento';
+                elements.messageBox.className = 'alert alert-info';
+            }, 5000);
+        };
+
+        const handleRecognitionFailure = (elements) => {
+            elements.messageBox.textContent = '❌ Rostro no reconocido';
+            elements.messageBox.className = 'alert alert-danger';
+        };
+
+        setInterval(async () => {
+            if (!recognitionEnabled || !faceMatcher) return;
+
+            const result = await faceapi.detectSingleFace(
+                elements.video, 
+                new faceapi.TinyFaceDetectorOptions()
+            )
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+
+            const displaySize = updateOverlay(elements.overlay, elements.video);
+            const ctx = elements.overlay.getContext('2d');
+            ctx.clearRect(0, 0, elements.overlay.width, elements.overlay.height);
+
+            if (!result) {
+                elements.messageBox.textContent = 'Buscando rostro...';
+                elements.messageBox.className = 'alert alert-warning';
+                return;
+            }
+
+            const resized = faceapi.resizeResults(result, displaySize);
+            faceapi.draw.drawDetections(elements.overlay, resized);
+
+            const match = faceMatcher.findBestMatch(result.descriptor);
+            if (match.label !== 'unknown') {
+                await handleRecognitionSuccess(match, elements);
+            } else {
+                handleRecognitionFailure(elements);
+            }
+        }, 1500);
+    }
+
+    // Entrada principal
+    window.onload = async () => {
+        const messageBox = document.getElementById('messageBox');
+        if (!messageBox) return;
+
+        const updateMessageBox = (message, className) => {
+            messageBox.textContent = message;
+            messageBox.className = `alert ${className}`;
+        };
+
+        const enableSelects = () => {
+            document.getElementById('session').disabled = false;
+            document.getElementById('type').disabled = false;
+        };
+
+        const showRetryButton = () => {
+            const btn = document.createElement('button');
+            btn.textContent = 'Reintentar';
+            btn.className = 'btn btn-primary mt-2';
+            btn.onclick = () => window.location.reload();
+            messageBox.appendChild(btn);
+        };
+
+        try {
+            // Iniciar reloj
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            updateMessageBox('Obteniendo ubicación…', 'alert-info');
+            await requireLocation();
+
+            updateMessageBox('Configurando cámara…', 'alert-info');
+            await setupCamera();
+
+            updateMessageBox('Cargando sucursales…', 'alert-info');
+            await loadBranches();
+
+            updateMessageBox('Seleccione una sucursal para comenzar', 'alert-success');
+            enableSelects();
+
+        } catch (err) {
+            console.error('Error en inicialización:', err);
+            updateMessageBox(`❌ ${err.message}`, 'alert-danger');
+            showRetryButton();
+        }
+    };
+</script>
 </body>
 
 </html>

@@ -21,12 +21,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class ScheduleTypeResource extends Resource
 {
     protected static ?string $model = ScheduleType::class;
-    protected static ?string $navigationGroup = 'Horarios';
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
-    protected static ?string $navigationLabel = 'Tipos de Horario';
-    protected static ?string $label = 'Tipo de Horario';
-    protected static ?string $pluralLabel = 'Tipos de Horario';
-    protected static ?string $slug = 'tipos-horario';
+    protected static ?string $navigationLabel = 'Horarios';
+    protected static ?string $label = 'Horario';
+    protected static ?string $pluralLabel = 'Horarios';
+    protected static ?string $slug = 'horarios';
 
     public static function form(Form $form): Form
     {

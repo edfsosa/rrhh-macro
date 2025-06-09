@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -11,7 +12,9 @@ class AttendanceMarkingController extends Controller
 {
     public function showForm()
     {
-        return view('attendance.mark');
+        // Obtener todas las sucursales
+        $branches = Branch::all();
+        return view('attendance.mark', compact('branches'));
     }
 
     public function store(Request $request)
@@ -165,6 +168,17 @@ class AttendanceMarkingController extends Controller
                             'message' => "Debes registrar la salida de {$data['session']} antes de marcar la entrada."
                         ], 400);
                     }
+                }
+            }
+
+            // 8. No permitir marcar desayuno o almuerzo después de la salida de jornada
+            if ($data['session'] !== 'jornada') {
+                $salidaJornada = $attendances->firstWhere(fn($a) => $a->type === 'salida' && $a->session === 'jornada');
+                if ($salidaJornada) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "No puedes registrar marcaciones de {$data['session']} después de la salida de jornada."
+                    ], 400);
                 }
             }
 
