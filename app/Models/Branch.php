@@ -11,7 +11,8 @@ class Branch extends Model
         'phone',
         'email',
         'address',
-        'city'
+        'city',
+        'location',
     ];
 
     public function employees()

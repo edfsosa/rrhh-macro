@@ -5,13 +5,11 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PayrollResource\Pages;
 use App\Filament\Resources\PayrollResource\RelationManagers;
 use App\Models\Payroll;
+use App\Services\PayrollService;
 use Filament\Forms;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -19,17 +17,44 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class PayrollResource extends Resource
 {
     protected static ?string $model = Payroll::class;
+    protected static ?string $navigationGroup = 'Recursos Humanos';
     protected static ?string $navigationLabel = 'Nóminas';
-    protected static ?string $label = 'Nómina';
-    protected static ?string $pluralLabel = 'Nóminas';
-    protected static ?string $slug = 'nominas';
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
+    protected static ?string $slug = 'nominas';
+    protected static ?string $pluralModelLabel = 'Nóminas';
+    protected static ?string $modelLabel = 'Nómina';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                //
+                Forms\Components\TextInput::make('period')
+                    ->label('Período')
+                    ->helperText('Formato: YYYY-MM')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Fecha de inicio')
+                    ->required(),
+                Forms\Components\DatePicker::make('end_date')
+                    ->label('Fecha de fin')
+                    ->required(),
+                Forms\Components\DatePicker::make('pay_date')
+                    ->label('Fecha de pago')
+                    ->required(),
+                Forms\Components\Textarea::make('notes')
+                    ->label('Notas')
+                    ->columnSpanFull(),
+                Forms\Components\Select::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'draft' => 'Borrador',
+                        'processed' => 'Procesada',
+                        'paid' => 'Pagada'
+                    ])
+                    ->native(false)
+                    ->hiddenOn('create')
+                    ->required(),
             ]);
     }
 
@@ -37,90 +62,53 @@ class PayrollResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee.ci')
-                    ->label('CI')
+                Tables\Columns\TextColumn::make('id')
+                    ->label('ID')
                     ->sortable()
                     ->searchable()
-                    ->copyable(),
-                Tables\Columns\TextColumn::make('employee.first_name')
-                    ->label('Nombre(s)')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
-                    ->label('Apellido(s)')
-                    ->sortable()
-                    ->searchable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('period')
-                    ->label('Periodo')
+                    ->label('Período')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('net_salary')
-                    ->label('Salario Neto')
-                    ->money('PYG', true)
+                Tables\Columns\TextColumn::make('start_date')
+                    ->label('Fecha de inicio')
+                    ->date('d/m/Y')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('end_date')
+                    ->label('Fecha de fin')
+                    ->date('d/m/Y')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('pay_date')
+                    ->label('Fecha de pago')
+                    ->date('d/m/Y')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Estado')
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('employee')
-                    ->relationship('employee', 'ci')
-                    ->label('Empleado')
-                    ->placeholder('Seleccionar empleado')
-                    ->options(function (Builder $query) {
-                        return $query->pluck('ci', 'id');
-                    })
-                    ->multiple()
-                    ->preload()
-                    ->searchable()
-                    ->native(false),
-                Filter::make('created_at')
-                    ->form([
-                        DatePicker::make('created_from')
-                            ->label('Creados desde')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                        DatePicker::make('created_until')
-                            ->label('Creados hasta')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                    ])
-                    ->columns(2)
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['created_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
-                            )
-                            ->when(
-                                $data['created_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
-                            );
-                    })
+                //
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\Action::make('pdf')
-                    ->label('PDF')
-                    ->icon('heroicon-o-document-text')
-                    ->url(fn(Payroll $record) => route('payroll.pdf', $record))
-                    ->openUrlInNewTab(),
-
+                Tables\Actions\Action::make('generate')
+                ->label('Generar Nómina')
+                ->action(function (Payroll $record) {
+                    app(PayrollService::class)->generatePayroll($record);
+                }),
+                Tables\Actions\Action::make('download_payslips')
+                ->label('Descargar Recibos')
+                ->url(fn (Payroll $record) => route('payrolls.download-payslips', ['payroll' => $record->id]))
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -129,10 +117,19 @@ class PayrollResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ItemsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManagePayrolls::route('/'),
+            'index' => Pages\ListPayrolls::route('/'),
+            'create' => Pages\CreatePayroll::route('/create'),
+            'edit' => Pages\EditPayroll::route('/{record}/edit'),
         ];
     }
 }

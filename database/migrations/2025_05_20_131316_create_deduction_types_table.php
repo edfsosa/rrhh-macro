@@ -14,8 +14,10 @@ return new class extends Migration
         Schema::create('deduction_types', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // nombre de la deducción (e.g. IPS, IRP)
-            $table->enum('calculation', ['fixed', 'percentage']); // fijo o porcentaje
+            $table->text('description')->nullable();
+            $table->enum('calculation', ['fixed', 'percentage'])->default('fixed'); // fijo o porcentaje
             $table->decimal('value', 8, 2); // monto fijo o porcentaje (e.g. 9.00)
+            $table->boolean('applies_to_all')->default(false); // si aplica a todos los empleados
             $table->timestamps();
         });
     }

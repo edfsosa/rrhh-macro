@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('break_periods', function (Blueprint $table) {
             $table->id();
             $table->foreignId('schedule_type_id')->constrained()->onDelete('cascade'); // Relación con la tabla schedule_types
+            $table->string('name')->comment('Ej: Desayuno, Almuerzo'); // Nombre del periodo de descanso
             $table->time('start_time'); // Hora de inicio del descanso
             $table->time('end_time'); // Hora de fin del descanso
             $table->timestamps();

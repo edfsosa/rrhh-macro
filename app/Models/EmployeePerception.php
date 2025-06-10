@@ -8,20 +8,17 @@ class EmployeePerception extends Model
 {
     protected $fillable = [
         'employee_id',
-        'pay_period_id',
         'perception_type_id',
-        'quantity',
-        'amount',
+        'start_date',
+        'end_date',
+        'installments',
+        'remaining_installments',
+        'custom_amount',
     ];
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
-    }
-
-    public function period()
-    {
-        return $this->belongsTo(PayPeriod::class);
     }
 
     public function type()

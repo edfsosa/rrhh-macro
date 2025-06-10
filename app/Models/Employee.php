@@ -24,6 +24,7 @@ class Employee extends Model
         'payment_method',
         'position_id',
         'branch_id',
+        'schedule_id',
         'status',
         'photo',
     ];
@@ -65,27 +66,22 @@ class Employee extends Model
         return $this->hasMany(EmployeePerception::class);
     }
 
-    /**
-     * Recibos de sueldo generados
-     */
-    public function paySlips()
+    // IPS como relación dinámica
+    public function getIpsAttribute()
     {
-        return $this->hasMany(PaySlip::class);
+        return $this->base_salary * 0.09;
     }
 
-    /**
-     * Genera o actualiza el recibo de sueldo para un período dado
-     */
-    public function generatePaySlip(PayPeriod $period)
+    public function payrollItems()
     {
-        return app(PayrollService::class)->generatePaySlip($this, $period);
+        return $this->hasMany(PayrollItem::class);
     }
 
-    // Relación con el modelo Payroll, un empleado puede tener muchas nóminas
     public function payrolls()
     {
-        return $this->hasMany(Payroll::class);
+        return $this->belongsToMany(Payroll::class, 'payroll_items');
     }
+
 
     // Relación con el modelo Attendance, un empleado puede tener muchas asistencias
     public function attendances()
@@ -94,26 +90,11 @@ class Employee extends Model
     }
 
     /**
-     * Asignaciones de horario
+     * Relación con el modelo ScheduleType, un empleado puede tener un horario asignado
      */
-    public function schedules()
+    public function schedule()
     {
-        return $this->hasMany(EmployeeSchedule::class);
-    }
-
-    /**
-     * Tipos de turno a través de la tabla intermedia
-     */
-    public function scheduleTypes()
-    {
-        return $this->hasManyThrough(
-            ScheduleType::class,
-            EmployeeSchedule::class,
-            'employee_id',      // FK en employee_schedules
-            'id',               // PK en schedule_types
-            'id',               // PK en employees
-            'schedule_type_id'  // FK en employee_schedules
-        );
+        return $this->belongsTo(ScheduleType::class);
     }
 
     /**
@@ -122,6 +103,14 @@ class Employee extends Model
     public function documents()
     {
         return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Relación con el modelo Vacationm, un empleado puede tener muchas vacaciones
+     */
+    public function vacations()
+    {
+        return $this->hasMany(Vacation::class);
     }
 
 

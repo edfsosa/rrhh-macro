@@ -1,39 +1,23 @@
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
-use App\Filament\Resources\VacationResource\Pages;
-use App\Filament\Resources\VacationResource\RelationManagers;
-use App\Models\Vacation;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class VacationResource extends Resource
+class VacationsRelationManager extends RelationManager
 {
-    protected static ?string $model = Vacation::class;
-    protected static ?string $navigationLabel = 'Vacaciones';
-    protected static ?string $label = 'Vacación';
-    protected static ?string $pluralLabel = 'Vacaciones';
-    protected static ?string $slug = 'vacaciones';
-    protected static ?string $navigationIcon = 'heroicon-o-sun';
+    protected static string $relationship = 'vacations';
 
-    public static function form(Form $form): Form
+    public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
-                    ->label('Empleado')
-                    ->relationship('employee', 'ci')
-                    ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->required(),
                 Forms\Components\DatePicker::make('start_date')
                     ->label('Fecha de Inicio')
                     ->displayFormat('d/m/Y')
@@ -62,27 +46,10 @@ class VacationResource extends Resource
             ]);
     }
 
-    public static function table(Table $table): Table
+    public function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
-                    ->label('ID')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('employee.ci')
-                    ->label('CI')
-                    ->sortable()
-                    ->searchable()
-                    ->copyable(),
-                Tables\Columns\TextColumn::make('employee.first_name')
-                    ->label('Nombre')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
-                    ->label('Apellido')
-                    ->sortable()
-                    ->searchable(),
                 Tables\Columns\TextColumn::make('start_date')
                     ->label('Inicio')
                     ->date('d/m/Y')
@@ -113,18 +80,10 @@ class VacationResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->placeholder('Seleccionar estado')
-                    ->options([
-                        'pendiente' => 'Pendiente',
-                        'aprobado' => 'Aprobado',
-                        'rechazado' => 'Rechazado',
-                    ])
-                    ->multiple()
-                    ->preload()
-                    ->searchable()
-                    ->native(false),
+                //
+            ])
+            ->headerActions([
+                Tables\Actions\CreateAction::make(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -145,12 +104,5 @@ class VacationResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    public static function getPages(): array
-    {
-        return [
-            'index' => Pages\ManageVacations::route('/'),
-        ];
     }
 }

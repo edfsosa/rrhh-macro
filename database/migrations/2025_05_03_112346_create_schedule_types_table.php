@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('pay_periods', function (Blueprint $table) {
+        Schema::create('schedule_types', function (Blueprint $table) {
             $table->id();
-            $table->date('start_date'); // fecha de inicio del periodo
-            $table->date('end_date'); // fecha de fin del periodo
+            $table->string('name', 60)->comment('Ej: Estándar, Sucursal A, etc'); // Nombre del tipo de turno
+            $table->boolean('is_default')->default(false); // Indica si es el tipo de turno por defecto
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('pay_periods');
+        Schema::dropIfExists('schedule_types');
     }
 };

@@ -11,32 +11,23 @@ class Payroll extends Model
     use HasFactory;
 
     protected $fillable = [
-        'employee_id',
         'period',
-        'base_salary',
-        'bonuses',
-        'deductions',
-        'net_salary',
+        'start_date',
+        'end_date',
+        'pay_date',
+        'notes',
+        'status',
     ];
 
-    protected $casts = [
-        'base_salary' => 'integer',
-        'bonuses' => 'integer',
-        'deductions' => 'integer',
-        'net_salary' => 'integer',
-    ];
-
-    public function employee()
+    // Relación con el modelo PayrollItem, una nómina puede tener muchos items
+    public function items()
     {
-        return $this->belongsTo(Employee::class);
+        return $this->hasMany(PayrollItem::class);
     }
 
-    // Método para calcular net_salary con IPS incluido en deductions
-    public function calculateNetSalary()
+    // Relación con el modelo Employee, una nómina puede tener muchos empleados asociados
+    public function employees()
     {
-        $gross = $this->base_salary + $this->bonuses;
-        $ips = intval($gross * 0.09);
-        $this->deductions += $ips;
-        $this->net_salary = $gross - $this->deductions;
+        return $this->belongsToMany(Employee::class, 'payroll_items');
     }
 }

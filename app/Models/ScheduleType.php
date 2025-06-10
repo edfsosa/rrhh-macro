@@ -3,29 +3,34 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScheduleType extends Model
 {
     protected $table = 'schedule_types';
 
-    protected $fillable = ['name',];
+    protected $fillable = ['name', 'is_default'];
 
-    // Un tipo de turno tiene muchos horarios de día
+    protected $casts = [
+        'is_default' => 'boolean',
+    ];
+
+    // Un horario puede tener muchos días
     public function daySchedules(): HasMany
     {
         return $this->hasMany(DaySchedule::class);
     }
 
-    // Un tipo de turno tiene muchos periodos de descanso
+    // Un horario puede tener muchos descansos
     public function breakPeriods(): HasMany
     {
         return $this->hasMany(BreakPeriod::class);
     }
 
-    // Un tipo de turno se asigna a muchos empleados
-    public function employeeSchedules(): HasMany
-    {
-        return $this->hasMany(EmployeeSchedule::class);
+    // Un horario puede estar asociado a muchos empleados
+    public function employees(): BelongsToMany
+    {   
+        return $this->belongsToMany(Employee::class);
     }
 }

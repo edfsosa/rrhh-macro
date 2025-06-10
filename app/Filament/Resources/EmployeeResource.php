@@ -253,6 +253,12 @@ class EmployeeResource extends Resource
                     ])
                     ->sortable()
                     ->searchable(),
+                // Sucursal a la que pertenece
+                TextColumn::make('branch.name')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -273,6 +279,12 @@ class EmployeeResource extends Resource
                         'suspendido' => 'Suspendido',
                     ])
                     ->placeholder('Seleccionar estado')
+                    ->native(false),
+                // SelectFilter para filtrar por sucursal
+                SelectFilter::make('branch_id')
+                    ->label('Sucursal')
+                    ->relationship('branch', 'name')
+                    ->placeholder('Seleccionar sucursal')
                     ->native(false),
                 SelectFilter::make('contract_type')
                     ->label('Tipo de Contrato')
@@ -336,6 +348,7 @@ class EmployeeResource extends Resource
             RelationManagers\DocumentsRelationManager::class,
             RelationManagers\DeductionsRelationManager::class,
             RelationManagers\PerceptionsRelationManager::class,
+            RelationManagers\VacationsRelationManager::class,
         ];
     }
 

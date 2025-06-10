@@ -25,6 +25,7 @@ return new class extends Migration
             $table->enum('payment_method', ['debito', 'efectivo', 'cheque']); // forma de pago
             $table->foreignId('position_id')->constrained('positions')->onDelete('cascade'); // posición
             $table->foreignId('branch_id')->constrained('branches')->onDelete('cascade'); // sucursal
+            $table->foreignId('schedule_id')->nullable()->constrained('schedule_types')->onDelete('set null'); // horario
             $table->enum('status', ['activo', 'inactivo', 'suspendido'])->default('activo'); // estado
             $table->timestamps();
         });

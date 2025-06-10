@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
@@ -21,24 +22,39 @@ class DeductionsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Select::make('pay_period_id')
-                    ->relationship('period', 'start_date')
-                    ->label('Período')
-                    ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->required(),
                 Select::make('deduction_type_id')
-                    ->relationship('type', 'name')
                     ->label('Tipo de Deducción')
+                    ->relationship('type', 'name')
+                    ->native(false)
                     ->searchable()
                     ->preload()
-                    ->native(false)
                     ->required(),
-                TextInput::make('amount')
-                    ->label('Monto')
+                DatePicker::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->closeOnDateSelection(true)
+                    ->required()
+                    ->default(now()),
+                DatePicker::make('end_date')
+                    ->label('Fecha de Fin')
+                    ->closeOnDateSelection(true)
+                    ->default(now()->addMonth()),
+                TextInput::make('installments')
+                    ->label('Cuotas')
                     ->numeric()
+                    ->default(1)
                     ->minValue(1)
+                    ->required(),
+                TextInput::make('remaining_installments')
+                    ->label('Cuotas Restantes')
+                    ->numeric()
+                    ->default(1)
+                    ->minValue(0)
+                    ->required(),
+                TextInput::make('custom_amount')
+                    ->label('Monto Personalizado')
+                    ->numeric()
+                    ->default(0)
+                    ->minValue(0)
                     ->required(),
             ]);
     }
@@ -47,17 +63,26 @@ class DeductionsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                TextColumn::make('period.start_date')
-                    ->label('Período')
-                    ->searchable()
-                    ->sortable(),
                 TextColumn::make('type.name')
-                    ->label('Deducción')
-                    ->searchable()
+                    ->label('Tipo de Deducción')
+                    ->sortable()
+                    ->searchable(),
+                TextColumn::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->sortable()
+                    ->date('d/m/Y'),
+                TextColumn::make('end_date')
+                    ->label('Fecha de Fin')
+                    ->sortable()
+                    ->date('d/m/Y'),
+                TextColumn::make('installments')
+                    ->label('Cuotas')
                     ->sortable(),
-                TextColumn::make('amount')
-                    ->label('Monto')
-                    ->searchable()
+                TextColumn::make('remaining_installments')
+                    ->label('Cuotas Restantes')
+                    ->sortable(),
+                TextColumn::make('custom_amount')
+                    ->label('Monto Personalizado')
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Creado')

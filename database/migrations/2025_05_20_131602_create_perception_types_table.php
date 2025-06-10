@@ -14,8 +14,10 @@ return new class extends Migration
         Schema::create('perception_types', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // nombre de la percepción (e.g. horas extras, bonificaciones)
-            $table->enum('calculation', ['fixed', 'hourly', 'percentage']);
+            $table->string('description')->nullable(); // descripción opcional
+            $table->enum('calculation', ['fixed', 'percentage'])->default('fixed'); // tipo de cálculo: fijo, por hora, porcentaje
             $table->decimal('value', 8, 2); // si hourly, valor por hora; porcentaje, relativo
+            $table->boolean('applies_to_all')->default(false);
             $table->timestamps();
         });
     }

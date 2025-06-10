@@ -14,9 +14,12 @@ return new class extends Migration
         Schema::create('employee_deductions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('employee_id')->constrained()->cascadeOnDelete(); // Relación con la tabla employees
-            $table->foreignId('pay_period_id')->constrained('pay_periods')->cascadeOnDelete(); // Relación con la tabla pay_periods
             $table->foreignId('deduction_type_id')->constrained()->cascadeOnDelete(); // Relación con la tabla deduction_types
-            $table->decimal('amount', 12, 2); // Monto de la deducción
+            $table->date('start_date'); // Fecha de inicio de la deducción
+            $table->date('end_date')->nullable(); // Fecha de fin de la deducción (opcional)
+            $table->unsignedInteger('installments')->default(1); // Número de cuotas para la deducción
+            $table->unsignedInteger('remaining_installments')->default(1); // Cuotas restantes para la deducción
+            $table->decimal('custom_amount', 10, 2)->nullable(); // Monto personalizado de la deducción (opcional)
             $table->timestamps();
         });
     }

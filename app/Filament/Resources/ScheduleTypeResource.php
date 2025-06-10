@@ -67,7 +67,7 @@ class ScheduleTypeResource extends Resource
                     ])
                     ->columns(3)
                     ->required()
-                    ->minItems(6)
+                    ->minItems(5)
                     ->maxItems(7)
                     ->cloneable()
                     ->addActionLabel('Agregar')
@@ -77,6 +77,10 @@ class ScheduleTypeResource extends Resource
                     ->relationship()
                     ->label('Períodos de Descanso')
                     ->schema([
+                        TextInput::make('name')
+                            ->label('Nombre')
+                            ->maxLength(60)
+                            ->required(),
                         TimePicker::make('start_time')
                             ->label('Inicio descanso')
                             ->native(false)
@@ -90,7 +94,7 @@ class ScheduleTypeResource extends Resource
                             ->seconds(false)
                             ->required(),
                     ])
-                    ->columns(2)
+                    ->columns(3)
                     ->required()
                     ->minItems(1)
                     ->maxItems(6)

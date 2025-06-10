@@ -10,6 +10,7 @@ class BreakPeriod extends Model
 
     protected $fillable = [
         'schedule_type_id',
+        'name',
         'start_time',
         'end_time',
     ];

@@ -2,11 +2,10 @@
 
 namespace App\Filament\Resources\AttendanceResource\Pages;
 
-use App\Exports\AttendanceExport;
 use App\Filament\Resources\AttendanceResource;
-use Filament\Actions;
 use Filament\Resources\Pages\ManageRecords;
-use Maatwebsite\Excel\Facades\Excel;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class ManageAttendances extends ManageRecords
 {
@@ -15,7 +14,18 @@ class ManageAttendances extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            ExportAction::make()
+                ->exports([
+                    ExcelExport::make()
+                        ->fromTable()
+                        ->except([
+                            'created_at',
+                            'updated_at',
+                        ])
+                        ->withFilename('marcaciones')
+                ])
+                ->label('Exportar')
+                ->color('primary')
         ];
     }
 }

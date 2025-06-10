@@ -5,9 +5,28 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PayrollController;
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Models\Payroll;
 use Illuminate\Http\Request;
 
-Route::get('/payrolls/{payroll}/pdf', [PayrollController::class, 'exportPayrollPdf'])->name('payroll.pdf');
+Route::get('/payroll/{payroll}/download/{employee}', [PayrollController::class, 'downloadPayslip'])
+    ->name('payroll.download')
+    ->middleware('signed');
+
+Route::get('/payroll/{payroll}/download-all', function (Payroll $payroll) {
+    $zip = new ZipArchive();
+    $zipName = storage_path("app/recibos-{$payroll->id}.zip");
+
+    if ($zip->open($zipName, ZipArchive::CREATE) === TRUE) {
+        foreach ($payroll->employees as $employee) {
+            $pdf = app(PayrollController::class)->downloadPayslip($payroll, $employee);
+            $zip->addFromString("recibo-{$employee->id}.pdf", $pdf->output());
+        }
+        $zip->close();
+    }
+
+    return response()->download($zipName)->deleteFileAfterSend(true);
+})->name('payroll.download.all')->middleware('signed');
+
 
 Route::get('/marcar', [AttendanceMarkingController::class, 'showForm'])->name('marcar.form');
 Route::post('/marcar', [AttendanceMarkingController::class, 'store'])->name('marcar.store');

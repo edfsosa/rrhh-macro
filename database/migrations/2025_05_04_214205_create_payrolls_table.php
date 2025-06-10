@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('payrolls', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employee_id')->constrained()->onDelete('cascade');
-            $table->string('period', 7); // Ej: 2025-05
-            $table->integer('base_salary'); // Guaraníes
-            $table->integer('bonuses')->default(0); // bonificaciones (horas extra, comisiones, etc.)
-            $table->integer('deductions')->default(0); // descuentos (ips, faltas, anticipos, etc.)
-            $table->integer('net_salary')->nullable(); // salario neto final
+            $table->string('period'); // Ej: 2025-05
+            $table->date('start_date'); // Fecha de inicio del período
+            $table->date('end_date'); // Fecha de fin del período
+            $table->date('pay_date'); // Fecha de pago
+            $table->text('notes')->nullable(); // Notas adicionales sobre la nómina
+            $table->enum('status', ['draft', 'processed', 'paid'])->default('draft'); // Estado de la nómina, ej: borrador, procesada, pagada
             $table->timestamps();
         });
     }

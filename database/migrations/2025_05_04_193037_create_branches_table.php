@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('address')->nullable();
             $table->string('city')->nullable();
+            $table->string('location')->nullable();  // Ej: lat,lng o texto
             $table->timestamps();
         });
     }

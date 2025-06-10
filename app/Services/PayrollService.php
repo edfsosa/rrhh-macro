@@ -4,62 +4,98 @@ namespace App\Services;
 
 use App\Models\{
     Employee,
-    PayPeriod,
-    DeductionType,
-    PerceptionType,
+    Payroll,
+    PayrollItem,
     EmployeeDeduction,
     EmployeePerception,
-    PaySlip
 };
-use Illuminate\Support\Facades\DB;
 
 class PayrollService
 {
-    /**
-     * Genera recibo de sueldo para un empleado en un período.
-     */
-    public function generatePaySlip(Employee $employee, PayPeriod $period): PaySlip
+    // Genera la nómina para todos los empleados
+    public function generatePayroll(Payroll $payroll)
     {
-        DB::transaction(function () use ($employee, $period, &$payslip) {
-            // 1. Calcular remuneración base
-            $base = $employee->base_salary;
+        $employees = Employee::all();
 
-            // 2. Calcular percepciones
-            $perceptions = EmployeePerception::where('employee_id', $employee->id)
-                ->where('pay_period_id', $period->id)
-                ->get()
-                ->map(fn($p) => $p->amount)
-                ->sum();
-
-            $gross = $base + $perceptions;
-
-            // 3. Calcular deducciones (incluye IPS 9%)
-            $deducts = EmployeeDeduction::where('employee_id', $employee->id)
-                ->where('pay_period_id', $period->id)
-                ->get()
-                ->map(fn($d) => $d->amount)
-                ->sum();
-
-            // IPS 9% sobre bruto
-            $ips = round(($gross - $deducts) * 0.09, 2);
-
-            $totalDeductions = $deducts + $ips;
-
-            // 4. Salario neto
-            $net = $gross - $totalDeductions;
-
-            // 5. Crear o actualizar PaySlip
-            $payslip = PaySlip::updateOrCreate([
-                'employee_id'   => $employee->id,
-                'pay_period_id' => $period->id,
-            ], [
-                'gross_earnings'    => $gross,
-                'total_perceptions' => $perceptions,
-                'total_deductions'  => $totalDeductions,
-                'net_salary'        => $net,
+        foreach ($employees as $employee) {
+            // Salario base
+            PayrollItem::create([
+                'payroll_id' => $payroll->id,
+                'employee_id' => $employee->id,
+                'type' => 'salary',
+                'description' => 'Salario Base',
+                'amount' => $employee->base_salary
             ]);
-        });
 
-        return $payslip;
+            // Percepciones
+            foreach ($employee->perceptions as $perception) {
+                if ($this->isActive($perception->pivot, $payroll)) {
+                    $amount = $perception->pivot->custom_amount ?? $perception->calculateFor($employee);
+
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'employee_id' => $employee->id,
+                        'type' => 'perception',
+                        'description' => $perception->name,
+                        'amount' => $amount
+                    ]);
+
+                    // Actualizar cuotas restantes
+                    if ($perception->pivot->installments > 1) {
+                        $perception->pivot->remaining_installments -= 1;
+                        $perception->pivot->save();
+                    }
+                }
+            }
+
+            // Deducciones (incluyendo IPS)
+            $this->processDeductions($employee, $payroll);
+        }
+
+        $payroll->update(['status' => 'processed']);
+    }
+
+    private function processDeductions(Employee $employee, Payroll $payroll)
+    {
+        // IPS (deducción global)
+        PayrollItem::create([
+            'payroll_id' => $payroll->id,
+            'employee_id' => $employee->id,
+            'type' => 'deduction',
+            'description' => 'IPS (9%)',
+            'amount' => $employee->base_salary * 0.09
+        ]);
+
+        // Otras deducciones
+        foreach ($employee->deductions as $deduction) {
+            if ($deduction->name !== 'IPS' && $this->isActive($deduction->pivot, $payroll)) {
+                $amount = $deduction->pivot->custom_amount ?? $deduction->calculateFor($employee);
+
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'employee_id' => $employee->id,
+                    'type' => 'deduction',
+                    'description' => $deduction->name,
+                    'amount' => $amount
+                ]);
+
+                // Actualizar cuotas restantes
+                if ($deduction->pivot->installments > 1) {
+                    $deduction->pivot->remaining_installments -= 1;
+                    $deduction->pivot->save();
+                }
+            }
+        }
+    }
+
+    private function isActive($pivot, Payroll $payroll): bool
+    {
+        // Verificar si está activo en el período de la nómina
+        $start = $payroll->start_date;
+        $end = $payroll->end_date;
+
+        return (!$pivot->start_date || $pivot->start_date <= $end) &&
+            (!$pivot->end_date || $pivot->end_date >= $start) &&
+            ($pivot->remaining_installments > 0);
     }
 }
