@@ -22,7 +22,7 @@ uses(RefreshDatabase::class);
 
 function makeLiqService(): LiquidacionService
 {
-    $pdf = \Mockery::mock(LiquidacionPDFGenerator::class);
+    $pdf = Mockery::mock(LiquidacionPDFGenerator::class);
     $pdf->shouldReceive('generate')->andReturn('mock/liquidacion.pdf');
 
     return new LiquidacionService($pdf);
@@ -114,6 +114,20 @@ function makeLiqPayPeriod(int $year, int $month): PayrollPeriod
         'start_date' => $start->toDateString(),
         'end_date' => $start->endOfMonth()->toDateString(),
         'frequency' => 'monthly',
+        'status' => 'closed',
+    ]);
+}
+
+function makeLiqBiweeklyPayPeriod(int $year, int $month, int $startDay, int $endDay): PayrollPeriod
+{
+    $start = Carbon::create($year, $month, $startDay);
+    $end = Carbon::create($year, $month, $endDay);
+
+    return PayrollPeriod::create([
+        'name' => $start->format('F Y')." ({$startDay}-{$endDay})",
+        'start_date' => $start->toDateString(),
+        'end_date' => $end->toDateString(),
+        'frequency' => 'biweekly',
         'status' => 'closed',
     ]);
 }
@@ -320,6 +334,35 @@ it('no calcula salario pendiente si ya existe nómina del mes de terminación', 
         ->and((float) $result->salario_pendiente_amount)->toBe(0.0);
 });
 
+it('calcula salario pendiente para empleado quincenal con solo la primera mitad del mes pagada', function () {
+    seedLiqSettings();
+    // Termina el día 20 de marzo, con nómina de la primera quincena (1-15) ya generada.
+    // Antes del fix, "existe nómina este mes" bastaba para dar por cubierto todo el mes.
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
+    $liquidacion = makeLiquidacion($employee, ['termination_date' => '2026-03-20']);
+
+    makeLiqPayroll($employee, makeLiqBiweeklyPayPeriod(2026, 3, 1, 15), 1_275_000);
+
+    $result = makeLiqService()->calculate($liquidacion);
+
+    expect($result->salario_pendiente_days)->toBe(20)
+        ->and((float) $result->salario_pendiente_amount)->toBeGreaterThan(0);
+});
+
+it('no calcula salario pendiente si la nómina existente ya cubre hasta la fecha de terminación', function () {
+    seedLiqSettings();
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
+    $liquidacion = makeLiquidacion($employee, ['termination_date' => '2026-03-10']);
+
+    // Nómina de la primera quincena (1-15) cubre de sobra el día 10 de terminación.
+    makeLiqPayroll($employee, makeLiqBiweeklyPayPeriod(2026, 3, 1, 15), 1_275_000);
+
+    $result = makeLiqService()->calculate($liquidacion);
+
+    expect($result->salario_pendiente_days)->toBe(0)
+        ->and((float) $result->salario_pendiente_amount)->toBe(0.0);
+});
+
 // ─── Aguinaldo proporcional ───────────────────────────────────────────────────
 
 it('calcula aguinaldo proporcional en base a nóminas del año', function () {
@@ -498,5 +541,5 @@ it('sin nóminas previas las vacaciones proporcionales hacen fallback al salario
 });
 
 afterEach(function () {
-    \Mockery::close();
+    Mockery::close();
 });

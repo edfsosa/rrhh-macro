@@ -8,6 +8,7 @@ use App\Models\EmployeeDeduction;
 use App\Models\MerchandiseWithdrawal;
 use App\Models\MerchandiseWithdrawalInstallment;
 use App\Models\PayrollPeriod;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -26,7 +27,7 @@ class MerchandiseInstallmentCalculator
      * Identifica cuotas de retiros vencidas en el período, crea sus EmployeeDeduction
      * y retorna la colección de instancias para trazabilidad posterior.
      *
-     * @return array{installments: \Illuminate\Support\Collection}
+     * @return array{installments: Collection}
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
@@ -51,6 +52,7 @@ class MerchandiseInstallmentCalculator
             ->whereBetween('due_date', [$period->start_date, $period->end_date])
             ->with('withdrawal')
             ->orderBy('due_date')
+            ->lockForUpdate()
             ->get();
 
         foreach ($installments as $installment) {

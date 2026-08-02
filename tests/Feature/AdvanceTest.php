@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Advance;
+use App\Models\AttendanceDay;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Contract;
@@ -66,6 +67,79 @@ function makeAdvEmployee(int $salary = 2_550_000): Employee
     ]);
 
     return $employee->fresh();
+}
+
+/** Crea un empleado jornalero con contrato activo para tests de Advance. */
+function makeAdvJornalEmployee(int $dailyRate = 100_000): Employee
+{
+    static $ci = 7500000;
+    $n = $ci++;
+
+    $company = Company::create(['name' => "EmpAdvJ {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "SucAdvJ {$n}", 'company_id' => $company->id]);
+    $department = Department::create(['name' => "DepAdvJ {$n}", 'company_id' => $company->id]);
+    $position = Position::create(['name' => "PosAdvJ {$n}", 'department_id' => $department->id]);
+
+    $employee = Employee::create([
+        'first_name' => 'Test',
+        'last_name' => 'Jornal',
+        'ci' => (string) $n,
+        'email' => "advj{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
+    ]);
+
+    Contract::create([
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => Carbon::now()->subYear(),
+        'salary_type' => 'jornal',
+        'salary' => $dailyRate,
+        'payroll_type' => 'monthly',
+        'position_id' => $position->id,
+        'department_id' => $department->id,
+        'status' => 'active',
+    ]);
+
+    EmployeeBankAccount::create([
+        'employee_id' => $employee->id,
+        'bank' => 'itau',
+        'account_number' => '1234567890',
+        'account_type' => 'corriente',
+        'holder_name' => 'Test Jornal',
+        'holder_ci' => (string) $n,
+        'is_primary' => true,
+        'status' => 'active',
+    ]);
+
+    return $employee->fresh();
+}
+
+/**
+ * Crea el período mensual vigente (contiene "hoy") y marca $presentDays días
+ * de asistencia presente dentro de él — usado por getAdvanceReferenceSalary().
+ */
+function makeAdvCurrentPeriodWithAttendance(Employee $employee, int $presentDays): PayrollPeriod
+{
+    $today = Carbon::now();
+
+    $period = PayrollPeriod::create([
+        'name' => $today->format('F Y'),
+        'start_date' => $today->copy()->startOfMonth()->toDateString(),
+        'end_date' => $today->copy()->endOfMonth()->toDateString(),
+        'frequency' => 'monthly',
+        'status' => 'draft',
+    ]);
+
+    for ($i = 0; $i < $presentDays; $i++) {
+        AttendanceDay::create([
+            'employee_id' => $employee->id,
+            'date' => $today->copy()->startOfMonth()->addDays($i)->toDateString(),
+            'status' => 'present',
+        ]);
+    }
+
+    return $period;
 }
 
 /** Crea un adelanto para el empleado dado. */
@@ -166,6 +240,54 @@ it('permite aprobar múltiples adelantos para el mismo empleado', function () {
 
     expect($resultFirst['success'])->toBeTrue()
         ->and($resultSecond['success'])->toBeTrue();
+});
+
+it('falla al aprobar adelanto de jornalero si supera el salario devengado en el período', function () {
+    $employee = makeAdvJornalEmployee(dailyRate: 100_000);
+    makeAdvCurrentPeriodWithAttendance($employee, presentDays: 5); // devengado: 500,000
+
+    $advance = makeAdvance($employee, amount: 600_000);
+
+    $result = $advance->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('salario devengado del jornalero');
+});
+
+it('permite aprobar adelanto de jornalero dentro del salario devengado en el período', function () {
+    $employee = makeAdvJornalEmployee(dailyRate: 100_000);
+    makeAdvCurrentPeriodWithAttendance($employee, presentDays: 5); // devengado: 500,000
+
+    $advance = makeAdvance($employee, amount: 400_000);
+
+    $result = $advance->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeTrue();
+});
+
+it('falla al aprobar adelanto de jornalero si la suma de adelantos activos supera lo devengado', function () {
+    $employee = makeAdvJornalEmployee(dailyRate: 100_000);
+    makeAdvCurrentPeriodWithAttendance($employee, presentDays: 5); // devengado: 500,000
+
+    $first = makeAdvance($employee, amount: 300_000);
+    $first->approve(getAdvAdmin()->id);
+
+    $second = makeAdvance($employee, amount: 300_000);
+    $result = $second->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('salario devengado del jornalero');
+});
+
+it('permite aprobar adelanto de jornalero sin días trabajados si getAdvanceReferenceSalary es null', function () {
+    $employee = makeAdvJornalEmployee(dailyRate: 100_000);
+    // Sin PayrollPeriod vigente ni asistencia → getAdvanceReferenceSalary() retorna null,
+    // el cap no aplica (comportamiento igual al de antes del fix para este caso).
+    $advance = makeAdvance($employee, amount: 5_000_000);
+
+    $result = $advance->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeTrue();
 });
 
 // ─── reject() ────────────────────────────────────────────────────────────────

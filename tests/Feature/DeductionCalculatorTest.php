@@ -18,27 +18,27 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $settings = [
-        'monthly_hours'               => 240,
-        'monthly_hours_nocturno'      => 210,
-        'monthly_hours_mixto'         => 225,
-        'daily_hours'                 => 8,
-        'daily_hours_nocturno'        => 7,
-        'daily_hours_mixto'           => 7.5,
-        'days_per_month'              => 30,
-        'overtime_multiplier_diurno'           => 1.5,
-        'overtime_multiplier_nocturno'         => 2.6,
-        'overtime_multiplier_holiday'          => 2.0,
+        'monthly_hours' => 240,
+        'monthly_hours_nocturno' => 210,
+        'monthly_hours_mixto' => 225,
+        'daily_hours' => 8,
+        'daily_hours_nocturno' => 7,
+        'daily_hours_mixto' => 7.5,
+        'days_per_month' => 30,
+        'overtime_multiplier_diurno' => 1.5,
+        'overtime_multiplier_nocturno' => 2.6,
+        'overtime_multiplier_holiday' => 2.0,
         'overtime_multiplier_nocturno_holiday' => 2.6,
-        'overtime_max_daily_hours'    => 3,
-        'ips_employee_rate'           => 9,
+        'overtime_max_daily_hours' => 3,
+        'ips_employee_rate' => 9,
         'indemnizacion_days_per_year' => 15,
         'vacation_min_consecutive_days' => 6,
-        'vacation_min_years_service'  => 1,
-        'vacation_business_days'      => [1, 2, 3, 4, 5, 6],
-        'ips_deduction_code'          => 'IPS001',
-        'min_salary_monthly'          => 2_550_328,
-        'min_salary_daily_jornal'     => 87_950,
-        'family_bonus_percentage'     => 5.0,
+        'vacation_min_years_service' => 1,
+        'vacation_business_days' => [1, 2, 3, 4, 5, 6],
+        'ips_deduction_code' => 'IPS001',
+        'min_salary_monthly' => 2_550_328,
+        'min_salary_daily_jornal' => 87_950,
+        'family_bonus_percentage' => 5.0,
     ];
 
     foreach ($settings as $name => $value) {
@@ -55,37 +55,37 @@ beforeEach(function () {
  * Crea un empleado mensual o jornalero con contrato activo para tests de DeductionCalculator.
  *
  * @param  string  $salaryType  'mensual' | 'jornal'
- * @param  int     $salary      Monto del salario
+ * @param  int  $salary  Monto del salario
  */
 function makeDedEmployee(string $salaryType = 'mensual', int $salary = 2_550_000): Employee
 {
     static $ci = 8000000;
     $n = $ci++;
 
-    $company    = Company::create(['name' => "EmpD {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
-    $branch     = Branch::create(['name' => "SucD {$n}", 'company_id' => $company->id]);
+    $company = Company::create(['name' => "EmpD {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "SucD {$n}", 'company_id' => $company->id]);
     $department = Department::create(['name' => "DepD {$n}", 'company_id' => $company->id]);
-    $position   = Position::create(['name' => "PosD {$n}", 'department_id' => $department->id]);
+    $position = Position::create(['name' => "PosD {$n}", 'department_id' => $department->id]);
 
     $employee = Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Ded',
-        'ci'         => (string) $n,
-        'email'      => "ded{$n}@test.com",
-        'branch_id'  => $branch->id,
-        'status'     => 'active',
+        'last_name' => 'Ded',
+        'ci' => (string) $n,
+        'email' => "ded{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
     ]);
 
     Contract::create([
-        'employee_id'   => $employee->id,
-        'type'          => 'indefinido',
-        'start_date'    => Carbon::now()->subYear(),
-        'salary_type'   => $salaryType,
-        'salary'        => $salary,
-        'payroll_type'  => 'monthly',
-        'position_id'   => $position->id,
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => Carbon::now()->subYear(),
+        'salary_type' => $salaryType,
+        'salary' => $salary,
+        'payroll_type' => 'monthly',
+        'position_id' => $position->id,
         'department_id' => $department->id,
-        'status'        => 'active',
+        'status' => 'active',
     ]);
 
     return $employee->fresh();
@@ -99,11 +99,11 @@ function makeDedPeriod(int $month = 3): PayrollPeriod
     $start = Carbon::create(2026, $month, 1);
 
     return PayrollPeriod::create([
-        'name'       => $start->format('F Y'),
+        'name' => $start->format('F Y'),
         'start_date' => $start->toDateString(),
-        'end_date'   => $start->copy()->endOfMonth()->toDateString(),
-        'frequency'  => 'monthly',
-        'status'     => 'draft',
+        'end_date' => $start->copy()->endOfMonth()->toDateString(),
+        'frequency' => 'monthly',
+        'status' => 'draft',
     ]);
 }
 
@@ -113,13 +113,14 @@ function makeDedPeriod(int $month = 3): PayrollPeriod
 function makeFixedDeduction(string $suffix = '', float $amount = 200_000, string $type = 'legal'): Deduction
 {
     static $code = 1;
+
     return Deduction::create([
-        'name'        => "Descuento fijo {$suffix}",
-        'code'        => 'DF' . ($code++),
-        'type'        => $type,
+        'name' => "Descuento fijo {$suffix}",
+        'code' => 'DF'.($code++),
+        'type' => $type,
         'calculation' => 'fixed',
-        'amount'      => $amount,
-        'is_active'   => true,
+        'amount' => $amount,
+        'is_active' => true,
     ]);
 }
 
@@ -129,13 +130,14 @@ function makeFixedDeduction(string $suffix = '', float $amount = 200_000, string
 function makePercentDeduction(string $suffix = '', float $percent = 9.00, string $type = 'legal'): Deduction
 {
     static $code = 1;
+
     return Deduction::create([
-        'name'        => "Descuento % {$suffix}",
-        'code'        => 'DP' . ($code++),
-        'type'        => $type,
+        'name' => "Descuento % {$suffix}",
+        'code' => 'DP'.($code++),
+        'type' => $type,
         'calculation' => 'percentage',
-        'percent'     => $percent,
-        'is_active'   => true,
+        'percent' => $percent,
+        'is_active' => true,
     ]);
 }
 
@@ -150,10 +152,10 @@ function assignDeduction(
     ?float $customAmount = null,
 ): void {
     EmployeeDeduction::create([
-        'employee_id'   => $employee->id,
-        'deduction_id'  => $deduction->id,
-        'start_date'    => $startDate,
-        'end_date'      => $endDate,
+        'employee_id' => $employee->id,
+        'deduction_id' => $deduction->id,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
         'custom_amount' => $customAmount,
     ]);
 }
@@ -162,7 +164,7 @@ function assignDeduction(
 
 it('retorna total 0 e items vacíos si el empleado no tiene deducciones asignadas', function () {
     $employee = makeDedEmployee();
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
@@ -171,8 +173,8 @@ it('retorna total 0 e items vacíos si el empleado no tiene deducciones asignada
 });
 
 it('calcula correctamente una deducción de monto fijo', function () {
-    $employee  = makeDedEmployee();
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee();
+    $period = makeDedPeriod();
     $deduction = makeFixedDeduction(amount: 200_000);
 
     assignDeduction($employee, $deduction);
@@ -183,17 +185,17 @@ it('calcula correctamente una deducción de monto fijo', function () {
         ->and($result['items'])->toHaveCount(1)
         ->and($result['items'][0])->toMatchArray([
             'description' => $deduction->name,
-            'amount'      => 200_000.0,
+            'amount' => 200_000.0,
         ]);
 });
 
 it('calcula deducción por porcentaje usando base_salary para empleado mensual', function () {
-    $salary   = 2_550_000;
-    $percent  = 9.00;
+    $salary = 2_550_000;
+    $percent = 9.00;
     $expected = round($salary * $percent / 100, 2); // 229500.0
 
-    $employee  = makeDedEmployee('mensual', $salary);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('mensual', $salary);
+    $period = makeDedPeriod();
     $deduction = makePercentDeduction(percent: $percent);
 
     assignDeduction($employee, $deduction);
@@ -206,11 +208,11 @@ it('calcula deducción por porcentaje usando base_salary para empleado mensual',
 
 it('calcula deducción por porcentaje usando daily_rate para jornalero', function () {
     $dailyRate = 120_000;
-    $percent   = 9.00;
-    $expected  = round($dailyRate * $percent / 100, 2); // 10800.0
+    $percent = 9.00;
+    $expected = round($dailyRate * $percent / 100, 2); // 10800.0
 
-    $employee  = makeDedEmployee('jornal', $dailyRate);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('jornal', $dailyRate);
+    $period = makeDedPeriod();
     $deduction = makePercentDeduction(percent: $percent);
 
     assignDeduction($employee, $deduction);
@@ -224,8 +226,8 @@ it('calcula deducción por porcentaje usando daily_rate para jornalero', functio
 it('usa custom_amount cuando está definido, ignorando el cálculo normal', function () {
     $customAmount = 150_000.0;
 
-    $employee  = makeDedEmployee('mensual', 2_550_000);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('mensual', 2_550_000);
+    $period = makeDedPeriod();
     $deduction = makePercentDeduction(percent: 9.00);
 
     assignDeduction($employee, $deduction, customAmount: $customAmount);
@@ -238,8 +240,8 @@ it('usa custom_amount cuando está definido, ignorando el cálculo normal', func
 
 it('retorna amount=0 para deducción porcentual si el empleado no tiene salario base', function () {
     // Empleado jornalero con daily_rate = 0
-    $employee  = makeDedEmployee('jornal', 0);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('jornal', 0);
+    $period = makeDedPeriod();
     $deduction = makePercentDeduction(percent: 9.00);
 
     assignDeduction($employee, $deduction);
@@ -253,7 +255,7 @@ it('retorna amount=0 para deducción porcentual si el empleado no tiene salario 
 
 it('suma correctamente múltiples deducciones asignadas', function () {
     $employee = makeDedEmployee('mensual', 2_000_000);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $ded1 = makeFixedDeduction(amount: 100_000);
     $ded2 = makeFixedDeduction(amount: 150_000);
@@ -268,8 +270,8 @@ it('suma correctamente múltiples deducciones asignadas', function () {
 });
 
 it('excluye deducciones cuya end_date es anterior al inicio del período', function () {
-    $employee  = makeDedEmployee();
-    $period    = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
+    $employee = makeDedEmployee();
+    $period = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
     $deduction = makeFixedDeduction(amount: 200_000);
 
     // end_date = 2026-02-28: terminó antes de que empiece marzo
@@ -282,8 +284,8 @@ it('excluye deducciones cuya end_date es anterior al inicio del período', funct
 });
 
 it('excluye deducciones cuya start_date es posterior al fin del período', function () {
-    $employee  = makeDedEmployee();
-    $period    = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
+    $employee = makeDedEmployee();
+    $period = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
     $deduction = makeFixedDeduction(amount: 200_000);
 
     // start_date = 2026-04-01: inicia después de que termine marzo
@@ -296,8 +298,8 @@ it('excluye deducciones cuya start_date es posterior al fin del período', funct
 });
 
 it('incluye deducción cuya vigencia se superpone parcialmente con el período', function () {
-    $employee  = makeDedEmployee();
-    $period    = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
+    $employee = makeDedEmployee();
+    $period = makeDedPeriod(month: 3); // 2026-03-01 – 2026-03-31
     $deduction = makeFixedDeduction(amount: 200_000);
 
     // start_date = 2026-03-15, end_date = 2026-04-15: activa durante parte de marzo
@@ -310,8 +312,8 @@ it('incluye deducción cuya vigencia se superpone parcialmente con el período',
 });
 
 it('incluye deducción sin fecha de fin (vigencia indefinida)', function () {
-    $employee  = makeDedEmployee();
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee();
+    $period = makeDedPeriod();
     $deduction = makeFixedDeduction(amount: 75_000);
 
     assignDeduction($employee, $deduction, endDate: null);
@@ -327,18 +329,18 @@ it('calcula IPS sobre ips_base (salario + ips_perceptions) cuando se identifica 
     // base_salary = 2,550,000 — ips_perceptions = 300,000 — ips_base = 2,850,000
     // IPS correcto: 9% de 2,850,000 = 256,500
     // IPS incorrecto (bug): 9% de 2,550,000 = 229,500
-    $salary  = 2_550_000;
+    $salary = 2_550_000;
     $ipsBase = (float) ($salary + 300_000);
 
-    $employee  = makeDedEmployee('mensual', $salary);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('mensual', $salary);
+    $period = makeDedPeriod();
 
     $ipsDeduction = Deduction::create([
-        'name'        => 'Aporte Obrero IPS',
-        'code'        => 'IPS001', // coincide con ips_deduction_code del setting
+        'name' => 'Aporte Obrero IPS',
+        'code' => 'IPS001', // coincide con ips_deduction_code del setting
         'calculation' => 'percentage',
-        'percent'     => 9.00,
-        'is_active'   => true,
+        'percent' => 9.00,
+        'is_active' => true,
     ]);
     assignDeduction($employee, $ipsDeduction);
 
@@ -350,13 +352,40 @@ it('calcula IPS sobre ips_base (salario + ips_perceptions) cuando se identifica 
         ->and((float) $result['items'][0]['amount'])->toBe($expected);
 });
 
+it('no trunca los decimales de ips_base al calcular el IPS (extras/descanso fraccionarios)', function () {
+    // ips_base incluye horas extra / descanso semanal fraccionarios (ej. jornaleros)
+    $salary = 2_550_000;
+    $ipsBase = $salary + 73_291.67; // fracción típica de RestDayCalculator
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period = makeDedPeriod();
+
+    $ipsDeduction = Deduction::create([
+        'name' => 'Aporte Obrero IPS',
+        'code' => 'IPS001',
+        'calculation' => 'percentage',
+        'percent' => 9.00,
+        'is_active' => true,
+    ]);
+    assignDeduction($employee, $ipsDeduction);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    // Si $ipsBase se truncara a entero antes de multiplicar (bug original),
+    // el resultado difeririría del esperado por el redondeo de la fracción perdida.
+    $expected = round($ipsBase * 9 / 100, 2);
+
+    expect((float) $result['total'])->toBe($expected)
+        ->and($expected)->not->toBe(round((int) round($ipsBase) * 9 / 100, 2));
+});
+
 it('usa base_salary para deducción porcentual no-IPS aunque se pase ips_base', function () {
     // Otra deducción porcentual (no IPS) debe seguir usando base_salary
-    $salary  = 2_000_000;
+    $salary = 2_000_000;
     $ipsBase = (float) ($salary + 500_000);
 
-    $employee  = makeDedEmployee('mensual', $salary);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('mensual', $salary);
+    $period = makeDedPeriod();
 
     $otherDeduction = makePercentDeduction(percent: 10.0); // code != 'IPS001'
     assignDeduction($employee, $otherDeduction);
@@ -372,10 +401,10 @@ it('usa base_salary para deducción porcentual no-IPS aunque se pase ips_base', 
 
 it('cada ítem incluye deduction_type del modelo Deduction', function () {
     $employee = makeDedEmployee();
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
-    $legal     = makeFixedDeduction('legal',     100_000, 'legal');
-    $judicial  = makeFixedDeduction('judicial',  150_000, 'judicial');
+    $legal = makeFixedDeduction('legal', 100_000, 'legal');
+    $judicial = makeFixedDeduction('judicial', 150_000, 'judicial');
     $voluntary = makeFixedDeduction('voluntary', 200_000, 'voluntary');
 
     assignDeduction($employee, $legal);
@@ -398,15 +427,15 @@ it('sin ips_base (null), IPS usa base_salary como antes', function () {
     // Compatibilidad hacia atrás: si no se pasa ips_base, IPS usa base_salary
     $salary = 2_550_000;
 
-    $employee  = makeDedEmployee('mensual', $salary);
-    $period    = makeDedPeriod();
+    $employee = makeDedEmployee('mensual', $salary);
+    $period = makeDedPeriod();
 
     $ipsDeduction = Deduction::create([
-        'name'        => 'Aporte Obrero IPS',
-        'code'        => 'IPS001',
+        'name' => 'Aporte Obrero IPS',
+        'code' => 'IPS001',
         'calculation' => 'percentage',
-        'percent'     => 9.00,
-        'is_active'   => true,
+        'percent' => 9.00,
+        'is_active' => true,
     ]);
     assignDeduction($employee, $ipsDeduction);
 
@@ -422,24 +451,25 @@ it('sin ips_base (null), IPS usa base_salary como antes', function () {
 function makeEmbargo(float $amount): Deduction
 {
     static $code = 1;
+
     return Deduction::create([
-        'name'                 => "Embargo {$code}",
-        'code'                 => 'EMB' . ($code++),
-        'type'                 => 'judicial',
+        'name' => "Embargo {$code}",
+        'code' => 'EMB'.($code++),
+        'type' => 'judicial',
         'apply_judicial_limit' => true,
-        'calculation'          => 'fixed',
-        'amount'               => $amount,
-        'is_active'            => true,
+        'calculation' => 'fixed',
+        'amount' => $amount,
+        'is_active' => true,
     ]);
 }
 
 it('embargo se limita al 25% del excedente sobre el salario mínimo', function () {
     // ipsBase=4,000,000 | min=2,550,328 | excedente=1,449,672 | tope=362,418
-    $salary  = 4_000_000;
+    $salary = 4_000_000;
     $ipsBase = (float) $salary;
 
     $employee = makeDedEmployee('mensual', $salary);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $embargo = makeEmbargo(600_000); // supera el tope
     assignDeduction($employee, $embargo);
@@ -453,11 +483,11 @@ it('embargo se limita al 25% del excedente sobre el salario mínimo', function (
 });
 
 it('embargo es 0 cuando el salario no supera el mínimo', function () {
-    $salary  = 2_550_000; // por debajo del mínimo (2,550,328)
+    $salary = 2_550_000; // por debajo del mínimo (2,550,328)
     $ipsBase = (float) $salary;
 
     $employee = makeDedEmployee('mensual', $salary);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $embargo = makeEmbargo(200_000);
     assignDeduction($employee, $embargo);
@@ -470,11 +500,11 @@ it('embargo es 0 cuando el salario no supera el mínimo', function () {
 
 it('primer embargo cobra, segundo recibe el remanente del tope', function () {
     // tope=362,418 | embargo1=300,000 | embargo2=200,000 → embargo2 recibe 62,418
-    $salary  = 4_000_000;
+    $salary = 4_000_000;
     $ipsBase = (float) $salary;
 
     $employee = makeDedEmployee('mensual', $salary);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $embargo1 = makeEmbargo(300_000);
     $embargo2 = makeEmbargo(200_000);
@@ -484,7 +514,7 @@ it('primer embargo cobra, segundo recibe el remanente del tope', function () {
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
 
-    $cap   = round((4_000_000 - 2_550_328) * 0.25, 2);
+    $cap = round((4_000_000 - 2_550_328) * 0.25, 2);
     $item1 = (float) collect($result['items'])->firstWhere('description', $embargo1->name)['amount'];
     $item2 = (float) collect($result['items'])->firstWhere('description', $embargo2->name)['amount'];
 
@@ -494,12 +524,12 @@ it('primer embargo cobra, segundo recibe el remanente del tope', function () {
 });
 
 it('cuando el tope está agotado el embargo posterior queda en cola con amount=0', function () {
-    $salary    = 4_000_000;
-    $ipsBase   = (float) $salary;
-    $cap       = round((4_000_000 - 2_550_328) * 0.25, 2);
+    $salary = 4_000_000;
+    $ipsBase = (float) $salary;
+    $cap = round((4_000_000 - 2_550_328) * 0.25, 2);
 
     $employee = makeDedEmployee('mensual', $salary);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $embargo1 = makeEmbargo($cap + 100_000); // consume todo el tope
     $embargo2 = makeEmbargo(50_000);
@@ -517,20 +547,20 @@ it('cuando el tope está agotado el embargo posterior queda en cola con amount=0
 });
 
 it('alimentaria (apply_judicial_limit=false) no se limita aunque supere el tope', function () {
-    $salary  = 3_000_000;
+    $salary = 3_000_000;
     $ipsBase = (float) $salary;
 
     $employee = makeDedEmployee('mensual', $salary);
-    $period   = makeDedPeriod();
+    $period = makeDedPeriod();
 
     $alimentaria = Deduction::create([
-        'name'                 => 'Prestación Alimentaria',
-        'code'                 => 'ALIM01',
-        'type'                 => 'judicial',
+        'name' => 'Prestación Alimentaria',
+        'code' => 'ALIM01',
+        'type' => 'judicial',
         'apply_judicial_limit' => false,
-        'calculation'          => 'fixed',
-        'amount'               => 800_000,
-        'is_active'            => true,
+        'calculation' => 'fixed',
+        'amount' => 800_000,
+        'is_active' => true,
     ]);
     assignDeduction($employee, $alimentaria);
 

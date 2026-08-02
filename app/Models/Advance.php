@@ -2,8 +2,12 @@
 
 namespace App\Models;
 
+use App\Settings\PayrollSettings;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use OwenIt\Auditing\Contracts\Auditable;
@@ -352,7 +356,7 @@ class Advance extends Model implements Auditable
         }
 
         // Verificar límite de adelantos activos por período (pending + approved + disbursed)
-        $maxPerPeriod = app(\App\Settings\PayrollSettings::class)->advance_max_per_period;
+        $maxPerPeriod = app(PayrollSettings::class)->advance_max_per_period;
         if ($maxPerPeriod > 0) {
             $activeCount = static::where('employee_id', $this->employee_id)
                 ->whereIn('status', ['pending', 'approved', 'disbursed'])
@@ -382,6 +386,28 @@ class Advance extends Model implements Auditable
                     'success' => false,
                     'message' => "El total de adelantos activos superaría el salario mensual del empleado. Monto disponible: Gs. {$formatted}.",
                 ];
+            }
+        }
+
+        // Para jornaleros: verificar que el total de adelantos activos no supere el salario
+        // devengado (días efectivamente trabajados en el período actual × jornal diario).
+        if ($this->employee->activeContract->salary_type === 'jornal') {
+            $reference = $this->employee->getAdvanceReferenceSalary();
+
+            if ($reference !== null) {
+                $activeTotal = (float) static::where('employee_id', $this->employee_id)
+                    ->whereIn('status', ['pending', 'approved', 'disbursed'])
+                    ->where('id', '!=', $this->id)
+                    ->sum('amount');
+
+                if (($activeTotal + (float) $this->amount) > $reference) {
+                    $formatted = number_format($reference - $activeTotal, 0, ',', '.');
+
+                    return [
+                        'success' => false,
+                        'message' => "El total de adelantos activos superaría el salario devengado del jornalero. Monto disponible: Gs. {$formatted}.",
+                    ];
+                }
             }
         }
 
@@ -560,7 +586,7 @@ class Advance extends Model implements Auditable
         }
 
         if ($this->transfer_receipt_path) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($this->transfer_receipt_path);
+            Storage::disk('public')->delete($this->transfer_receipt_path);
         }
 
         $this->update([
@@ -631,8 +657,8 @@ class Advance extends Model implements Auditable
     /**
      * Filtra por estado.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopeByStatus($query, string $status)
     {
@@ -642,8 +668,8 @@ class Advance extends Model implements Auditable
     /**
      * Filtra adelantos pendientes.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopePending($query)
     {
@@ -653,8 +679,8 @@ class Advance extends Model implements Auditable
     /**
      * Filtra adelantos aprobados.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopeApproved($query)
     {
@@ -664,8 +690,8 @@ class Advance extends Model implements Auditable
     /**
      * Filtra adelantos entregados al empleado (pendientes de descuento en nómina).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopeDisbursed($query)
     {
@@ -675,8 +701,8 @@ class Advance extends Model implements Auditable
     /**
      * Filtra adelantos de un empleado específico.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopeForEmployee($query, int $employeeId)
     {
@@ -760,7 +786,7 @@ class Advance extends Model implements Auditable
             'payment_method' => static::getPaymentMethodLabel($value),
             'bank_rejection_reason' => static::getBankRejectionReasonLabel($value),
             'approved_by_id', 'disbursed_by_id' => User::find($value)?->name ?? "ID {$value}",
-            'approved_at', 'disbursed_at' => \Carbon\Carbon::parse($value)->format('d/m/Y H:i'),
+            'approved_at', 'disbursed_at' => Carbon::parse($value)->format('d/m/Y H:i'),
             'notes' => Str::limit((string) $value, 120),
             default => (string) $value,
         };

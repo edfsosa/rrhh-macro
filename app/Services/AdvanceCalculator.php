@@ -53,6 +53,7 @@ class AdvanceCalculator
             ->where('employee_id', $employee->id)
             ->where('status', 'disbursed')
             ->whereNull('payroll_id')
+            ->lockForUpdate()
             ->get();
 
         foreach ($advances as $advance) {

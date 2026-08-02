@@ -12,9 +12,12 @@ use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use App\Models\Vacation;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PayrollService
 {
@@ -51,35 +54,29 @@ class PayrollService
         /** @var list<array{name: string, ci: int|string, reason: string}> $skipped */
         $skipped = [];
 
-        // Detectar empleados activos excluidos por frecuencia de nómina diferente o sin salario,
-        // para informar al usuario en lugar de ignorarlos silenciosamente.
-        $excludedEmployees = Employee::query()
+        // Empleados activos con contrato activo: una sola query, particionada en PHP entre
+        // elegibles y excluidos (frecuencia de nómina diferente o sin salario), para informar
+        // al usuario en lugar de ignorarlos silenciosamente.
+        $candidates = Employee::query()
             ->where('status', 'active')
-            ->whereHas('activeContract', fn ($q) => $q->where('status', 'active')
-                ->where(fn ($q2) => $q2
-                    ->where('payroll_type', '!=', $period->frequency)
-                    ->orWhereNull('salary')
-                )
-            )
+            ->whereHas('activeContract', fn ($q) => $q->where('status', 'active'))
             ->when($period->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $period->company_id)))
-            ->with('activeContract')
+            ->with(['activeContract', 'eligibleChildren'])
             ->get();
+
+        [$employees, $excludedEmployees] = $candidates->partition(
+            fn (Employee $emp) => $emp->activeContract->payroll_type === $period->frequency
+                && $emp->activeContract->salary !== null
+        );
 
         foreach ($excludedEmployees as $emp) {
             $contract = $emp->activeContract;
-            $reason = ($contract && is_null($contract->salary))
+            $reason = is_null($contract->salary)
                 ? 'Sin salario configurado en el contrato'
-                : 'Tipo de nómina diferente ('.($contract?->payroll_type ?? '?').')';
+                : 'Tipo de nómina diferente ('.$contract->payroll_type.')';
 
             $skipped[] = ['name' => $emp->full_name, 'ci' => $emp->ci, 'reason' => $reason];
         }
-
-        $employees = Employee::query()
-            ->where('status', 'active')
-            ->whereHas('activeContract', fn ($q) => $q->where('status', 'active')->where('payroll_type', $period->frequency)->whereNotNull('salary'))
-            ->when($period->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $period->company_id)))
-            ->with('activeContract')
-            ->get();
 
         foreach ($employees as $employee) {
             // Evitar duplicados. Si existe uno soft-deleted, eliminarlo permanentemente
@@ -227,11 +224,11 @@ class PayrollService
                     VacationService::recordPayment($vacation, now());
                 }
 
-                // Generar PDF
-                $pdfPath = $this->payrollPDFGenerator->generate($payroll);
-                $payroll->update(['pdf_path' => $pdfPath]);
-
                 DB::commit();
+
+                // El PDF se genera fuera de la transacción: si falla, la nómina ya
+                // commiteada sigue siendo válida y el PDF es regenerable después.
+                $this->generatePdfSafely($payroll);
 
                 Log::info("Nómina generada — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                     'payroll_id' => $payroll->id,
@@ -250,10 +247,17 @@ class PayrollService
                     'trace' => $e->getTraceAsString(),
                 ]);
 
+                // Los errores de base de datos pueden exponer nombres de tablas/columnas —
+                // se mantiene el mensaje genérico para ellos. El resto (reglas de negocio)
+                // ya trae mensajes pensados para el usuario final.
+                $reason = $e instanceof QueryException
+                    ? 'Error al calcular (revisar log del servidor)'
+                    : 'Error al calcular: '.Str::limit($e->getMessage(), 150);
+
                 $skipped[] = [
                     'name' => $employee->full_name,
                     'ci' => $employee->ci,
-                    'reason' => 'Error al calcular (revisar log del servidor)',
+                    'reason' => $reason,
                 ];
             }
         }
@@ -391,10 +395,11 @@ class PayrollService
                 VacationService::recordPayment($vacation, now());
             }
 
-            $pdfPath = $this->payrollPDFGenerator->generate($payroll);
-            $payroll->update(['pdf_path' => $pdfPath]);
-
             DB::commit();
+
+            // El PDF se genera fuera de la transacción: si falla, la nómina ya
+            // commiteada sigue siendo válida y el PDF es regenerable después.
+            $this->generatePdfSafely($payroll);
 
             Log::info("Nómina generada manualmente — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                 'payroll_id' => $payroll->id,
@@ -426,6 +431,7 @@ class PayrollService
 
         $employee = $payroll->employee->load('activeContract');
         $period = $payroll->period;
+        $previousPdfPath = $payroll->pdf_path;
 
         DB::beginTransaction();
 
@@ -519,10 +525,8 @@ class PayrollService
             // Eliminar ítems existentes
             $payroll->items()->delete();
 
-            // Eliminar PDF anterior
-            if ($payroll->pdf_path && Storage::disk('public')->exists($payroll->pdf_path)) {
-                Storage::disk('public')->delete($payroll->pdf_path);
-            }
+            // El PDF anterior se borra después de confirmar la transacción (ver más abajo) —
+            // así, si la recalculación falla y hace rollback, el PDF viejo sigue disponible.
 
             // Calcular salario base según tipo de empleo
             if ($employee->employment_type === 'day_laborer') {
@@ -637,11 +641,12 @@ class PayrollService
                 VacationService::recordPayment($vacation, now());
             }
 
-            // Regenerar PDF
-            $pdfPath = $this->payrollPDFGenerator->generate($payroll);
-            $payroll->update(['pdf_path' => $pdfPath]);
-
             DB::commit();
+
+            // El PDF se regenera fuera de la transacción: si falla, la nómina ya
+            // recalculada y commiteada sigue siendo válida y el PDF viejo se conserva
+            // (solo se borra una vez que el nuevo se generó exitosamente).
+            $this->generatePdfSafely($payroll, $previousPdfPath);
 
             Log::info("Nómina regenerada — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                 'payroll_id' => $payroll->id,
@@ -668,7 +673,14 @@ class PayrollService
      *
      * La remuneración vacacional no suma a la base IPS (Art. 218 CLT).
      *
-     * @return array{total: float, items: array, vacations: \Illuminate\Support\Collection}
+     * Diseño intencional: el pago es único y completo en el período que contiene
+     * `start_date`, sin prorratear por `end_date` si la vacación cruza al período
+     * siguiente. Es la convención habitual de pago de vacaciones (lump sum al
+     * inicio) y no un bug — no cambiar sin evaluar el impacto en el modelo de
+     * datos (`Vacation.payment_status` es un enum paid/unpaid, no un monto
+     * parcial rastreable).
+     *
+     * @return array{total: float, items: array, vacations: Collection}
      */
     private function resolveVacationPays(Employee $employee, PayrollPeriod $period): array
     {
@@ -700,5 +712,29 @@ class PayrollService
         }
 
         return ['total' => $total, 'items' => $items, 'vacations' => $vacations];
+    }
+
+    /**
+     * Genera el PDF de una nómina ya commiteada, sin arriesgar el registro si falla.
+     * Un PDF faltante es regenerable después vía regenerateForEmployee() o bajo demanda.
+     *
+     * @param  string|null  $previousPdfPath  Si se provee, se borra solo tras generar el nuevo con éxito
+     *                                        (así un fallo en la generación conserva el PDF anterior).
+     */
+    private function generatePdfSafely(Payroll $payroll, ?string $previousPdfPath = null): void
+    {
+        try {
+            $pdfPath = $this->payrollPDFGenerator->generate($payroll);
+            $payroll->update(['pdf_path' => $pdfPath]);
+
+            if ($previousPdfPath && $previousPdfPath !== $pdfPath && Storage::disk('public')->exists($previousPdfPath)) {
+                Storage::disk('public')->delete($previousPdfPath);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('PDF no generado tras crear/regenerar nómina', [
+                'payroll_id' => $payroll->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

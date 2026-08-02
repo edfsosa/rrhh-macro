@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Database\Factories\PayrollFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +16,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 
 class Payroll extends Model implements Auditable
 {
-    /** @use HasFactory<\Database\Factories\PayrollFactory> */
+    /** @use HasFactory<PayrollFactory> */
     use HasFactory, \OwenIt\Auditing\Auditable, SoftDeletes;
 
     /** @var array<int, string> Campos auditados en el historial de cambios. */
@@ -154,7 +156,15 @@ class Payroll extends Model implements Auditable
                     EmployeeDeduction::whereIn('id', $merchandiseDeductionIds)->delete();
                 }
 
-                Log::warning('Cuotas de préstamo, adelantos y mercadería revertidos al eliminar nómina', [
+                // --- VACACIONES: revertir remuneración vacacional pagada en esta nómina ---
+
+                Vacation::where('employee_id', $payroll->employee_id)
+                    ->where('payment_method', 'with_payroll')
+                    ->where('payment_status', 'paid')
+                    ->whereBetween('start_date', [$period->start_date, $period->end_date])
+                    ->update(['payment_status' => 'unpaid', 'paid_at' => null]);
+
+                Log::warning('Cuotas de préstamo, adelantos, mercadería y vacaciones revertidos al eliminar nómina', [
                     'payroll_id' => $payroll->id,
                     'employee_id' => $payroll->employee_id,
                     'period_id' => $period->id,
@@ -256,7 +266,7 @@ class Payroll extends Model implements Auditable
 
         $this->update([
             'status' => 'disbursed',
-            'disbursed_at' => $disbursedAt ? \Carbon\Carbon::parse($disbursedAt) : now(),
+            'disbursed_at' => $disbursedAt ? Carbon::parse($disbursedAt) : now(),
             'disbursed_by_id' => $disbursedById,
         ]);
 
@@ -499,7 +509,7 @@ class Payroll extends Model implements Auditable
         return match ($key) {
             'status' => static::getStatusLabel($value),
             'approved_by_id', 'disbursed_by_id' => User::find($value)?->name ?? "ID {$value}",
-            'approved_at', 'disbursed_at' => \Carbon\Carbon::parse($value)->format('d/m/Y H:i'),
+            'approved_at', 'disbursed_at' => Carbon::parse($value)->format('d/m/Y H:i'),
             'disbursement_batch_id' => "Lote #{$value}",
             'notes' => Str::limit((string) $value, 120),
             default => (string) $value,

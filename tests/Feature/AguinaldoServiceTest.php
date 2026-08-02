@@ -23,7 +23,7 @@ uses(RefreshDatabase::class);
 
 function makeAguService(): AguinaldoService
 {
-    $pdf = \Mockery::mock(AguinaldoPDFGenerator::class);
+    $pdf = Mockery::mock(AguinaldoPDFGenerator::class);
     $pdf->shouldReceive('generate')->andReturn('mock/aguinaldo.pdf');
 
     return new AguinaldoService($pdf);
@@ -166,10 +166,25 @@ it('calcula aguinaldo_amount como total_earned dividido 12', function () {
 
     $aguinaldo = Aguinaldo::first();
     $expectedTotal = 3 * (2_550_000 + 200_000); // 8,250,000
-    $expectedAmount = round($expectedTotal / 12, 2); // 687,500
+    $expectedAmount = round($expectedTotal / 12, 0); // 687,500
 
     expect((float) $aguinaldo->total_earned)->toBe((float) $expectedTotal)
         ->and((float) $aguinaldo->aguinaldo_amount)->toBe($expectedAmount);
+});
+
+it('redondea aguinaldo_amount a 0 decimales (Guaraníes sin fracciones)', function () {
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
+    $employee = makeAguEmployee($company);
+
+    // 1,000,000 / 12 = 83,333.33... → debe truncar a 0 decimales, no a 2
+    $payPeriod = makeAguinaldoPayPeriod(2025, 6);
+    makePayroll($employee, $payPeriod, 1_000_000);
+
+    makeAguService()->generateForPeriod($period);
+
+    $aguinaldo = Aguinaldo::first();
+    expect((float) $aguinaldo->aguinaldo_amount)->toBe(83_333.0);
 });
 
 it('crea un AguinaldoItem por cada nómina del año', function () {
@@ -276,7 +291,7 @@ it('lanza excepción si el empleado no tiene nóminas en el año', function () {
     ]);
 
     expect(fn () => makeAguService()->regenerateForEmployee($aguinaldo))
-        ->toThrow(\RuntimeException::class);
+        ->toThrow(RuntimeException::class);
 });
 
 it('regenera correctamente el aguinaldo con nuevos montos', function () {
@@ -302,7 +317,7 @@ it('regenera correctamente el aguinaldo con nuevos montos', function () {
 
     $aguinaldo->refresh();
     expect((float) $aguinaldo->total_earned)->toBe(2_550_000.0)
-        ->and((float) $aguinaldo->aguinaldo_amount)->toBe(round(2_550_000 / 12, 2))
+        ->and((float) $aguinaldo->aguinaldo_amount)->toBe(round(2_550_000 / 12, 0))
         ->and((int) $aguinaldo->months_worked)->toBe(1);
 });
 

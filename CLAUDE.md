@@ -296,6 +296,10 @@ Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un
 
 **Provisión mensual:** `AguinaldoService::provisionQuery()` retorna una query agregada para mostrar el monto acumulado hasta el mes indicado — útil para reportes contables.
 
+### Módulo de Vacaciones
+
+**Pago con nómina (`payment_method = 'with_payroll'`):** `PayrollService::resolveVacationPays()` paga la remuneración vacacional **completa como pago único** en el período de nómina que contiene el `start_date` de la vacación — **no se prorratea** aunque el `end_date` caiga en el período de nómina siguiente. Es una convención intencional (lump sum al inicio de la vacación), no un bug. `Vacation.payment_status` es un enum simple `unpaid`/`paid` — no rastrea montos parciales, así que implementar prorrateo real requeriría un cambio de modelo de datos, no solo de lógica.
+
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
 
