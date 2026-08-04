@@ -16,6 +16,7 @@ use Filament\Forms\Get;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
+use Filament\Resources\Pages\PageRegistration;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\DeleteAction;
@@ -139,7 +140,7 @@ class AttendanceEventResource extends Resource
                     ->getOptionLabelFromRecordUsing(
                         fn ($record) => $record->first_name.' '.$record->last_name.' (CI: '.$record->ci.')'
                     )
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false)
                     ->multiple(),
@@ -308,7 +309,7 @@ class AttendanceEventResource extends Resource
     /**
      * Registra las páginas del recurso.
      *
-     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     * @return array<string, PageRegistration>
      */
     public static function getPages(): array
     {

@@ -162,7 +162,7 @@ class AguinaldosRelationManager extends RelationManager
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name'])
                     ->native(false),
             ])
             ->actions([

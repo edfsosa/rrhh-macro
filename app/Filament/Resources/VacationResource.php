@@ -16,6 +16,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
@@ -68,8 +69,8 @@ class VacationResource extends Resource
                     ->schema([
                         Select::make('employee_id')
                             ->label('Empleado')
-                            ->relationship('employee', 'id', fn ($query) => $query->where('status', 'active')->orderBy('first_name'))
-                            ->searchable()
+                            ->relationship('employee', 'first_name', fn ($query) => $query->where('status', 'active')->orderBy('first_name'))
+                            ->searchable(['first_name', 'last_name', 'ci'])
                             ->preload()
                             ->native(false)
                             ->required()
@@ -272,7 +273,7 @@ class VacationResource extends Resource
                                 if ($employeeId && $businessDays > 0) {
                                     $employee = Employee::find($employeeId);
                                     if ($employee instanceof Employee) {
-                                        $tempVacation = new \App\Models\Vacation([
+                                        $tempVacation = new Vacation([
                                             'employee_id' => $employee->id,
                                             'start_date' => $startDate,
                                             'end_date' => $endDate,
@@ -316,7 +317,7 @@ class VacationResource extends Resource
                             })
                             ->columnSpanFull(),
 
-                        \Filament\Forms\Components\Textarea::make('reason')
+                        Textarea::make('reason')
                             ->label('Motivo / observaciones')
                             ->placeholder('Opcional: notas sobre este período de vacaciones…')
                             ->rows(2)
@@ -431,7 +432,7 @@ class VacationResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload()
                     ->native(false),
 

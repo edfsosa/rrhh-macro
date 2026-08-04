@@ -225,7 +225,7 @@ class AttendanceDayResource extends Resource
                     ->placeholder('Todos los empleados')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false)
                     ->multiple(),
@@ -693,7 +693,7 @@ class AttendanceDayResource extends Resource
     private static function buildTardinessModalDescription(AttendanceDay $record): string
     {
         $action = $record->tardiness_deduction_approved ? 'Se revocará el descuento de' : 'Se aprobará el descuento de';
-        $settings = app(\App\Settings\PayrollSettings::class);
+        $settings = app(PayrollSettings::class);
         $hourlyRate = $record->employee->base_salary / max(1, $settings->monthly_hours);
         $amount = round(($record->late_minutes / 60) * $hourlyRate, 2);
 
@@ -948,7 +948,7 @@ class AttendanceDayResource extends Resource
             ->icon('heroicon-o-clock')
             ->color('warning')
             ->tooltip('Cargar horas extras manualmente para este día')
-            ->mountUsing(function (\Filament\Forms\Form $form, AttendanceDay $record) {
+            ->mountUsing(function (Form $form, AttendanceDay $record) {
                 $form->fill([
                     'extra_hours_diurnas' => $record->extra_hours_diurnas ?? 0,
                     'extra_hours_nocturnas' => $record->extra_hours_nocturnas ?? 0,
@@ -1030,7 +1030,7 @@ class AttendanceDayResource extends Resource
             ->icon('heroicon-o-clock')
             ->color('warning')
             ->tooltip('Cargar horas extras manualmente para este día')
-            ->mountUsing(function (\Filament\Forms\Form $form, AttendanceDay $record) {
+            ->mountUsing(function (Form $form, AttendanceDay $record) {
                 $form->fill([
                     'extra_hours_diurnas' => $record->extra_hours_diurnas ?? 0,
                     'extra_hours_nocturnas' => $record->extra_hours_nocturnas ?? 0,

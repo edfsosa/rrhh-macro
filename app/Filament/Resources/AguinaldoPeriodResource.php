@@ -56,7 +56,7 @@ class AguinaldoPeriodResource extends Resource
                     ->getOptionLabelFromRecordUsing(
                         fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                     )
-                    ->searchable()
+                    ->searchable(['name', 'trade_name'])
                     ->preload()
                     ->required()
                     ->native(false)
@@ -159,7 +159,7 @@ class AguinaldoPeriodResource extends Resource
                     ->getOptionLabelFromRecordUsing(
                         fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                     )
-                    ->searchable()
+                    ->searchable(['name', 'trade_name'])
                     ->preload()
                     ->native(false),
 

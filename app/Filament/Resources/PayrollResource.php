@@ -24,6 +24,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Livewire\Component;
 use Maatwebsite\Excel\Excel;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -172,7 +174,7 @@ class PayrollResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->native(false)
                     ->getOptionLabelFromRecordUsing(function ($record) {
@@ -488,7 +490,7 @@ class PayrollResource extends Resource
                         ->label('Descargar PDFs')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->color('gray')
-                        ->action(function (Collection $records, \Livewire\Component $livewire) {
+                        ->action(function (Collection $records, Component $livewire) {
                             $records->load('employee');
                             $validRecords = $records->filter(
                                 fn (Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
@@ -516,7 +518,7 @@ class PayrollResource extends Resource
                                 }
                             }
 
-                            $uniqueId = \Illuminate\Support\Str::uuid();
+                            $uniqueId = Str::uuid();
 
                             if ($validRecords->count() === 1) {
                                 $record = $validRecords->first();

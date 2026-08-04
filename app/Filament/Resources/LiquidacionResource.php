@@ -30,6 +30,7 @@ use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -242,7 +243,7 @@ class LiquidacionResource extends Resource
                                     return null;
                                 }
 
-                                return new \Illuminate\Support\HtmlString(
+                                return new HtmlString(
                                     '<div style="background:#fef3c7;border:1px solid #d97706;border-radius:6px;padding:10px 14px;color:#92400e;">'
                                     .'<strong>⚠ Estabilidad Laboral Propia — Art. 95 CLT</strong><br>'
                                     ."Este empleado cuenta con <strong>{$years} años</strong> de antigüedad. "
@@ -369,7 +370,7 @@ class LiquidacionResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->native(false),
             ])
