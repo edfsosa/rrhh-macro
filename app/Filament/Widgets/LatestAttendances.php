@@ -94,7 +94,7 @@ class LatestAttendances extends BaseWidget
                     ->getOptionLabelFromRecordUsing(
                         fn ($record) => $record->first_name.' '.$record->last_name.' (CI: '.$record->ci.')'
                     )
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false)
                     ->multiple(),

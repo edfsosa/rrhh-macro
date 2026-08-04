@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
@@ -39,6 +40,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\HtmlString;
+use Livewire\Component;
 
 class AdvanceResource extends Resource
 {
@@ -312,7 +314,7 @@ class AdvanceResource extends Resource
                                 ->color('info')
                                 ->icon('heroicon-o-building-library')
                                 ->url(fn (Advance $record) => $record->disbursement_batch_id
-                                    ? \App\Filament\Resources\DisbursementBatchResource::getUrl('view', ['record' => $record->disbursement_batch_id])
+                                    ? DisbursementBatchResource::getUrl('view', ['record' => $record->disbursement_batch_id])
                                     : null)
                                 ->openUrlInNewTab(),
 
@@ -440,7 +442,7 @@ class AdvanceResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->multiple()
                     ->native(false),
 
@@ -600,7 +602,7 @@ class AdvanceResource extends Resource
                                 ->native(false)
                                 ->default(now())
                                 ->displayFormat('d/m/Y H:i'),
-                            \Filament\Forms\Components\FileUpload::make('transfer_receipt_path')
+                            FileUpload::make('transfer_receipt_path')
                                 ->label('Comprobante')
                                 ->disk('public')
                                 ->directory('advances/receipts')
@@ -670,7 +672,7 @@ class AdvanceResource extends Resource
                         ->modalDescription('Se aprobarán los adelantos seleccionados que estén en estado Pendiente. Los demás serán ignorados.')
                         ->modalSubmitActionLabel('Sí, aprobar seleccionados')
                         ->form([
-                            \Filament\Forms\Components\Select::make('payment_method')
+                            Select::make('payment_method')
                                 ->label('Método de pago')
                                 ->options(Advance::getPaymentMethodOptions())
                                 ->default('transfer')
@@ -851,7 +853,7 @@ class AdvanceResource extends Resource
                     ->label('Descargar PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->action(function (Collection $records, \Livewire\Component $livewire) {
+                    ->action(function (Collection $records, Component $livewire) {
                         $ids = $records->pluck('id')->implode(',');
                         $url = route('advances.pdf.bulk', ['ids' => $ids]);
                         $livewire->js("window.open('{$url}', '_blank')");

@@ -21,6 +21,7 @@ use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\PageRegistration;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
@@ -302,7 +303,7 @@ class EmployeeLeaveResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->multiple(),
             ])
@@ -556,7 +557,7 @@ class EmployeeLeaveResource extends Resource
     /**
      * Registra las páginas del recurso.
      *
-     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     * @return array<string, PageRegistration>
      */
     public static function getRelations(): array
     {

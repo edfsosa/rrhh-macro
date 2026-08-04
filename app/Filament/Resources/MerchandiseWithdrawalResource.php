@@ -20,6 +20,7 @@ use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\PageRegistration;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -331,7 +332,7 @@ class MerchandiseWithdrawalResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->multiple()
                     ->native(false),
             ])
@@ -408,7 +409,7 @@ class MerchandiseWithdrawalResource extends Resource
     /**
      * Páginas del resource.
      *
-     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     * @return array<string, PageRegistration>
      */
     public static function getPages(): array
     {

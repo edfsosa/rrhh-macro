@@ -432,7 +432,7 @@ class VacationResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload()
                     ->native(false),
 

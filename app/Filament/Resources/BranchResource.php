@@ -15,6 +15,8 @@ use Filament\Forms\Get;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Resources\Pages\PageRegistration;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -60,7 +62,7 @@ class BranchResource extends Resource
                         ->getOptionLabelFromRecordUsing(
                             fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                         )
-                        ->searchable()
+                        ->searchable(['name', 'trade_name'])
                         ->preload()
                         ->required()
                         ->helperText('Empresa a la que pertenece esta sucursal.'),
@@ -265,7 +267,7 @@ class BranchResource extends Resource
                     ->getOptionLabelFromRecordUsing(
                         fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                     )
-                    ->searchable()
+                    ->searchable(['name', 'trade_name'])
                     ->preload()
                     ->placeholder('Todas las empresas'),
 
@@ -313,7 +315,7 @@ class BranchResource extends Resource
     /**
      * Retorna los relation managers asociados al recurso.
      *
-     * @return array<class-string<\Filament\Resources\RelationManagers\RelationManager>>
+     * @return array<class-string<RelationManager>>
      */
     public static function getRelations(): array
     {
@@ -325,7 +327,7 @@ class BranchResource extends Resource
     /**
      * Retorna las páginas registradas para este recurso.
      *
-     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     * @return array<string, PageRegistration>
      */
     public static function getPages(): array
     {

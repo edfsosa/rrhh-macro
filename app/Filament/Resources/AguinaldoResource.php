@@ -187,7 +187,7 @@ class AguinaldoResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name'])
                     ->native(false)
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name),
 

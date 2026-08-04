@@ -1460,6 +1460,28 @@ Pasar un array de columnas relacionales a `->searchable()` genera SQL inválido:
 
 La causa: Filament usa el nombre de la relación (singular) como alias de tabla en el subquery `EXISTS`, pero MySQL espera el nombre real de la tabla (plural). El `->searchable()` sin array en columnas simples de relación (`->searchable()` sobre `TextColumn::make('employee.ci')`) sí funciona porque Filament genera el subquery correcto en ese caso.
 
+### `->searchable()` en Select con `->relationship()` — respeta el titleAttribute, no el label mostrado
+
+Cuando un `Select::make(...)->relationship($rel, $titleAttribute, ...)` usa `->searchable()` **sin un array explícito de columnas**, Filament busca únicamente contra la columna `$titleAttribute` — no contra lo que `->getOptionLabelFromRecordUsing()` muestra en pantalla. Si el label override incluye más columnas (apellido, CI, trade_name, etc.) que el `$titleAttribute` no cubre, el campo se vuelve efectivamente imposible de buscar por esas columnas — visualmente parece normal, pero escribir texto en el buscador no encuentra nada.
+
+```php
+// ❌ El label muestra nombre + apellido + CI, pero solo busca por 'id'
+Select::make('employee_id')
+    ->relationship('employee', 'id', fn ($query) => $query->where('status', 'active'))
+    ->searchable()
+    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name} — CI: {$record->ci}")
+
+// ✅ El array de searchable() debe cubrir todas las columnas que aparecen en el label
+Select::make('employee_id')
+    ->relationship('employee', 'first_name', fn ($query) => $query->where('status', 'active'))
+    ->searchable(['first_name', 'last_name', 'ci'])
+    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name} — CI: {$record->ci}")
+```
+
+**Caso límite más grave: `titleAttribute` omitido por completo** (`->relationship('perception', modifyQueryUsing: ...)` sin segundo argumento) — sin `searchable([...])` explícito, `getSearchColumns()` retorna `null` y el buscador queda **completamente inerte**: no filtra nada, ni siquiera devuelve cero resultados, simplemente ignora lo que el usuario escribe.
+
+**Regla:** todo `Select::make(...)->relationship(...)->searchable()` que también tenga `->getOptionLabelFromRecordUsing()` debe pasarle a `searchable()` un array explícito con **todas** las columnas que aparecen en ese label override — nunca dejarlo sin argumentos cuando el label muestra más de una columna. Aplica igual a `SelectFilter::make(...)` en tablas (mismo mecanismo, ver `vendor/filament/tables/src/Filters/SelectFilter.php:260` `getFormField()`).
+
 ### Nullsafe en propiedades de relaciones en closures de columnas Filament
 
 Siempre usar `?->` al acceder a relaciones en closures de columnas — el registro relacionado puede ser null si fue eliminado:

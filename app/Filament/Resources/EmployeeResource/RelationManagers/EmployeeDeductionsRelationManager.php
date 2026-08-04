@@ -65,6 +65,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->label('Deducción')
                     ->relationship(
                         name: 'deduction',
+                        titleAttribute: 'name',
                         modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name')
                     )
                     ->getOptionLabelFromRecordUsing(
@@ -75,7 +76,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                             ).')'
                     )
                     ->required()
-                    ->searchable()
+                    ->searchable(['name', 'code'])
                     ->preload()
                     ->live()
                     ->native(false)

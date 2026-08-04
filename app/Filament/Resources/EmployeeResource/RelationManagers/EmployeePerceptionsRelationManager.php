@@ -63,6 +63,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Percepción')
                     ->relationship(
                         name: 'perception',
+                        titleAttribute: 'name',
                         modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name')
                     )
                     ->getOptionLabelFromRecordUsing(
@@ -73,7 +74,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                             ).')'
                     )
                     ->required()
-                    ->searchable()
+                    ->searchable(['name', 'code'])
                     ->preload()
                     ->live()
                     ->afterStateUpdated(fn (Set $set) => $set('custom_amount', null))
