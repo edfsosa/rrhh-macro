@@ -27,7 +27,11 @@ class FamilyBonusCalculator
     {
         $emptyResult = ['total' => 0.0, 'items' => []];
 
-        $eligibleCount = $employee->eligibleChildren()->count();
+        // Property access: usa la relación precargada por PayrollService cuando está
+        // disponible (evita 1 query por empleado en generateForPeriod); si no está
+        // precargada, Eloquent la carga aquí mismo con el mismo scope, sin cambio de
+        // comportamiento — la relación no depende del período, siempre es segura.
+        $eligibleCount = $employee->eligibleChildren->count();
 
         if ($eligibleCount <= 0) {
             return $emptyResult;

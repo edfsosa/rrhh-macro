@@ -73,11 +73,12 @@ class DeductionCalculator
 
             if ($customAmount === null && $deduction->isPercentage()) {
                 if ($ipsCode !== null && $deduction->code === $ipsCode) {
-                    $salaryBase = (int) round($ipsBase);
+                    // No truncar a entero: extras/descanso semanal pueden aportar guaraníes fraccionarios.
+                    $salaryBase = (float) $ipsBase;
                 } else {
                     $salaryBase = $employee->employment_type === 'day_laborer'
-                        ? (int) ($employee->daily_rate ?? 0)
-                        : (int) ($employee->base_salary ?? 0);
+                        ? (float) ($employee->daily_rate ?? 0)
+                        : (float) ($employee->base_salary ?? 0);
                 }
 
                 if ($salaryBase <= 0) {
@@ -105,8 +106,8 @@ class DeductionCalculator
             $deduction = $assignment->deduction;
             $customAmount = $assignment->custom_amount;
             $salaryBase = $employee->employment_type === 'day_laborer'
-                ? (int) ($employee->daily_rate ?? 0)
-                : (int) ($employee->base_salary ?? 0);
+                ? (float) ($employee->daily_rate ?? 0)
+                : (float) ($employee->base_salary ?? 0);
 
             $calculated = $deduction->calculateAmount($salaryBase, $customAmount);
 

@@ -46,8 +46,8 @@ class PerceptionCalculator
 
             if ($customAmount === null && $perception->isPercentage()) {
                 $salaryBase = $employee->employment_type === 'day_laborer'
-                    ? (int) ($employee->daily_rate ?? 0)
-                    : (int) ($employee->base_salary ?? 0);
+                    ? (float) ($employee->daily_rate ?? 0)
+                    : (float) ($employee->base_salary ?? 0);
 
                 if ($salaryBase <= 0) {
                     Log::warning("PerceptionCalculator: CI {$employee->ci} {$employee->first_name} sin salario base válido para percepción '{$perception->name}', aplicando Gs. 0", [

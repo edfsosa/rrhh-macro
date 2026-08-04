@@ -14,6 +14,7 @@ use App\Models\Position;
 use App\Services\ContractService;
 use App\Settings\GeneralSettings;
 use App\Settings\PayrollSettings;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
@@ -45,6 +46,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 
 class ContractResource extends Resource
 {
@@ -111,7 +113,7 @@ class ContractResource extends Resource
 
                         Placeholder::make('template_warning')
                             ->label('')
-                            ->content(new \Illuminate\Support\HtmlString(
+                            ->content(new HtmlString(
                                 '<div style="color:#b45309;font-size:12px;">⚠️ No hay plantilla configurada para este tipo de contrato en esta empresa. El PDF se generará sin cláusulas predefinidas.</div>'
                             ))
                             ->visible(function (Get $get) {
@@ -120,7 +122,7 @@ class ContractResource extends Resource
                                 if (! $type || ! $employeeId) {
                                     return false;
                                 }
-                                $employee = \App\Models\Employee::with('branch')->find($employeeId);
+                                $employee = Employee::with('branch')->find($employeeId);
                                 $companyId = $employee?->branch?->company_id;
                                 if (! $companyId) {
                                     return false;
@@ -157,7 +159,7 @@ class ContractResource extends Resource
                                 $type = $get('type');
                                 // Art. 53 CLT: Plazo fijo máximo 1 año
                                 if ($startDate && in_array($type, ['plazo_fijo', 'aprendizaje'])) {
-                                    return \Carbon\Carbon::parse($startDate)->addYear();
+                                    return Carbon::parse($startDate)->addYear();
                                 }
 
                                 return null;
@@ -217,10 +219,11 @@ class ContractResource extends Resource
                             ->label(fn (Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                             ->numeric()
                             ->required()
-                            ->minValue(1)
+                            ->minValue(fn (Get $get) => Contract::getMinSalaryFor($get('salary_type')))
                             ->prefix('Gs.')
                             ->suffix(fn (Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
                             ->default(fn () => app(PayrollSettings::class)->min_salary_monthly)
+                            ->validationMessages(['minValue' => 'El salario no puede ser menor al mínimo legal vigente.'])
                             ->placeholder('0'),
 
                         Select::make('department_id')
@@ -264,7 +267,7 @@ class ContractResource extends Resource
 
                         Select::make('payment_method')
                             ->label('Método de Pago')
-                            ->options(\App\Models\Employee::getPaymentMethodOptions())
+                            ->options(Employee::getPaymentMethodOptions())
                             ->native(false)
                             ->default('debit')
                             ->required()
@@ -546,7 +549,7 @@ class ContractResource extends Resource
                                 InfoAction::make('ir_al_empleado')
                                     ->label('Ir al perfil del empleado')
                                     ->icon('heroicon-o-arrow-top-right-on-square')
-                                    ->url(\App\Filament\Resources\EmployeeResource::getUrl('view', ['record' => $record->employee_id]))
+                                    ->url(EmployeeResource::getUrl('view', ['record' => $record->employee_id]))
                                     ->openUrlInNewTab(),
                             ])->columnSpanFull(),
                         ];
@@ -625,7 +628,7 @@ class ContractResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
@@ -778,9 +781,11 @@ class ContractResource extends Resource
                                 ->label(fn (Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                                 ->numeric()
                                 ->required()
+                                ->minValue(fn (Contract $record) => Contract::getMinSalaryFor($record->salary_type))
                                 ->prefix('Gs.')
                                 ->suffix(fn (Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
-                                ->default(fn (Contract $record) => $record->salary),
+                                ->default(fn (Contract $record) => $record->salary)
+                                ->validationMessages(['minValue' => 'El salario no puede ser menor al mínimo legal vigente.']),
 
                             Textarea::make('notes')
                                 ->label('Notas')

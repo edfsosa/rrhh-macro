@@ -296,6 +296,10 @@ Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un
 
 **Provisión mensual:** `AguinaldoService::provisionQuery()` retorna una query agregada para mostrar el monto acumulado hasta el mes indicado — útil para reportes contables.
 
+### Módulo de Vacaciones
+
+**Pago con nómina (`payment_method = 'with_payroll'`):** `PayrollService::resolveVacationPays()` paga la remuneración vacacional **completa como pago único** en el período de nómina que contiene el `start_date` de la vacación — **no se prorratea** aunque el `end_date` caiga en el período de nómina siguiente. Es una convención intencional (lump sum al inicio de la vacación), no un bug. `Vacation.payment_status` es un enum simple `unpaid`/`paid` — no rastrea montos parciales, así que implementar prorrateo real requeriría un cambio de modelo de datos, no solo de lógica.
+
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
 
@@ -1338,7 +1342,7 @@ Las columnas calculadas por subquery en el SELECT (`DB::raw('(SELECT ...) AS ali
 
 **Limitación Node 16:** Vite 6 + Rollup requieren Node ≥18 y ~512MB RAM para compilar. El servidor falla con `RangeError: WebAssembly.instantiate(): Out of memory`. **Solución permanente: buildear en local y subir assets via rsync.**
 
-**Deploy automático:** El deploy a producción se dispara automáticamente al hacer push/merge a `main` via GitHub Actions (`.github/workflows/deploy.yml`). El workflow llama a un webhook en `public/deploy.php` que ejecuta en orden:
+**Deploy manual (sin automatización posible):** el hosting de Macro (cPanel, recursos limitados) no permite disparar el deploy automáticamente. El antiguo mecanismo vía webhook (`public/deploy.php`, disparado por GitHub Actions en push a `main`) fue removido del repo (commit `0b1cd93`). Hoy el deploy se hace a mano por SSH, ejecutando en orden los mismos pasos que antes corría el webhook:
 1. `artisan down`
 2. `git pull origin main`
 3. `composer install --no-dev --optimize-autoloader`
@@ -1347,11 +1351,11 @@ Las columnas calculadas por subquery en el SELECT (`DB::raw('(SELECT ...) AS ali
 6. `artisan queue:restart`
 7. `artisan up`
 
-El log del deploy queda en `storage/logs/deploy.log` en el servidor. Si el deploy falla en algún paso, se ejecuta `artisan up` automáticamente para restaurar el sitio.
+Al ser manual, no hay log ni rollback automático — si un paso falla, hay que diagnosticarlo y ejecutar `artisan up` a mano para restaurar el sitio antes de reintentar.
 
-**Antes de hacer merge a main verificar:**
-- Si hay nuevas variables de entorno (`.env`), agregarlas al servidor antes del merge
-- Si hay cambios en assets frontend (Blade, JS, CSS), buildear en local y subir via rsync antes del merge:
+**Antes de deployar manualmente a Macro verificar:**
+- Si hay nuevas variables de entorno (`.env`), agregarlas al servidor antes de correr el deploy
+- Si hay cambios en assets frontend (Blade, JS, CSS), buildear en local y subir via rsync antes del deploy:
 ```bash
 npm run build
 rsync -avz --delete public/build/ sedvouco@bh7104:/ruta/nominapp/public/build/
@@ -1359,7 +1363,6 @@ rsync -avz --delete public/build/ sedvouco@bh7104:/ruta/nominapp/public/build/
 
 **Variables de entorno requeridas en producción:**
 - `GOOGLE_MAPS_API_KEY` — requerida por `cheesegrits/filament-google-maps` para el mapa de sucursales
-- `DEPLOY_TOKEN` — token secreto para autenticar el webhook de deploy
 
 **Scheduler configurado** (`crontab -l`):
 ```

@@ -12,6 +12,7 @@ use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
+use App\Models\Vacation;
 use App\Services\AbsencePenaltyCalculator;
 use App\Services\AdvanceCalculator;
 use App\Services\DeductionCalculator;
@@ -24,6 +25,7 @@ use App\Services\PayrollService;
 use App\Services\PerceptionCalculator;
 use App\Services\RestDayCalculator;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -468,6 +470,153 @@ it('regenerateForEmployee actualiza los montos en el registro existente', functi
 
     expect((float) $payroll->fresh()->total_deductions)->toBe(500_000.0)
         ->and((float) $payroll->fresh()->net_salary)->toBe(2_550_000.0 - 500_000.0);
+});
+
+// ─── generateForPeriod — manejo de errores ───────────────────────────────────
+
+it('generateForPeriod incluye el mensaje de la excepción de negocio en skipped', function () {
+    $period = makePayPeriod('draft');
+    makePayEmployee();
+
+    $perception = Mockery::mock(PerceptionCalculator::class);
+    $perception->shouldReceive('calculate')->andThrow(new InvalidArgumentException('Regla de negocio X violada'));
+
+    $result = makePayService(['perception' => $perception])->generateForPeriod($period);
+
+    expect($result['skipped'])->toHaveCount(1)
+        ->and($result['skipped'][0]['reason'])->toBe('Error al calcular: Regla de negocio X violada');
+});
+
+it('generateForPeriod usa mensaje genérico en skipped ante un QueryException', function () {
+    $period = makePayPeriod('draft');
+    makePayEmployee();
+
+    $perception = Mockery::mock(PerceptionCalculator::class);
+    $perception->shouldReceive('calculate')->andThrow(
+        new QueryException('mysql', 'select * from `secreto`', [], new Exception('duplicate entry'))
+    );
+
+    $result = makePayService(['perception' => $perception])->generateForPeriod($period);
+
+    expect($result['skipped'])->toHaveCount(1)
+        ->and($result['skipped'][0]['reason'])->toBe('Error al calcular (revisar log del servidor)');
+});
+
+// ─── vacaciones with_payroll — pago único (no prorrateado) ───────────────────
+
+it('paga la remuneración vacacional completa en el período del start_date, aunque end_date caiga en el siguiente', function () {
+    $period = makePayPeriod('draft');
+    $employee = makePayEmployee();
+
+    // Vacación que arranca dentro del período pero termina después de su fin.
+    $vacation = Vacation::create([
+        'employee_id' => $employee->id,
+        'start_date' => $period->end_date->copy()->subDays(2),
+        'end_date' => $period->end_date->copy()->addDays(5),
+        'status' => 'approved',
+        'payment_method' => 'with_payroll',
+        'payment_amount' => 300_000,
+        'payment_status' => 'unpaid',
+    ]);
+
+    $payroll = makePayService()->generateForEmployee($employee, $period);
+
+    expect((float) $payroll->total_perceptions)->toBe(300_000.0)
+        ->and($vacation->fresh()->payment_status)->toBe('paid');
+});
+
+// ─── PDF fuera de la transacción ─────────────────────────────────────────────
+
+it('generateForEmployee crea la nómina aunque la generación de PDF falle', function () {
+    $period = makePayPeriod('draft');
+    $employee = makePayEmployee();
+
+    $pdf = Mockery::mock(PayrollPDFGenerator::class);
+    $pdf->shouldReceive('generate')->andThrow(new Exception('Fallo simulado de PDF'));
+
+    $payroll = makePayService(['pdf' => $pdf])->generateForEmployee($employee, $period);
+
+    expect(Payroll::count())->toBe(1)
+        ->and($payroll->fresh()->pdf_path)->toBeNull();
+});
+
+it('generateForPeriod no genera el PDF si un calculador falla a mitad de pipeline', function () {
+    $period = makePayPeriod('draft');
+    makePayEmployee();
+
+    $deduction = Mockery::mock(DeductionCalculator::class);
+    $deduction->shouldReceive('calculate')->andThrow(new Exception('Fallo simulado de cálculo'));
+
+    $pdf = Mockery::mock(PayrollPDFGenerator::class);
+    $pdf->shouldNotReceive('generate');
+
+    makePayService(['deduction' => $deduction, 'pdf' => $pdf])->generateForPeriod($period);
+
+    expect(Payroll::count())->toBe(0);
+});
+
+it('regenerateForEmployee conserva el PDF anterior si la nueva generación de PDF falla', function () {
+    $period = makePayPeriod('draft');
+    $employee = makePayEmployee();
+    $service = makePayService();
+
+    $payroll = $service->generateForEmployee($employee, $period);
+    expect($payroll->fresh()->pdf_path)->toBe('mock/payroll.pdf');
+
+    $pdf = Mockery::mock(PayrollPDFGenerator::class);
+    $pdf->shouldReceive('generate')->andThrow(new Exception('Fallo simulado de PDF'));
+
+    makePayService(['pdf' => $pdf])->regenerateForEmployee($payroll->fresh());
+
+    expect($payroll->fresh()->pdf_path)->toBe('mock/payroll.pdf');
+});
+
+// ─── eliminación de nómina — reversión de vacaciones ─────────────────────────
+
+it('al eliminar la nómina revierte a unpaid las vacaciones with_payroll pagadas dentro del período', function () {
+    $period = makePayPeriod('draft');
+    $employee = makePayEmployee();
+
+    $payroll = makePayService()->generateForEmployee($employee, $period);
+
+    $vacationInPeriod = Vacation::create([
+        'employee_id' => $employee->id,
+        'start_date' => $period->start_date,
+        'end_date' => $period->start_date->copy()->addDays(2),
+        'status' => 'approved',
+        'payment_method' => 'with_payroll',
+        'payment_amount' => 300_000,
+        'payment_status' => 'paid',
+        'paid_at' => now(),
+    ]);
+
+    $payroll->delete();
+
+    expect($vacationInPeriod->fresh()->payment_status)->toBe('unpaid')
+        ->and($vacationInPeriod->fresh()->paid_at)->toBeNull();
+});
+
+it('al eliminar la nómina no toca vacaciones with_payroll pagadas fuera del período', function () {
+    $period = makePayPeriod('draft');
+    $employee = makePayEmployee();
+
+    $payroll = makePayService()->generateForEmployee($employee, $period);
+
+    $vacationOutsidePeriod = Vacation::create([
+        'employee_id' => $employee->id,
+        'start_date' => $period->end_date->copy()->addMonth(),
+        'end_date' => $period->end_date->copy()->addMonth()->addDays(2),
+        'status' => 'approved',
+        'payment_method' => 'with_payroll',
+        'payment_amount' => 300_000,
+        'payment_status' => 'paid',
+        'paid_at' => now(),
+    ]);
+
+    $payroll->delete();
+
+    expect($vacationOutsidePeriod->fresh()->payment_status)->toBe('paid')
+        ->and($vacationOutsidePeriod->fresh()->paid_at)->not->toBeNull();
 });
 
 afterEach(function () {

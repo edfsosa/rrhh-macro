@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Settings\GeneralSettings;
+use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +31,7 @@ class Contract extends Model implements Auditable
         'payment_method',
         'notes',
     ];
+
     protected $fillable = [
         'employee_id',
         'type',
@@ -205,6 +208,16 @@ class Contract extends Model implements Auditable
             'jornal' => 'heroicon-o-calendar-days',
             default => 'heroicon-o-question-mark-circle',
         };
+    }
+
+    /** Salario mínimo legal vigente para el tipo de remuneración, desde PayrollSettings. */
+    public static function getMinSalaryFor(?string $salaryType): int
+    {
+        $settings = app(PayrollSettings::class);
+
+        return $salaryType === 'jornal'
+            ? $settings->min_salary_daily_jornal
+            : $settings->min_salary_monthly;
     }
 
     public static function getWorkModalityOptions(): array
@@ -499,7 +512,7 @@ class Contract extends Model implements Auditable
         return [
             'active' => static::where('status', 'active')->count(),
             'expiring' => static::expiringSoon(
-                app(\App\Settings\GeneralSettings::class)->contract_alert_days
+                app(GeneralSettings::class)->contract_alert_days
             )->count(),
             'expired' => static::expired()->count(),
         ];
@@ -535,17 +548,17 @@ class Contract extends Model implements Auditable
         }
 
         $fieldLabels = [
-            'status'        => 'Estado',
-            'salary'        => 'Salario',
-            'salary_type'   => 'Tipo de salario',
-            'position_id'   => 'Cargo',
+            'status' => 'Estado',
+            'salary' => 'Salario',
+            'salary_type' => 'Tipo de salario',
+            'position_id' => 'Cargo',
             'department_id' => 'Departamento',
-            'start_date'    => 'Fecha de inicio',
-            'end_date'      => 'Fecha de fin',
-            'trial_days'    => 'Días de prueba',
+            'start_date' => 'Fecha de inicio',
+            'end_date' => 'Fecha de fin',
+            'trial_days' => 'Días de prueba',
             'work_modality' => 'Modalidad',
             'payment_method' => 'Método de pago',
-            'notes'         => 'Notas',
+            'notes' => 'Notas',
         ];
 
         $html = '<ul class="space-y-0.5 text-sm">';
@@ -569,27 +582,27 @@ class Contract extends Model implements Auditable
         }
 
         return match ($key) {
-            'status'        => static::getStatusLabel($value),
-            'salary_type'   => $value === 'mensual' ? 'Mensual' : 'Jornal',
+            'status' => static::getStatusLabel($value),
+            'salary_type' => $value === 'mensual' ? 'Mensual' : 'Jornal',
             'work_modality' => match ($value) {
                 'presencial' => 'Presencial',
-                'remoto'     => 'Remoto',
-                'hibrido'    => 'Híbrido',
-                default      => (string) $value,
+                'remoto' => 'Remoto',
+                'hibrido' => 'Híbrido',
+                default => (string) $value,
             },
             'payment_method' => match ($value) {
-                'cash'   => 'Efectivo',
-                'debit'  => 'Débito bancario',
-                'check'  => 'Cheque',
-                default  => (string) $value,
+                'cash' => 'Efectivo',
+                'debit' => 'Débito bancario',
+                'check' => 'Cheque',
+                default => (string) $value,
             },
-            'salary'        => 'Gs. '.number_format((int) $value, 0, ',', '.'),
-            'position_id'   => Position::find($value)?->name ?? "ID {$value}",
+            'salary' => 'Gs. '.number_format((int) $value, 0, ',', '.'),
+            'position_id' => Position::find($value)?->name ?? "ID {$value}",
             'department_id' => Department::find($value)?->name ?? "ID {$value}",
             'start_date', 'end_date' => Carbon::parse($value)->format('d/m/Y'),
-            'trial_days'    => $value.' días',
-            'notes'         => Str::limit((string) $value, 120),
-            default         => (string) $value,
+            'trial_days' => $value.' días',
+            'notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
         };
     }
 }

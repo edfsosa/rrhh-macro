@@ -324,6 +324,16 @@ class LiquidacionService
         return round($units * $daysPerYear * $dailyAvg, 0);
     }
 
+    /**
+     * NOTA (pendiente de confirmación legal/contable): esta base usa `gross_salary`
+     * completo (incluye percepciones no salariales como viáticos y subsidios).
+     * `AguinaldoService::calculateItemsFromPayrolls()` en cambio excluye esos
+     * conceptos deliberadamente (`base_salary + ips_perceptions`) por no ser
+     * salariales a efectos legales. No se unifica todavía porque no está
+     * confirmado si el mismo criterio aplica al promedio de 6 meses de la
+     * indemnización — requiere validación con asesoría legal/contable antes
+     * de cambiar la fórmula (afectaría montos reales de liquidaciones).
+     */
     protected function calculateAverageSalary6Months(Employee $employee, Carbon $terminationDate, float $fallbackSalary): float
     {
         $sixMonthsAgo = $terminationDate->copy()->subMonths(6)->startOfMonth();
@@ -453,10 +463,12 @@ class LiquidacionService
 
     protected function calculateSalarioPendiente(Employee $employee, Carbon $terminationDate, float $dailySalary, Carbon $hireDate): array
     {
-        // Verificar si ya se pagó el mes actual
+        // Verificar si ya existe una nómina que cubra hasta la fecha de terminación.
+        // No basta con "hay alguna nómina este mes": un quincenal con solo la primera
+        // mitad generada no cubre los días pendientes de la segunda mitad.
         $hasPayroll = Payroll::where('employee_id', $employee->id)
             ->whereHas('period', function ($q) use ($terminationDate) {
-                $q->where('end_date', '>=', $terminationDate->copy()->startOfMonth());
+                $q->where('end_date', '>=', $terminationDate);
             })
             ->exists();
 

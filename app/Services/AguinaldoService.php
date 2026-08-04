@@ -70,7 +70,7 @@ class AguinaldoService
                         'employee_id' => $employee->id,
                         'total_earned' => $totalEarned,
                         'months_worked' => count($payrolls),
-                        'aguinaldo_amount' => round($totalEarned / 12, 2),
+                        'aguinaldo_amount' => round($totalEarned / 12, 0),
                         'status' => 'pending',
                         'generated_at' => $now,
                         'payment_method' => $employee->activeContract?->payment_method ?? 'cash',
@@ -140,7 +140,7 @@ class AguinaldoService
             $aguinaldo->update([
                 'total_earned' => $totalEarned,
                 'months_worked' => count($payrolls),
-                'aguinaldo_amount' => round($totalEarned / 12, 2),
+                'aguinaldo_amount' => round($totalEarned / 12, 0),
                 'generated_at' => $now,
                 'payment_method' => $employee->activeContract?->payment_method ?? 'cash',
             ]);

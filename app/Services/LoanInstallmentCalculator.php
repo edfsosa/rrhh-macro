@@ -8,6 +8,7 @@ use App\Models\EmployeeDeduction;
 use App\Models\Loan;
 use App\Models\LoanInstallment;
 use App\Models\PayrollPeriod;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -28,7 +29,7 @@ class LoanInstallmentCalculator
      * Identifica cuotas de préstamos vencidas en el período, crea sus EmployeeDeduction
      * y retorna la colección de instancias para trazabilidad posterior.
      *
-     * @return array{installments: \Illuminate\Support\Collection}
+     * @return array{installments: Collection}
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
@@ -53,6 +54,7 @@ class LoanInstallmentCalculator
             ->whereBetween('due_date', [$period->start_date, $period->end_date])
             ->with('loan')
             ->orderBy('due_date')
+            ->lockForUpdate()
             ->get();
 
         foreach ($installments as $installment) {

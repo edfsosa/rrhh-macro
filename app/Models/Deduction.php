@@ -157,7 +157,7 @@ class Deduction extends Model
         return $value !== null ? number_format((float) $value, 2).'%' : null;
     }
 
-    public function calculateAmount(int $salaryBase, mixed $customAmount = null): float
+    public function calculateAmount(int|float $salaryBase, mixed $customAmount = null): float
     {
         if ($customAmount !== null) {
             return (float) $customAmount;

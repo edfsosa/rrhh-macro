@@ -22,10 +22,10 @@ class Perception extends Model
     ];
 
     protected $casts = [
-        'amount'      => 'integer',
-        'percent'     => 'decimal:2',
-        'is_taxable'  => 'boolean',
-        'is_active'   => 'boolean',
+        'amount' => 'integer',
+        'percent' => 'decimal:2',
+        'is_taxable' => 'boolean',
+        'is_active' => 'boolean',
         'affects_ips' => 'boolean',
         'affects_irp' => 'boolean',
     ];
@@ -54,18 +54,15 @@ class Perception extends Model
     /**
      * Retorna el valor forzado de `affects_ips` para un tipo dado.
      * Retorna null si el tipo permite configuración libre (other).
-     *
-     * @param  string  $type
-     * @return bool|null
      */
     public static function getAffectsIpsForType(string $type): ?bool
     {
         return match ($type) {
-            'salary'   => true,
+            'salary' => true,
             'viaticos' => false,
-            'subsidy'  => false,
-            'other'    => null,
-            default    => null,
+            'subsidy' => false,
+            'other' => null,
+            default => null,
         };
     }
 
@@ -77,10 +74,10 @@ class Perception extends Model
     public static function getTypeOptions(): array
     {
         return [
-            'salary'   => 'Salarial (bono, comisión, etc.)',
+            'salary' => 'Salarial (bono, comisión, etc.)',
             'viaticos' => 'Viáticos y gastos de representación',
-            'subsidy'  => 'Subsidio (alimentación, transporte, etc.)',
-            'other'    => 'Otro',
+            'subsidy' => 'Subsidio (alimentación, transporte, etc.)',
+            'other' => 'Otro',
         ];
     }
 
@@ -92,10 +89,10 @@ class Perception extends Model
     public static function getTypeLabels(): array
     {
         return [
-            'salary'   => 'Salarial',
+            'salary' => 'Salarial',
             'viaticos' => 'Viáticos',
-            'subsidy'  => 'Subsidio',
-            'other'    => 'Otro',
+            'subsidy' => 'Subsidio',
+            'other' => 'Otro',
         ];
     }
 
@@ -107,10 +104,10 @@ class Perception extends Model
     public static function getTypeColors(): array
     {
         return [
-            'salary'   => 'success',
+            'salary' => 'success',
             'viaticos' => 'info',
-            'subsidy'  => 'warning',
-            'other'    => 'gray',
+            'subsidy' => 'warning',
+            'other' => 'gray',
         ];
     }
 
@@ -125,7 +122,7 @@ class Perception extends Model
     {
         return $this->belongsToMany(Employee::class, 'employee_perceptions')
             ->wherePivot('start_date', '<=', now())
-            ->where(fn($q) => $q
+            ->where(fn ($q) => $q
                 ->whereNull('employee_perceptions.end_date')
                 ->orWhere('employee_perceptions.end_date', '>=', now())
             );
@@ -157,7 +154,7 @@ class Perception extends Model
     {
         return $this->hasMany(EmployeePerception::class)
             ->where('start_date', '<=', now())
-            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
@@ -212,14 +209,14 @@ class Perception extends Model
 
     public static function formatPercent(mixed $value): ?string
     {
-        return $value !== null ? number_format((float) $value, 2) . '%' : null;
+        return $value !== null ? number_format((float) $value, 2).'%' : null;
     }
 
     /**
      * Calcular el monto de esta percepción dado un salario base.
      * Prioridad: monto personalizado > porcentaje > monto fijo.
      */
-    public function calculateAmount(int $baseSalary, ?int $customAmount = null): int
+    public function calculateAmount(int|float $baseSalary, ?int $customAmount = null): int
     {
         if ($customAmount !== null) {
             return $customAmount;

@@ -139,10 +139,11 @@ class ContractsRelationManager extends RelationManager
                             ->label(fn (Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                             ->numeric()
                             ->required()
-                            ->minValue(1)
+                            ->minValue(fn (Get $get) => Contract::getMinSalaryFor($get('salary_type')))
                             ->prefix('Gs.')
                             ->suffix(fn (Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
                             ->default(fn () => app(PayrollSettings::class)->min_salary_monthly)
+                            ->validationMessages(['minValue' => 'El salario no puede ser menor al mínimo legal vigente.'])
                             ->helperText('Para jornada nocturna, incluir el recargo del 30% en este monto (Art. 196 CLT).'),
 
                         Select::make('payment_method')
@@ -461,7 +462,7 @@ class ContractsRelationManager extends RelationManager
 
                         $record->update(['document_path' => $data['document_path']]);
 
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Documento subido')
                             ->body('El contrato firmado se ha guardado correctamente.')
                             ->success()
