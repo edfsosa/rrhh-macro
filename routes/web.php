@@ -25,8 +25,6 @@ use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
 use App\Http\Controllers\VacationReportController;
 use App\Http\Controllers\WarningController;
-use App\Models\Employee;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -65,30 +63,6 @@ Route::prefix('registro-facial')->name('face-enrollment.')->middleware('throttle
     Route::get('/{token}', [FaceEnrollmentController::class, 'show'])->name('show');
     Route::post('/{token}', [FaceEnrollmentController::class, 'store'])->name('store');
 });
-
-/*
-|--------------------------------------------------------------------------
-| API Pública - Empleados
-|--------------------------------------------------------------------------
-|
-| Endpoint para obtener lista de empleados activos con rostro registrado.
-| Usado por el sistema de reconocimiento facial para identificación.
-| Requiere que el empleado tenga face_descriptor (datos biométricos).
-|
-*/
-
-Route::get('/api/employees', function (Request $request) {
-    $branchId = $request->query('branch_id');
-
-    $employees = Employee::query()
-        ->where('status', 'activo')
-        ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
-        ->whereNotNull('face_descriptor') // Requiere rostro registrado para reconocimiento
-        ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
-        ->get();
-
-    return response()->json($employees);
-})->name('api.employees');
 
 /*
 |--------------------------------------------------------------------------
