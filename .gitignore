@@ -27,3 +27,4 @@ public/error_log
 .mcp.json
 boost.json
 /storage/backups/
+/public/vendor
