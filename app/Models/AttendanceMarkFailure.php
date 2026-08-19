@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Registro de intentos fallidos de marcación de asistencia.
@@ -11,6 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Persiste en BD todos los fallos del proceso de marcación (facial, terminal y móvil)
  * para permitir auditoría, diagnóstico y visualización en el panel de administración.
  * Los registros se retienen 30 días y se limpian automáticamente.
+ *
+ * Los fallos con `employee_id` y `attempted_event_type` presentes (ver
+ * `canBeResolved()`) admiten revisión manual desde Filament: un admin puede
+ * `approve()` (reconstruye el `AttendanceEvent` correspondiente, revalidando
+ * la secuencia contra el estado actual) o `dismiss()` (lo marca como
+ * revisado sin crear ningún evento).
  */
 class AttendanceMarkFailure extends Model
 {
@@ -25,12 +33,28 @@ class AttendanceMarkFailure extends Model
         'ip_address',
         'location',
         'occurred_at',
+        'resolution_status',
+        'resolved_at',
+        'resolved_by_id',
+        'resolution_notes',
+        'resolved_event_id',
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'location' => 'array',
         'occurred_at' => 'datetime',
+        'resolved_at' => 'datetime',
+    ];
+
+    /**
+     * Default en PHP (no solo en la migración): `create()` no vuelve a leer
+     * la fila insertada, así que sin esto la instancia recién creada queda
+     * con `resolution_status` en `null` en memoria hasta que se recarga —
+     * `isPending()`/`canBeResolved()` fallarían justo después de `record()`.
+     */
+    protected $attributes = [
+        'resolution_status' => 'pending',
     ];
 
     // ──────────────────────────────────────────
@@ -47,6 +71,18 @@ class AttendanceMarkFailure extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** Admin que aprobó o descartó el fallo. */
+    public function resolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by_id');
+    }
+
+    /** Evento creado al aprobar el fallo (solo si `resolution_status === 'approved'`). */
+    public function resolvedEvent(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceEvent::class, 'resolved_event_id');
     }
 
     // ──────────────────────────────────────────
@@ -151,5 +187,184 @@ class AttendanceMarkFailure extends Model
             ['occurred_at' => now()],
             $data,
         ));
+    }
+
+    /**
+     * Opciones de estado de revisión para filtros.
+     *
+     * @return array<string, string>
+     */
+    public static function getResolutionStatusOptions(): array
+    {
+        return [
+            'pending' => 'Pendiente',
+            'approved' => 'Aprobado',
+            'dismissed' => 'Descartado',
+        ];
+    }
+
+    /**
+     * Labels cortos para badges de estado de revisión.
+     *
+     * @return array<string, string>
+     */
+    public static function getResolutionStatusLabels(): array
+    {
+        return [
+            'pending' => 'Pendiente',
+            'approved' => 'Aprobado',
+            'dismissed' => 'Descartado',
+        ];
+    }
+
+    /**
+     * Colores semánticos para badges de estado de revisión.
+     *
+     * @return array<string, string>
+     */
+    public static function getResolutionStatusColors(): array
+    {
+        return [
+            'pending' => 'warning',
+            'approved' => 'success',
+            'dismissed' => 'gray',
+        ];
+    }
+
+    // ──────────────────────────────────────────
+    // Revisión manual (aprobar / descartar)
+    // ──────────────────────────────────────────
+
+    /** Indica si el fallo todavía no fue revisado. */
+    public function isPending(): bool
+    {
+        return $this->resolution_status === 'pending';
+    }
+
+    /** Indica si el fallo fue aprobado (se creó un AttendanceEvent). */
+    public function isApproved(): bool
+    {
+        return $this->resolution_status === 'approved';
+    }
+
+    /** Indica si el fallo fue descartado sin crear ningún evento. */
+    public function isDismissed(): bool
+    {
+        return $this->resolution_status === 'dismissed';
+    }
+
+    /**
+     * Indica si hay datos suficientes para reconstruir la marcación
+     * intentada — requiere saber quién (`employee_id`) y qué tipo de evento
+     * (`attempted_event_type`) se intentó. Sin esto (ej. `face_no_match`,
+     * donde nunca se identificó a nadie) no hay nada que "aprobar".
+     */
+    public function canBeResolved(): bool
+    {
+        return $this->isPending()
+            && $this->employee_id !== null
+            && $this->attempted_event_type !== null;
+    }
+
+    /**
+     * Aprueba el fallo y crea el `AttendanceEvent` correspondiente,
+     * revalidando la secuencia contra el estado *actual* del empleado (puede
+     * haber cambiado desde que se registró el fallo — ej. otra marcación
+     * manual ya cubrió ese evento). Permite ajustar el tipo de evento y la
+     * hora antes de reinsertar; sin overrides, usa lo que se intentó
+     * originalmente (`attempted_event_type` + `recorded_at`/`occurred_at`).
+     *
+     * @return array{success: bool, message: string, event?: AttendanceEvent}
+     */
+    public function approve(
+        int $approvedById,
+        ?string $eventType = null,
+        ?Carbon $recordedAt = null,
+        ?string $notes = null,
+    ): array {
+        if (! $this->canBeResolved()) {
+            return ['success' => false, 'message' => 'Este fallo ya fue revisado o no tiene datos suficientes para reconstruir la marcación.'];
+        }
+
+        $employee = $this->employee;
+
+        if (! $employee || $employee->status !== 'active') {
+            return ['success' => false, 'message' => 'El empleado no existe o no está activo.'];
+        }
+
+        $eventType ??= $this->attempted_event_type;
+
+        if ($recordedAt === null) {
+            $metadataRecordedAt = $this->metadata['recorded_at'] ?? null;
+            $recordedAt = $metadataRecordedAt ? Carbon::parse($metadataRecordedAt) : $this->occurred_at->copy();
+        }
+
+        $date = $recordedAt->copy()->timezone(config('app.timezone'))->toDateString();
+
+        return DB::transaction(function () use ($employee, $eventType, $recordedAt, $date, $approvedById, $notes) {
+            $day = AttendanceDay::firstOrCreate(
+                ['employee_id' => $employee->id, 'date' => $date],
+                ['status' => 'present']
+            );
+
+            $last = AttendanceEvent::where('attendance_day_id', $day->id)
+                ->lockForUpdate()
+                ->latest('recorded_at')
+                ->first();
+
+            $allowed = AttendanceEvent::allowedNextEventTypes($last?->event_type);
+
+            if (! in_array($eventType, $allowed, true)) {
+                $lastLabel = $last ? AttendanceEvent::getEventTypeLabel($last->event_type) : 'ninguno';
+
+                return ['success' => false, 'message' => "La secuencia sigue sin ser válida (último evento registrado: {$lastLabel}). Elegí otro tipo de evento."];
+            }
+
+            if ($day->status !== 'present') {
+                $day->update(['status' => 'present']);
+            }
+
+            $event = $day->events()->create([
+                'event_type' => $eventType,
+                'recorded_at' => $recordedAt,
+                'synced_at' => $this->mode === 'terminal' ? now() : null,
+                'source' => $this->mode === 'terminal' ? 'terminal' : 'manual',
+                'location' => $this->metadata['location'] ?? $this->location,
+                'terminal_id' => $this->metadata['terminal_id'] ?? null,
+                'branch_mismatch' => false,
+            ]);
+
+            $this->update([
+                'resolution_status' => 'approved',
+                'resolved_at' => now(),
+                'resolved_by_id' => $approvedById,
+                'resolution_notes' => $notes,
+                'resolved_event_id' => $event->id,
+            ]);
+
+            return ['success' => true, 'message' => 'Marcación registrada correctamente.', 'event' => $event];
+        });
+    }
+
+    /**
+     * Descarta el fallo sin crear ningún evento — para cuando el conflicto
+     * ya no aplica (ej. la marcación se cargó manualmente desde otro lado).
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function dismiss(int $dismissedById, ?string $notes = null): array
+    {
+        if (! $this->isPending()) {
+            return ['success' => false, 'message' => 'Este fallo ya fue revisado.'];
+        }
+
+        $this->update([
+            'resolution_status' => 'dismissed',
+            'resolved_at' => now(),
+            'resolved_by_id' => $dismissedById,
+            'resolution_notes' => $notes,
+        ]);
+
+        return ['success' => true, 'message' => 'Fallo marcado como revisado.'];
     }
 }

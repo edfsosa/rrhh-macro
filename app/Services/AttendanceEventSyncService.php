@@ -164,6 +164,11 @@ class AttendanceEventSyncService
                     'attempted_event' => $eventData['event_type'],
                     'last_event' => $last?->event_type,
                     'allowed_events' => $allowed,
+                    // Necesario para que AttendanceMarkFailure::approve() pueda reconstruir el
+                    // AttendanceEvent con la hora/ubicación/terminal originales, no con "ahora".
+                    'recorded_at' => $recordedAt->toIso8601String(),
+                    'location' => $eventData['location'] ?? $this->resolveFallbackLocation($terminal, $employee),
+                    'terminal_id' => $terminal->id,
                 ],
                 $employee,
                 $eventData['event_type'],
