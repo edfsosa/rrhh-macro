@@ -630,7 +630,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     first_name: employee.first_name,
                     last_name: employee.last_name,
                     ci: employee.ci,
-                    photo_url: "/images/default-avatar.png", // la caché offline no incluye fotos (ver EmployeeDescriptorSyncService)
+                    // Thumbnail 64x64 pre-generado (ver EmployeePhotoThumbnailService), sincronizado
+                    // como data URI junto al descriptor facial — funciona 100% offline. Sin foto
+                    // propia (empleado sin foto cargada), cae al ícono genérico.
+                    photo_url: employee.photo_thumbnail || "/images/default-avatar.png",
                 },
                 distance,
                 last_event: status.last_event,

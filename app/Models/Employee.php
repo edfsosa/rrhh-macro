@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,7 @@ class Employee extends Model
 
     protected $fillable = [
         'photo',
+        'photo_thumbnail',
         'first_name',
         'last_name',
         'ci',
@@ -959,7 +961,7 @@ class Employee extends Model
             return null;
         }
 
-        $percent = app(\App\Settings\PayrollSettings::class)->advance_max_percent;
+        $percent = app(PayrollSettings::class)->advance_max_percent;
 
         return round($reference * $percent / 100, 2);
     }

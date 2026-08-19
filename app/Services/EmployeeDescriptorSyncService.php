@@ -16,7 +16,7 @@ class EmployeeDescriptorSyncService
 {
     /**
      * @return array{
-     *     employees: array<int, array{id: int, first_name: string, last_name: string, ci: string|null, face_descriptor: array}>,
+     *     employees: array<int, array{id: int, first_name: string, last_name: string, ci: string|null, face_descriptor: array, photo_thumbnail: string|null}>,
      *     tombstones: array<int, int>,
      *     server_time: string,
      *     sync_version: string,
@@ -33,16 +33,20 @@ class EmployeeDescriptorSyncService
             ->where('status', 'active')
             ->whereNotNull('face_descriptor')
             ->when($since, fn ($query) => $query->where('updated_at', '>', $since))
-            ->select(['id', 'first_name', 'last_name', 'ci', 'face_descriptor'])
+            ->select(['id', 'first_name', 'last_name', 'ci', 'face_descriptor', 'photo_thumbnail'])
             ->get();
 
         return [
+            // `photo_thumbnail` viaja como data URI ya pre-generado (ver
+            // EmployeePhotoThumbnailService / EmployeeObserver) — la foto
+            // original (potencialmente varios MB) nunca se sincroniza.
             'employees' => $employees->map(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'first_name' => $employee->first_name,
                 'last_name' => $employee->last_name,
                 'ci' => $employee->ci,
                 'face_descriptor' => $employee->face_descriptor,
+                'photo_thumbnail' => $employee->photo_thumbnail,
             ])->values()->all(),
             'tombstones' => $since ? $this->tombstonesSince($terminal, $since) : [],
             'server_time' => now()->toIso8601String(),
