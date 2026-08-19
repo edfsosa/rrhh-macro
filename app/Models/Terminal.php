@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Settings\GeneralSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,6 +37,9 @@ class Terminal extends Model
         'installed_at',
         'installed_by_id',
         'last_seen_at',
+        'last_heartbeat_at',
+        'last_employee_sync_at',
+        'last_event_sync_at',
         'setup_token',
         'setup_token_expires_at',
     ];
@@ -47,6 +51,9 @@ class Terminal extends Model
     protected $casts = [
         'installed_at' => 'date',
         'last_seen_at' => 'datetime',
+        'last_heartbeat_at' => 'datetime',
+        'last_employee_sync_at' => 'datetime',
+        'last_event_sync_at' => 'datetime',
         'setup_token_expires_at' => 'datetime',
     ];
 
@@ -129,6 +136,48 @@ class Terminal extends Model
         ];
     }
 
+    /**
+     * Opciones de estado de conectividad para filtros.
+     *
+     * @return array<string, string>
+     */
+    public static function getConnectivityStatusOptions(): array
+    {
+        return [
+            'online' => 'En línea',
+            'stale' => 'Desconectado',
+            'never_connected' => 'Nunca conectado',
+        ];
+    }
+
+    /**
+     * Labels cortos para badges de conectividad.
+     *
+     * @return array<string, string>
+     */
+    public static function getConnectivityStatusLabels(): array
+    {
+        return [
+            'online' => 'En línea',
+            'stale' => 'Desconectado',
+            'never_connected' => 'Nunca conectado',
+        ];
+    }
+
+    /**
+     * Colores semánticos para badges de conectividad.
+     *
+     * @return array<string, string>
+     */
+    public static function getConnectivityStatusColors(): array
+    {
+        return [
+            'online' => 'success',
+            'stale' => 'danger',
+            'never_connected' => 'gray',
+        ];
+    }
+
     // =========================================================================
     // VERIFICADORES DE ESTADO
     // =========================================================================
@@ -143,6 +192,28 @@ class Terminal extends Model
     public function isInactive(): bool
     {
         return $this->status === 'inactive';
+    }
+
+    /**
+     * Estado de conectividad calculado a partir de `last_heartbeat_at` (a
+     * diferencia de `last_seen_at`, que también se actualiza con cada carga
+     * de página vía sesión y por eso no distingue un kiosko que quedó abierto
+     * offline días de uno que realmente sigue sincronizando):
+     * - 'never_connected': nunca completó un heartbeat exitoso (sin
+     *   provisionar, o provisionado pero sin conexión desde entonces).
+     * - 'online': el último heartbeat exitoso está dentro del umbral
+     *   configurado (`GeneralSettings->terminal_stale_threshold_hours`).
+     * - 'stale': el último heartbeat exitoso superó el umbral.
+     */
+    public function getConnectivityStatusAttribute(): string
+    {
+        if (! $this->last_heartbeat_at instanceof Carbon) {
+            return 'never_connected';
+        }
+
+        $thresholdHours = app(GeneralSettings::class)->terminal_stale_threshold_hours;
+
+        return $this->last_heartbeat_at->lt(now()->subHours($thresholdHours)) ? 'stale' : 'online';
     }
 
     // =========================================================================

@@ -48,6 +48,8 @@ class TerminalEmployeeSyncController extends Controller
 
         $delta = $this->syncService->deltaSince($terminal, $since);
 
+        $terminal->update(['last_employee_sync_at' => now()]);
+
         return response()->json(array_merge(['ok' => true], $delta));
     }
 
@@ -56,9 +58,10 @@ class TerminalEmployeeSyncController extends Controller
      *
      * Estado de marcación del día en curso para un empleado ya identificado
      * localmente por el kiosko (matching client-side, ver terminal-offline/matcher.js).
-     * El kiosko todavía depende de esta consulta en línea para saber qué
-     * eventos son válidos a continuación — la resolución 100% offline de este
-     * estado es responsabilidad de una fase posterior (cola de eventos).
+     * El kiosko prefiere esta consulta en línea cuando hay red; si falla,
+     * cae a una resolución local equivalente combinando la última respuesta
+     * cacheada de este endpoint con sus propios eventos aún no confirmados
+     * (ver terminal-offline/queue.js, `resolveEmployeeStatus()`).
      */
     public function status(Request $request, Employee $employee): JsonResponse
     {

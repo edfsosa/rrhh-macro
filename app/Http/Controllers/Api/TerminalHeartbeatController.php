@@ -10,14 +10,16 @@ use Illuminate\Http\Request;
 
 /**
  * Heartbeat del terminal — se llama periódicamente mientras hay conexión
- * (y desde el botón "Forzar sincronización") para mantener `last_seen_at`
- * vivo y entregar la configuración vigente de reconocimiento facial, así el
- * kiosko no depende de un sync completo de empleados para tener el umbral
- * actualizado. Autenticado vía Sanctum (ability `terminal:sync`).
+ * (y desde el botón "Forzar sincronización") para mantener `last_seen_at`/
+ * `last_heartbeat_at` vivos y entregar la configuración vigente de
+ * reconocimiento facial, así el kiosko no depende de un sync completo de
+ * empleados para tener el umbral actualizado. Autenticado vía Sanctum
+ * (ability `terminal:sync`).
  *
- * Nota: en esta fase solo actualiza `last_seen_at` (ya existente). Las
- * columnas dedicadas de heartbeat/staleness (`last_heartbeat_at`, etc.) y su
- * UI en Filament se agregan en una fase posterior del rollout offline.
+ * `last_heartbeat_at` (a diferencia de `last_seen_at`, que también se
+ * actualiza con cada carga de página vía sesión) solo se actualiza acá —
+ * es la señal que usa `Terminal::connectivity_status` para el badge de
+ * conectividad en Filament (ver TerminalResource).
  */
 class TerminalHeartbeatController extends Controller
 {
@@ -26,7 +28,7 @@ class TerminalHeartbeatController extends Controller
         /** @var Terminal $terminal */
         $terminal = $request->user();
 
-        $terminal->update(['last_seen_at' => now()]);
+        $terminal->update(['last_seen_at' => now(), 'last_heartbeat_at' => now()]);
 
         return response()->json([
             'ok' => true,

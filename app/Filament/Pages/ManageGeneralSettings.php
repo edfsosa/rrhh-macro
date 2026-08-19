@@ -105,6 +105,20 @@ class ManageGeneralSettings extends SettingsPage
                             ->default(0.1)
                             ->helperText('Diferencia mínima entre el mejor y el segundo candidato para evitar confusiones entre rostros similares'),
                     ]),
+
+                Section::make('Terminales de Marcación')
+                    ->description('Configuración de conectividad para kioskos offline (marcación vía PWA)')
+                    ->icon('heroicon-o-wifi')
+                    ->schema([
+                        TextInput::make('terminal_stale_threshold_hours')
+                            ->label('Umbral de desconexión')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(72)
+                            ->default(2)
+                            ->suffix('horas')
+                            ->helperText('Horas sin heartbeat exitoso antes de marcar un terminal como desconectado en el panel'),
+                    ]),
             ]);
     }
 }
