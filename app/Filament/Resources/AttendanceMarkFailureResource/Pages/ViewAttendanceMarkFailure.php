@@ -12,6 +12,9 @@ class ViewAttendanceMarkFailure extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            AttendanceMarkFailureResource::getApproveAction(),
+            AttendanceMarkFailureResource::getDismissAction(),
+        ];
     }
 }

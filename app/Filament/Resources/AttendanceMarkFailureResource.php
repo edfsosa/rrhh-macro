@@ -3,22 +3,38 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceMarkFailureResource\Pages;
+use App\Models\AttendanceEvent;
 use App\Models\AttendanceMarkFailure;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Form;
+use Filament\Infolists\Components\Grid as InfoGrid;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
-/** Resource de solo lectura para inspeccionar intentos fallidos de marcación de asistencia. */
+/**
+ * Resource para inspeccionar y revisar manualmente intentos fallidos de
+ * marcación de asistencia. Sin creación/edición manual de registros (los
+ * fallos solo se generan desde el flujo de marcación), pero sí admite
+ * revisión vía `approve()`/`dismiss()` para los fallos que traen datos
+ * suficientes para reconstruir la marcación — ver `getApproveAction()`.
+ */
 class AttendanceMarkFailureResource extends Resource
 {
     protected static ?string $model = AttendanceMarkFailure::class;
@@ -37,8 +53,8 @@ class AttendanceMarkFailureResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
-    /** Este resource es de solo lectura — no expone formulario de creación/edición. */
-    public static function form(\Filament\Forms\Form $form): \Filament\Forms\Form
+    /** Sin formulario de creación/edición manual — los fallos solo se generan desde el flujo de marcación. */
+    public static function form(Form $form): Form
     {
         return $form->schema([]);
     }
@@ -111,6 +127,12 @@ class AttendanceMarkFailureResource extends Resource
                     })
                     ->toggleable(isToggledHiddenByDefault: false),
 
+                TextColumn::make('resolution_status')
+                    ->label('Revisión')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getResolutionStatusLabels()[$state] ?? $state)
+                    ->color(fn (string $state) => AttendanceMarkFailure::getResolutionStatusColors()[$state] ?? 'gray'),
+
                 TextColumn::make('failure_message')
                     ->label('Mensaje')
                     ->limit(60)
@@ -139,6 +161,10 @@ class AttendanceMarkFailureResource extends Resource
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->relationship('branch', 'name'),
+
+                SelectFilter::make('resolution_status')
+                    ->label('Revisión')
+                    ->options(AttendanceMarkFailure::getResolutionStatusOptions()),
 
                 Filter::make('occurred_at')
                     ->label('Período')
@@ -170,20 +196,114 @@ class AttendanceMarkFailureResource extends Resource
                     }),
             ])
             ->actions([
-                Action::make('diagnose')
-                    ->label('Diagnóstico')
-                    ->icon('heroicon-o-light-bulb')
-                    ->color('warning')
-                    ->modalHeading(fn (AttendanceMarkFailure $record) => 'Diagnóstico: '.AttendanceMarkFailure::getFailureTypeLabel($record->failure_type))
-                    ->modalContent(fn (AttendanceMarkFailure $record) => view(
-                        'filament.modals.attendance-mark-failure-diagnosis',
-                        ['record' => $record]
-                    ))
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar'),
+                ActionGroup::make([
+                    Action::make('diagnose')
+                        ->label('Diagnóstico')
+                        ->icon('heroicon-o-light-bulb')
+                        ->color('warning')
+                        ->modalHeading(fn (AttendanceMarkFailure $record) => 'Diagnóstico: '.AttendanceMarkFailure::getFailureTypeLabel($record->failure_type))
+                        ->modalContent(fn (AttendanceMarkFailure $record) => view(
+                            'filament.modals.attendance-mark-failure-diagnosis',
+                            ['record' => $record]
+                        ))
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar'),
+
+                    static::getApproveAction(),
+                ]),
             ])
             ->bulkActions([])
             ->paginated([25, 50, 100]);
+    }
+
+    /**
+     * Acción "Aprobar" — reconstruye el `AttendanceEvent` a partir de los
+     * datos del fallo, permitiendo ajustar el tipo de evento y la hora antes
+     * de confirmar (ej. si el admin determina que en realidad correspondía
+     * otro tipo de marcación). Solo visible si `canBeResolved()`.
+     */
+    public static function getApproveAction(): Action
+    {
+        return Action::make('approve')
+            ->label('Aprobar')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->visible(fn (AttendanceMarkFailure $record) => $record->canBeResolved())
+            ->modalHeading('Aprobar marcación')
+            ->modalDescription('Se creará la marcación de asistencia correspondiente. Podés ajustar el tipo de evento y la hora antes de confirmar.')
+            ->modalSubmitActionLabel('Aprobar y registrar')
+            ->form([
+                Select::make('event_type')
+                    ->label('Tipo de evento')
+                    ->options([
+                        'check_in' => AttendanceEvent::getEventTypeLabel('check_in'),
+                        'break_start' => AttendanceEvent::getEventTypeLabel('break_start'),
+                        'break_end' => AttendanceEvent::getEventTypeLabel('break_end'),
+                        'check_out' => AttendanceEvent::getEventTypeLabel('check_out'),
+                    ])
+                    ->default(fn (AttendanceMarkFailure $record) => $record->attempted_event_type)
+                    ->native(false)
+                    ->required(),
+
+                DateTimePicker::make('recorded_at')
+                    ->label('Fecha y hora')
+                    ->default(fn (AttendanceMarkFailure $record) => filled($record->metadata['recorded_at'] ?? null)
+                        ? Carbon::parse($record->metadata['recorded_at'])
+                        : $record->occurred_at)
+                    ->seconds(false)
+                    ->native(false)
+                    ->required(),
+
+                Textarea::make('notes')
+                    ->label('Notas (opcional)')
+                    ->rows(2),
+            ])
+            ->action(function (AttendanceMarkFailure $record, array $data) {
+                $result = $record->approve(
+                    Auth::id(),
+                    $data['event_type'],
+                    Carbon::parse($data['recorded_at']),
+                    $data['notes'] ?? null,
+                );
+
+                if ($result['success']) {
+                    Notification::make()->success()->title('Marcación aprobada')->body($result['message'])->send();
+                } else {
+                    Notification::make()->danger()->title('No se pudo aprobar')->body($result['message'])->send();
+                }
+            });
+    }
+
+    /**
+     * Acción "Descartar" — marca el fallo como revisado sin crear ninguna
+     * marcación. Transición irreversible (sin undo), por eso solo vive en
+     * los header actions del ViewRecord, nunca como row action de la tabla.
+     */
+    public static function getDismissAction(): Action
+    {
+        return Action::make('dismiss')
+            ->label('Descartar')
+            ->icon('heroicon-o-x-circle')
+            ->color('gray')
+            ->visible(fn (AttendanceMarkFailure $record) => $record->isPending())
+            ->requiresConfirmation()
+            ->modalHeading('Descartar fallo')
+            ->modalDescription('Se marcará este fallo como revisado sin crear ninguna marcación de asistencia. Usalo cuando el conflicto ya no aplica — por ejemplo, si la marcación se cargó manualmente desde otro lado.')
+            ->modalSubmitActionLabel('Sí, descartar')
+            ->form([
+                Textarea::make('notes')
+                    ->label('Notas (opcional)')
+                    ->rows(2),
+            ])
+            ->action(function (AttendanceMarkFailure $record, array $data) {
+                $result = $record->dismiss(Auth::id(), $data['notes'] ?? null);
+
+                if ($result['success']) {
+                    Notification::make()->success()->title('Fallo descartado')->send();
+                } else {
+                    Notification::make()->danger()->title('No se pudo descartar')->body($result['message'])->send();
+                }
+            });
     }
 
     /**
@@ -249,6 +369,42 @@ class AttendanceMarkFailureResource extends Resource
                         TextEntry::make('branch.name')
                             ->label('Sucursal')
                             ->default('—'),
+                    ]),
+
+                InfoSection::make('Revisión')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->schema([
+                        InfoGrid::make(3)->schema([
+                            TextEntry::make('resolution_status')
+                                ->label('Estado')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getResolutionStatusLabels()[$state] ?? $state)
+                                ->color(fn (string $state) => AttendanceMarkFailure::getResolutionStatusColors()[$state] ?? 'gray'),
+
+                            TextEntry::make('resolvedBy.name')
+                                ->label('Revisado por')
+                                ->placeholder('Sin revisar'),
+
+                            TextEntry::make('resolved_at')
+                                ->label('Revisado el')
+                                ->dateTime('d/m/Y H:i')
+                                ->placeholder('—'),
+                        ]),
+
+                        TextEntry::make('resolvedEvent.id')
+                            ->label('Marcación creada')
+                            ->placeholder('Ninguna')
+                            ->getStateUsing(fn (AttendanceMarkFailure $record) => $record->resolvedEvent
+                                ? AttendanceEvent::getEventTypeLabel($record->resolvedEvent->event_type).' — '.$record->resolvedEvent->recorded_at->format('d/m/Y H:i')
+                                : null
+                            )
+                            ->visible(fn (AttendanceMarkFailure $record) => $record->isApproved()),
+
+                        TextEntry::make('resolution_notes')
+                            ->label('Notas de revisión')
+                            ->placeholder('Sin notas')
+                            ->columnSpanFull()
+                            ->visible(fn (AttendanceMarkFailure $record) => ! $record->isPending()),
                     ]),
 
                 InfoSection::make('Red y Ubicación')
