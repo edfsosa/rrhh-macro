@@ -49,6 +49,8 @@ class Terminal extends Model implements AuthenticatableContract
         'last_heartbeat_at',
         'last_employee_sync_at',
         'last_event_sync_at',
+        'last_pending_events_count',
+        'last_conflict_events_count',
         'setup_token',
         'setup_token_expires_at',
     ];
@@ -63,6 +65,8 @@ class Terminal extends Model implements AuthenticatableContract
         'last_heartbeat_at' => 'datetime',
         'last_employee_sync_at' => 'datetime',
         'last_event_sync_at' => 'datetime',
+        'last_pending_events_count' => 'integer',
+        'last_conflict_events_count' => 'integer',
         'setup_token_expires_at' => 'datetime',
     ];
 
@@ -187,6 +191,48 @@ class Terminal extends Model implements AuthenticatableContract
         ];
     }
 
+    /**
+     * Opciones de estado de cola de sincronización para filtros.
+     *
+     * @return array<string, string>
+     */
+    public static function getSyncQueueStatusOptions(): array
+    {
+        return [
+            'ok' => 'Sin pendientes',
+            'pending' => 'Con pendientes',
+            'conflict' => 'Con conflictos',
+        ];
+    }
+
+    /**
+     * Labels cortos para badges de cola de sincronización.
+     *
+     * @return array<string, string>
+     */
+    public static function getSyncQueueStatusLabels(): array
+    {
+        return [
+            'ok' => 'Sin pendientes',
+            'pending' => 'Con pendientes',
+            'conflict' => 'Con conflictos',
+        ];
+    }
+
+    /**
+     * Colores semánticos para badges de cola de sincronización.
+     *
+     * @return array<string, string>
+     */
+    public static function getSyncQueueStatusColors(): array
+    {
+        return [
+            'ok' => 'gray',
+            'pending' => 'warning',
+            'conflict' => 'danger',
+        ];
+    }
+
     // =========================================================================
     // VERIFICADORES DE ESTADO
     // =========================================================================
@@ -223,6 +269,31 @@ class Terminal extends Model implements AuthenticatableContract
         $thresholdHours = app(GeneralSettings::class)->terminal_stale_threshold_hours;
 
         return $this->last_heartbeat_at->lt(now()->subHours($thresholdHours)) ? 'stale' : 'online';
+    }
+
+    /**
+     * Estado de la cola de sincronización offline del kiosko, a partir de lo
+     * reportado en el último heartbeat exitoso (`last_pending_events_count`/
+     * `last_conflict_events_count`) — complementa `connectivity_status`: un
+     * terminal puede verse "en línea" (el heartbeat llega con normalidad) y
+     * aun así tener la cola de marcaciones atascada, típicamente por eventos
+     * en conflicto que requieren revisión manual (ver `AttendanceMarkFailure`,
+     * `failure_type: sync_conflict`).
+     * - 'conflict': hay al menos un evento en conflicto.
+     * - 'pending': sin conflictos, pero hay eventos pendientes de sincronizar.
+     * - 'ok': sin pendientes ni conflictos (o el terminal nunca reportó el dato).
+     */
+    public function getSyncQueueStatusAttribute(): string
+    {
+        if (($this->last_conflict_events_count ?? 0) > 0) {
+            return 'conflict';
+        }
+
+        if (($this->last_pending_events_count ?? 0) > 0) {
+            return 'pending';
+        }
+
+        return 'ok';
     }
 
     // =========================================================================
