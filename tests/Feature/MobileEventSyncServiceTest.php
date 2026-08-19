@@ -95,7 +95,14 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
     $employee = makeMobileSyncEmployee();
     $service = app(MobileEventSyncService::class);
 
-    // El check_out ya llegó al servidor (ej. registrado manualmente mientras el celular estaba offline).
+    // El check_in y el check_out ya llegaron al servidor (ej. registrados manualmente
+    // mientras el celular estaba offline) — un check_out sin check_in previo también
+    // sería una secuencia inválida, por eso se establece el estado con ambos.
+    $service->syncBatch($employee, [[
+        'client_event_id' => (string) Str::uuid(),
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-19 08:00:00',
+    ]]);
     $service->syncBatch($employee, [[
         'client_event_id' => (string) Str::uuid(),
         'event_type' => 'check_out',
@@ -114,9 +121,11 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
         ->and($results[0]['conflict_reason'])->toBe('invalid_sequence')
         ->and(AttendanceEvent::where('client_event_id', $conflictingClientEventId)->exists())->toBeFalse();
 
-    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')->where('mode', 'mobile')->first();
+    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')
+        ->where('mode', 'mobile')
+        ->where('employee_id', $employee->id)
+        ->first();
     expect($failure)->not->toBeNull()
-        ->and($failure->employee_id)->toBe($employee->id)
         ->and($failure->branch_id)->toBe($employee->branch_id)
         ->and($failure->attempted_event_type)->toBe('break_start')
         ->and($failure->canBeResolved())->toBeTrue();
@@ -126,19 +135,28 @@ it('aprobar un conflicto mobile reconstruye el evento con source mobile', functi
     $employee = makeMobileSyncEmployee();
     $service = app(MobileEventSyncService::class);
 
+    // El check_in ya está en el servidor.
     $service->syncBatch($employee, [[
         'client_event_id' => (string) Str::uuid(),
-        'event_type' => 'check_out',
-        'recorded_at' => '2026-08-19 17:00:00',
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-19 08:00:00',
     ]]);
 
+    // El celular sincroniza offline un segundo check_in (ej. capturado dos veces por
+    // un reintento de red) — ya no es válido, el servidor lo rechaza como conflicto.
     $service->syncBatch($employee, [[
         'client_event_id' => (string) Str::uuid(),
-        'event_type' => 'break_start',
-        'recorded_at' => '2026-08-19 12:00:00',
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-19 08:05:00',
     ]]);
 
-    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')->where('mode', 'mobile')->first();
+    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')
+        ->where('mode', 'mobile')
+        ->where('employee_id', $employee->id)
+        ->first();
+
+    // El admin revisa el conflicto y determina que en realidad correspondía un break_start
+    // (sigue siendo válido contra el estado actual: último evento = check_in).
 
     $admin = User::create([
         'name' => 'Admin', 'email' => 'admin-mobile@test.com', 'password' => bcrypt('secret'),
