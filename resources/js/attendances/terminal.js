@@ -1,4 +1,7 @@
 import { captureFaceSamples } from '../shared/face-capture-core.js';
+import { migrateTokenFromLocalStorage, getMeta, getCachedEmployees } from './terminal-offline/db.js';
+import { identifyEmployee as matchDescriptor } from './terminal-offline/matcher.js';
+import { heartbeat, syncEmployees, getFaceConfig, fetchEmployeeStatus, submitEvents, TerminalAuthError } from './terminal-offline/sync.js';
 
 document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
@@ -33,6 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const idStatusDot         = document.getElementById("idStatusDot");
     const idleClock           = document.getElementById("idleClock");
     const idleDate            = document.getElementById("idleDate");
+    const idleSyncStatus      = document.getElementById("idleSyncStatus");
+    const btnForceSync        = document.getElementById("btnForceSync");
 
     const terminalCaptureProgress = document.getElementById("terminalCaptureProgress");
     const terminalCaptureDots     = terminalCaptureProgress
@@ -63,11 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Error screen elements
     const errorMessage = document.getElementById("errorMessage");
-
-    // CSRF Token
-    const csrfToken = document.querySelector("meta[name=csrf-token]");
-    const CSRF = csrfToken ? csrfToken.content : "";
-    if (!CSRF) console.warn("Token CSRF no encontrado.");
 
     const MODELS_URI      = "/models";
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos sin marcaciones
@@ -104,6 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
         presenceCheckInterval:  null,
         isIdle:                 false,
         userHasInteracted:      false,  // vibración solo permitida tras gesto del usuario
+        backgroundSyncStarted:  false,  // evita registrar los setInterval de sync más de una vez
     };
 
     const tinyOptions  = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 });
@@ -411,6 +412,8 @@ document.addEventListener("DOMContentLoaded", () => {
             // Adquirir wake lock para mantener pantalla encendida
             await acquireWakeLock();
 
+            await initializeOfflineSync();
+
             console.log("Sistema inicializado correctamente");
 
             // Mostrar pantalla idle primero — requiere toque para activar audio/vibración
@@ -587,18 +590,55 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // IDENTIFICACIÓN
+    // IDENTIFICACIÓN — matching client-side contra la caché local (IndexedDB)
     // ============================================================================
+    /**
+     * Identifica al empleado comparando el descriptor capturado contra la caché
+     * local de empleados (employees_cache), con el mismo algoritmo de distancia
+     * euclidiana + umbral/gap que corre en el servidor (ver terminal-offline/matcher.js).
+     * Solo la consulta de "qué eventos son válidos ahora" (fetchEmployeeStatus)
+     * sigue requiriendo red en esta fase — el reconocimiento en sí ya no depende
+     * del servidor.
+     */
     async function identifyEmployee(descriptor) {
         try {
-            const response = await fetch("/marcar/identificar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
-                body: JSON.stringify({ face_descriptor: descriptor, source: "terminal" }),
-            });
-            if (response.status === 419) return { ok: false, is419: true };
-            return await response.json();
+            const { threshold, minGap } = await getFaceConfig();
+            if (threshold == null || minGap == null) {
+                return { ok: false, message: "Terminal sincronizando por primera vez, espere un momento." };
+            }
+
+            const candidates = await getCachedEmployees();
+            const { employee, distance, reason } = matchDescriptor(descriptor, candidates, threshold, minGap);
+
+            if (!employee) {
+                const messages = {
+                    no_candidates: "No hay empleados sincronizados en este terminal.",
+                    ambiguous: "Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.",
+                    no_match: "No se pudo identificar el rostro. Intente nuevamente.",
+                };
+                return { ok: false, message: messages[reason] || "No identificado", reason };
+            }
+
+            const status = await fetchEmployeeStatus(employee.id);
+
+            return {
+                ok: true,
+                employee: {
+                    id: employee.id,
+                    first_name: employee.first_name,
+                    last_name: employee.last_name,
+                    ci: employee.ci,
+                    photo_url: "/images/default-avatar.png", // la caché offline no incluye fotos (ver EmployeeDescriptorSyncService)
+                },
+                distance,
+                last_event: status.last_event,
+                last_event_time: status.last_event_time,
+                allowed_events: status.allowed_events,
+            };
         } catch (error) {
+            if (error instanceof TerminalAuthError) {
+                return { ok: false, message: error.message, needsProvisioning: true };
+            }
             console.error("Error en identificación:", error);
             return { ok: false, message: "Error de conexión" };
         }
@@ -637,10 +677,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const result = await identifyEmployee(descriptor);
 
-                if (result.is419) {
+                if (result.needsProvisioning) {
                     stopAutoIdentification();
                     await finishCaptureProgress("error");
-                    showError("La sesión ha caducado. Recargue la página para continuar.");
+                    showError(result.message);
                     return;
                 }
 
@@ -727,38 +767,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // REGISTRO DE MARCACIÓN
+    // REGISTRO DE MARCACIÓN — vía la API de sincronización (Sanctum)
     // ============================================================================
+    /**
+     * Envía la marcación a /api/v1/terminal/events/sync con un client_event_id
+     * generado en el momento de la captura (deduplica reintentos con seguridad).
+     * En esta fase el envío sigue siendo síncrono/en línea — la cola de eventos
+     * offline (para cuando falla por falta de red) llega en una fase posterior.
+     */
     async function registerMark(employee, eventType) {
         try {
             updateStatus("Registrando marcación...", "loading");
 
-            const response = await fetch("/marcar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
-                body: JSON.stringify({
-                    employee_id:   employee.id,
-                    event_type:    eventType,
-                    source:        "terminal",
-                    ...(terminalData ? { terminal_code: terminalData.code } : {}),
-                }),
-            });
+            const recordedAt = new Date().toISOString();
+            const results = await submitEvents([{
+                client_event_id: crypto.randomUUID(),
+                employee_id: employee.id,
+                event_type: eventType,
+                recorded_at: recordedAt,
+            }]);
 
-            if (response.status === 419) {
-                showError("La sesión ha caducado. Recargue la página para continuar.");
-                return;
-            }
+            const result = results?.[0];
 
-            const data = await response.json();
-
-            if (data.ok) {
-                showSuccessScreen(employee, data.data, eventType);
+            if (result?.status === "synced" || result?.status === "duplicate") {
+                showSuccessScreen(employee, { event_id: result.event_id, recorded_at: recordedAt }, eventType);
             } else {
-                showError(data.message || "No se pudo registrar la marcación.");
+                showError(result?.message || "No se pudo registrar la marcación.");
             }
         } catch (error) {
             console.error("Error al registrar marcación:", error);
-            showError("Error de conexión al registrar la marcación.");
+            showError(error instanceof TerminalAuthError ? error.message : "Error de conexión al registrar la marcación.");
         }
     }
 
@@ -989,6 +1027,86 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     document.addEventListener("click",      markInteraction, { once: true });
     document.addEventListener("touchstart", markInteraction, { once: true });
+
+    // ============================================================================
+    // SINCRONIZACIÓN OFFLINE — token, caché de empleados y config facial
+    // ============================================================================
+    function updateIdleSyncStatus(text) {
+        if (idleSyncStatus) idleSyncStatus.textContent = text;
+    }
+
+    /**
+     * Migra el token de configuración (si venía de localStorage, ver
+     * terminal-setup.blade.php) y hace la primera sincronización antes de
+     * arrancar el reposo. Si el terminal no está provisionado, no bloquea el
+     * arranque — solo informa en la pantalla idle, la auto-identificación
+     * fallará limpiamente con "terminal sin configurar" hasta que se resuelva.
+     */
+    async function initializeOfflineSync() {
+        await migrateTokenFromLocalStorage();
+        const token = await getMeta("api_token");
+
+        if (!token) {
+            console.warn("Terminal sin token de sincronización — falta provisión.");
+            updateIdleSyncStatus("Terminal sin configurar");
+            return;
+        }
+
+        try {
+            updateIdleSyncStatus("Sincronizando...");
+            await heartbeat();
+            const result = await syncEmployees();
+            updateIdleSyncStatus(`Sincronizado — ${result.employees ? "actualizado" : "sin cambios"}`);
+        } catch (error) {
+            console.warn("Sincronización inicial falló (se reintentará en segundo plano):", error.message);
+            updateIdleSyncStatus(navigator.onLine ? "Error al sincronizar" : "Sin conexión — usando datos locales");
+        }
+
+        startBackgroundSync();
+    }
+
+    /** Heartbeat + sync de empleados periódicos mientras haya conexión, más un intento al recuperarla. */
+    function startBackgroundSync() {
+        if (terminalState.backgroundSyncStarted) return;
+        terminalState.backgroundSyncStarted = true;
+
+        const runHeartbeat = () => {
+            if (!navigator.onLine) return;
+            heartbeat().catch((error) => console.warn("Heartbeat en segundo plano falló:", error.message));
+        };
+        const runEmployeeSync = () => {
+            if (!navigator.onLine) return;
+            syncEmployees()
+                .then((result) => updateIdleSyncStatus(`Sincronizado — ${result.employees} empleados`))
+                .catch((error) => console.warn("Sync de empleados en segundo plano falló:", error.message));
+        };
+
+        setInterval(runHeartbeat, 90 * 1000);
+        setInterval(runEmployeeSync, 5 * 60 * 1000);
+
+        window.addEventListener("online", () => {
+            runHeartbeat();
+            runEmployeeSync();
+        });
+    }
+
+    // Botón "Forzar sincronización" en la pantalla de reposo
+    if (btnForceSync) {
+        btnForceSync.addEventListener("click", async (event) => {
+            event.stopPropagation(); // no disparar exitIdle() (despertaría la cámara sin necesidad)
+            btnForceSync.disabled = true;
+            updateIdleSyncStatus("Sincronizando...");
+            try {
+                await heartbeat();
+                const result = await syncEmployees();
+                updateIdleSyncStatus(`Sincronizado — ${result.employees} empleados`);
+            } catch (error) {
+                updateIdleSyncStatus(error instanceof TerminalAuthError ? "Terminal sin configurar" : "Error al sincronizar");
+            } finally {
+                btnForceSync.disabled = false;
+            }
+        });
+    }
 
     // ============================================================================
     // TEMA CLARO / OSCURO

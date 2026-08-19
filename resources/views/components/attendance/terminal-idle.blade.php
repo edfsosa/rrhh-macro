@@ -7,6 +7,16 @@
                 <span id="idleTerminalName"></span>
                 <span id="idleTerminalBranch"></span>
             </div>
+            <div class="idle-sync-row">
+                <span class="idle-sync-status" id="idleSyncStatus" aria-live="polite"></span>
+                <button
+                    type="button"
+                    id="btnForceSync"
+                    class="terminal-btn terminal-btn-ghost idle-sync-btn"
+                    aria-label="Forzar sincronización de empleados">
+                    Sincronizar
+                </button>
+            </div>
         </div>
         <div class="idle-hint">
             <span class="idle-hint-dot" aria-hidden="true"></span>

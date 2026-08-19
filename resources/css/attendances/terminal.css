@@ -350,6 +350,28 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
     opacity: .7;
 }
 
+.idle-sync-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-4);
+}
+
+.idle-sync-status {
+    font-size: clamp(.6875rem, 1.75vw, .8125rem);
+    color: var(--c-muted);
+    opacity: .7;
+    min-width: 0;
+}
+
+.idle-sync-btn {
+    min-height: 32px;
+    padding: var(--sp-2) var(--sp-4);
+    font-size: clamp(.6875rem, 1.5vw, .8125rem);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
 .idle-hint {
     position: absolute;
     bottom: var(--sp-8);
