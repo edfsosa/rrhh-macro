@@ -18,6 +18,8 @@ class GeneralSettings extends Settings
 
     public float $face_min_confidence_gap;
 
+    public int $terminal_stale_threshold_hours;
+
     public static function group(): string
     {
         return 'general';

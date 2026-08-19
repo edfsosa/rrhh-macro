@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TerminalResource\Pages;
 use App\Models\Terminal;
+use App\Settings\GeneralSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -24,6 +25,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -205,18 +207,10 @@ class TerminalResource extends Resource
                                 ->placeholder('-'),
                         ]),
 
-                        InfoGrid::make(2)->schema([
-                            TextEntry::make('device_mac')
-                                ->label('Dirección MAC')
-                                ->copyable()
-                                ->placeholder('-'),
-
-                            TextEntry::make('last_seen_at')
-                                ->label('Última actividad')
-                                ->dateTime('d/m/Y H:i')
-                                ->placeholder('Sin actividad registrada')
-                                ->since(),
-                        ]),
+                        TextEntry::make('device_mac')
+                            ->label('Dirección MAC')
+                            ->copyable()
+                            ->placeholder('-'),
 
                         TextEntry::make('device_notes')
                             ->label('Notas')
@@ -224,6 +218,43 @@ class TerminalResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->visible(fn (Terminal $record) => $record->device_brand || $record->device_model || $record->device_serial || $record->device_mac || $record->device_notes),
+
+                InfoSection::make('Conectividad')
+                    ->description('Marcación offline vía PWA — heartbeat y sincronización con la API de terminales')
+                    ->icon('heroicon-o-wifi')
+                    ->schema([
+                        InfoGrid::make(4)->schema([
+                            TextEntry::make('connectivity_status')
+                                ->label('Estado')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state) => Terminal::getConnectivityStatusLabels()[$state] ?? $state)
+                                ->color(fn (string $state) => Terminal::getConnectivityStatusColors()[$state] ?? 'gray'),
+
+                            TextEntry::make('last_heartbeat_at')
+                                ->label('Último heartbeat')
+                                ->dateTime('d/m/Y H:i')
+                                ->placeholder('Nunca')
+                                ->since(),
+
+                            TextEntry::make('last_employee_sync_at')
+                                ->label('Último sync de empleados')
+                                ->dateTime('d/m/Y H:i')
+                                ->placeholder('Nunca')
+                                ->since(),
+
+                            TextEntry::make('last_event_sync_at')
+                                ->label('Último sync de marcaciones')
+                                ->dateTime('d/m/Y H:i')
+                                ->placeholder('Nunca')
+                                ->since(),
+                        ]),
+
+                        TextEntry::make('last_seen_at')
+                            ->label('Última carga de página')
+                            ->dateTime('d/m/Y H:i')
+                            ->placeholder('Sin actividad registrada')
+                            ->since(),
+                    ]),
 
                 InfoSection::make('Instalación')
                     ->schema([
@@ -282,12 +313,26 @@ class TerminalResource extends Resource
                     ->color(fn (string $state) => Terminal::getStatusColors()[$state] ?? 'gray')
                     ->sortable(),
 
+                TextColumn::make('connectivity_status')
+                    ->label('Conectividad')
+                    ->badge()
+                    ->tooltip('Basado en el último heartbeat exitoso de sincronización offline')
+                    ->formatStateUsing(fn (string $state) => Terminal::getConnectivityStatusLabels()[$state] ?? $state)
+                    ->color(fn (string $state) => Terminal::getConnectivityStatusColors()[$state] ?? 'gray'),
+
+                TextColumn::make('last_heartbeat_at')
+                    ->label('Último heartbeat')
+                    ->since()
+                    ->placeholder('Nunca')
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('last_seen_at')
                     ->label('Última actividad')
                     ->since()
                     ->placeholder('Sin actividad')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('installed_at')
                     ->label('Instalada')
@@ -308,6 +353,25 @@ class TerminalResource extends Resource
                     ->label('Estado')
                     ->options(Terminal::getStatusOptions())
                     ->native(false),
+
+                SelectFilter::make('connectivity_status')
+                    ->label('Conectividad')
+                    ->options(Terminal::getConnectivityStatusOptions())
+                    ->native(false)
+                    ->query(function (Builder $query, array $data) {
+                        if (blank($data['value'] ?? null)) {
+                            return $query;
+                        }
+
+                        $threshold = now()->subHours(app(GeneralSettings::class)->terminal_stale_threshold_hours);
+
+                        return match ($data['value']) {
+                            'never_connected' => $query->whereNull('last_heartbeat_at'),
+                            'online' => $query->where('last_heartbeat_at', '>=', $threshold),
+                            'stale' => $query->whereNotNull('last_heartbeat_at')->where('last_heartbeat_at', '<', $threshold),
+                            default => $query,
+                        };
+                    }),
             ])
             ->actions([
                 ActionGroup::make([

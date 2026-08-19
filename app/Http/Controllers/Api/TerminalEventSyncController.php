@@ -48,6 +48,8 @@ class TerminalEventSyncController extends Controller
 
         $results = $this->syncService->syncBatch($terminal, $data['events']);
 
+        $terminal->update(['last_event_sync_at' => now()]);
+
         return response()->json([
             'ok' => true,
             'results' => $results,
