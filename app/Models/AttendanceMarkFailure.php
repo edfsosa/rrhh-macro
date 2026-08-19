@@ -28,8 +28,8 @@ class AttendanceMarkFailure extends Model
     ];
 
     protected $casts = [
-        'metadata'    => 'array',
-        'location'    => 'array',
+        'metadata' => 'array',
+        'location' => 'array',
         'occurred_at' => 'datetime',
     ];
 
@@ -55,75 +55,65 @@ class AttendanceMarkFailure extends Model
 
     /**
      * Retorna el label legible del tipo de fallo.
-     *
-     * @param  string $type
-     * @return string
      */
     public static function getFailureTypeLabel(string $type): string
     {
         return match ($type) {
-            'face_no_match'          => 'Rostro no reconocido',
-            'face_ambiguous'         => 'Rostro ambiguo',
-            'face_no_candidates'     => 'Sin empleados enrolados',
-            'face_invalid_descriptor'=> 'Descriptor facial inválido',
-            'employee_not_found'     => 'Empleado no encontrado',
-            'employee_inactive'      => 'Empleado inactivo',
-            'employee_no_branch'     => 'Sin sucursal asignada',
-            'branch_no_coordinates'  => 'Sucursal sin coordenadas',
+            'face_no_match' => 'Rostro no reconocido',
+            'face_ambiguous' => 'Rostro ambiguo',
+            'face_no_candidates' => 'Sin empleados enrolados',
+            'face_invalid_descriptor' => 'Descriptor facial inválido',
+            'employee_not_found' => 'Empleado no encontrado',
+            'employee_inactive' => 'Empleado inactivo',
+            'employee_no_branch' => 'Sin sucursal asignada',
+            'branch_no_coordinates' => 'Sucursal sin coordenadas',
             'invalid_event_sequence' => 'Secuencia de evento inválida',
-            'invalid_location'       => 'Ubicación inválida',
-            'internal_error'         => 'Error interno',
-            default                  => $type,
+            'invalid_location' => 'Ubicación inválida',
+            'internal_error' => 'Error interno',
+            'sync_conflict' => 'Conflicto al sincronizar (offline)',
+            default => $type,
         };
     }
 
     /**
      * Retorna el color del badge según el tipo de fallo.
-     *
-     * @param  string $type
-     * @return string
      */
     public static function getFailureTypeColor(string $type): string
     {
         return match ($type) {
-            'face_no_match', 'face_ambiguous'       => 'warning',
-            'face_no_candidates', 'internal_error'  => 'danger',
+            'face_no_match', 'face_ambiguous' => 'warning',
+            'face_no_candidates', 'internal_error' => 'danger',
             'employee_not_found', 'employee_inactive' => 'danger',
             'employee_no_branch', 'branch_no_coordinates' => 'warning',
-            'invalid_event_sequence'                => 'info',
-            'invalid_location'                      => 'warning',
-            'face_invalid_descriptor'               => 'gray',
-            default                                 => 'gray',
+            'invalid_event_sequence' => 'info',
+            'invalid_location' => 'warning',
+            'face_invalid_descriptor' => 'gray',
+            'sync_conflict' => 'danger',
+            default => 'gray',
         };
     }
 
     /**
      * Retorna el label del modo de marcación.
-     *
-     * @param  string $mode
-     * @return string
      */
     public static function getModeLabel(string $mode): string
     {
         return match ($mode) {
             'terminal' => 'Terminal',
-            'mobile'   => 'Móvil',
-            default    => 'Desconocido',
+            'mobile' => 'Móvil',
+            default => 'Desconocido',
         };
     }
 
     /**
      * Retorna el color del badge según el modo.
-     *
-     * @param  string $mode
-     * @return string
      */
     public static function getModeColor(string $mode): string
     {
         return match ($mode) {
             'terminal' => 'info',
-            'mobile'   => 'success',
-            default    => 'gray',
+            'mobile' => 'success',
+            default => 'gray',
         };
     }
 
@@ -135,25 +125,25 @@ class AttendanceMarkFailure extends Model
     public static function getFailureTypeOptions(): array
     {
         return [
-            'face_no_match'           => 'Rostro no reconocido',
-            'face_ambiguous'          => 'Rostro ambiguo',
-            'face_no_candidates'      => 'Sin empleados enrolados',
+            'face_no_match' => 'Rostro no reconocido',
+            'face_ambiguous' => 'Rostro ambiguo',
+            'face_no_candidates' => 'Sin empleados enrolados',
             'face_invalid_descriptor' => 'Descriptor facial inválido',
-            'employee_not_found'      => 'Empleado no encontrado',
-            'employee_inactive'       => 'Empleado inactivo',
-            'employee_no_branch'      => 'Sin sucursal asignada',
-            'branch_no_coordinates'   => 'Sucursal sin coordenadas',
-            'invalid_event_sequence'  => 'Secuencia de evento inválida',
-            'invalid_location'        => 'Ubicación inválida',
-            'internal_error'          => 'Error interno',
+            'employee_not_found' => 'Empleado no encontrado',
+            'employee_inactive' => 'Empleado inactivo',
+            'employee_no_branch' => 'Sin sucursal asignada',
+            'branch_no_coordinates' => 'Sucursal sin coordenadas',
+            'invalid_event_sequence' => 'Secuencia de evento inválida',
+            'invalid_location' => 'Ubicación inválida',
+            'internal_error' => 'Error interno',
+            'sync_conflict' => 'Conflicto al sincronizar (offline)',
         ];
     }
 
     /**
      * Crea y persiste un registro de fallo de marcación.
      *
-     * @param  array<string, mixed> $data
-     * @return static
+     * @param  array<string, mixed>  $data
      */
     public static function record(array $data): static
     {
