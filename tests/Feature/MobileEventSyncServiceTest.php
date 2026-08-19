@@ -1,0 +1,152 @@
+<?php
+
+use App\Models\AttendanceEvent;
+use App\Models\AttendanceMarkFailure;
+use App\Models\Branch;
+use App\Models\Company;
+use App\Models\Contract;
+use App\Models\Department;
+use App\Models\Employee;
+use App\Models\Position;
+use App\Models\User;
+use App\Services\MobileEventSyncService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+
+uses(RefreshDatabase::class);
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function makeMobileSyncEmployee(): Employee
+{
+    static $ci = 9000000;
+    $n = $ci++;
+
+    $company = Company::create(['name' => "Empresa Mobile {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "Sucursal Mobile {$n}", 'company_id' => $company->id]);
+    $department = Department::create(['name' => "Depto Mobile {$n}", 'company_id' => $company->id]);
+    $position = Position::create(['name' => "Cargo Mobile {$n}", 'department_id' => $department->id]);
+
+    $employee = Employee::create([
+        'first_name' => 'Mobile',
+        'last_name' => 'Test',
+        'ci' => (string) $n,
+        'birth_date' => '1990-05-15',
+        'email' => "mobile{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
+        'face_descriptor' => array_fill(0, 128, 0.1),
+    ]);
+
+    Contract::create([
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => now()->subYear(),
+        'salary_type' => 'mensual',
+        'salary' => 2_550_000,
+        'position_id' => $position->id,
+        'department_id' => $department->id,
+        'status' => 'active',
+    ]);
+
+    return $employee->fresh();
+}
+
+// ─── Tests ──────────────────────────────────────────────────────────────────
+
+it('sincroniza un evento nuevo y lo marca con origen mobile', function () {
+    $employee = makeMobileSyncEmployee();
+    $clientEventId = (string) Str::uuid();
+
+    $results = app(MobileEventSyncService::class)->syncBatch($employee, [[
+        'client_event_id' => $clientEventId,
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-19 08:00:00',
+        'location' => ['lat' => -25.28, 'lng' => -57.64],
+    ]]);
+
+    expect($results[0]['status'])->toBe('synced');
+
+    $event = AttendanceEvent::where('client_event_id', $clientEventId)->first();
+    expect($event)->not->toBeNull()
+        ->and($event->source)->toBe('mobile')
+        ->and($event->synced_at)->not->toBeNull()
+        ->and($event->terminal_id)->toBeNull();
+});
+
+it('es idempotente — reenviar el mismo client_event_id no duplica el evento', function () {
+    $employee = makeMobileSyncEmployee();
+    $clientEventId = (string) Str::uuid();
+    $payload = [[
+        'client_event_id' => $clientEventId,
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-19 08:00:00',
+    ]];
+
+    $service = app(MobileEventSyncService::class);
+    $service->syncBatch($employee, $payload);
+    $results = $service->syncBatch($employee, $payload);
+
+    expect($results[0]['status'])->toBe('duplicate')
+        ->and(AttendanceEvent::where('client_event_id', $clientEventId)->count())->toBe(1);
+});
+
+it('rechaza como conflict un evento cuya secuencia ya no es válida en el servidor y lo registra para revisión', function () {
+    $employee = makeMobileSyncEmployee();
+    $service = app(MobileEventSyncService::class);
+
+    // El check_out ya llegó al servidor (ej. registrado manualmente mientras el celular estaba offline).
+    $service->syncBatch($employee, [[
+        'client_event_id' => (string) Str::uuid(),
+        'event_type' => 'check_out',
+        'recorded_at' => '2026-08-19 17:00:00',
+    ]]);
+
+    // El celular recién ahora sincroniza un break_start que había capturado offline, antes del check_out.
+    $conflictingClientEventId = (string) Str::uuid();
+    $results = $service->syncBatch($employee, [[
+        'client_event_id' => $conflictingClientEventId,
+        'event_type' => 'break_start',
+        'recorded_at' => '2026-08-19 12:00:00',
+    ]]);
+
+    expect($results[0]['status'])->toBe('conflict')
+        ->and($results[0]['conflict_reason'])->toBe('invalid_sequence')
+        ->and(AttendanceEvent::where('client_event_id', $conflictingClientEventId)->exists())->toBeFalse();
+
+    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')->where('mode', 'mobile')->first();
+    expect($failure)->not->toBeNull()
+        ->and($failure->employee_id)->toBe($employee->id)
+        ->and($failure->branch_id)->toBe($employee->branch_id)
+        ->and($failure->attempted_event_type)->toBe('break_start')
+        ->and($failure->canBeResolved())->toBeTrue();
+});
+
+it('aprobar un conflicto mobile reconstruye el evento con source mobile', function () {
+    $employee = makeMobileSyncEmployee();
+    $service = app(MobileEventSyncService::class);
+
+    $service->syncBatch($employee, [[
+        'client_event_id' => (string) Str::uuid(),
+        'event_type' => 'check_out',
+        'recorded_at' => '2026-08-19 17:00:00',
+    ]]);
+
+    $service->syncBatch($employee, [[
+        'client_event_id' => (string) Str::uuid(),
+        'event_type' => 'break_start',
+        'recorded_at' => '2026-08-19 12:00:00',
+    ]]);
+
+    $failure = AttendanceMarkFailure::where('failure_type', 'sync_conflict')->where('mode', 'mobile')->first();
+
+    $admin = User::create([
+        'name' => 'Admin', 'email' => 'admin-mobile@test.com', 'password' => bcrypt('secret'),
+    ]);
+
+    $result = $failure->approve($admin->id, 'break_start');
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['event']->source)->toBe('mobile')
+        ->and($result['event']->synced_at)->not->toBeNull();
+});

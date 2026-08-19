@@ -4,16 +4,29 @@ namespace App\Models;
 
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Laravel\Sanctum\HasApiTokens;
 
-class Employee extends Model
+/**
+ * Implementa `Authenticatable` (no solo `HasApiTokens`) por el mismo motivo
+ * que `Terminal`: el empleado es el "usuario" autenticado en la API de
+ * marcación offline por celular (`routes/api.php`, prefijo `v1/mobile`) — sin
+ * esto, `$request->user()` funciona en producción igual, pero el helper de
+ * test `Sanctum::actingAs()` exige el contrato con tipado estricto.
+ */
+class Employee extends Model implements AuthenticatableContract
 {
-    use HasFactory;
+    use Authenticatable, HasApiTokens, HasFactory;
+
+    /** Ability Sanctum requerida para consumir la API de sincronización móvil del propio empleado. */
+    public const MOBILE_SYNC_ABILITY = 'mobile:sync';
 
     /**
      * Cuando es true, el EmployeeObserver omite la asignación automática de deducciones obligatorias.
@@ -39,12 +52,14 @@ class Employee extends Model
         'schedule_id',
         'status',
         'face_descriptor',
+        'mobile_linked_at',
     ];
 
     protected $casts = [
         'birth_date' => 'date',
         'maternity_protection_until' => 'date',
         'face_descriptor' => 'array',
+        'mobile_linked_at' => 'datetime',
     ];
 
     // ───────────────────────────────────────────
@@ -1157,5 +1172,39 @@ class Employee extends Model
         }
 
         return $toAssignIds->count();
+    }
+
+    // =========================================================================
+    // MARCACIÓN OFFLINE POR CELULAR — VINCULACIÓN Y TOKEN SANCTUM
+    // =========================================================================
+
+    /**
+     * Emite un token Sanctum (ability `mobile:sync`) para el celular personal
+     * del empleado, tras validarse con CI + fecha de nacimiento (ver
+     * `MobileLinkController`). Revoca cualquier token móvil previo — un solo
+     * dispositivo vinculado a la vez, igual que `Terminal::claimSanctumToken()`.
+     *
+     * @return string Token Sanctum en texto plano — solo se retorna una vez, nunca se persiste en claro.
+     */
+    public function claimMobileToken(): string
+    {
+        $this->tokens()->where('name', 'like', 'mobile:%')->delete();
+
+        $this->forceFill(['mobile_linked_at' => now()])->save();
+
+        return $this->createToken('mobile:'.$this->id, [self::MOBILE_SYNC_ABILITY])->plainTextToken;
+    }
+
+    /** Revoca el token móvil del empleado (dispositivo perdido/robado, o desvinculación manual desde Filament). */
+    public function revokeMobileToken(): void
+    {
+        $this->tokens()->where('name', 'like', 'mobile:%')->delete();
+        $this->forceFill(['mobile_linked_at' => null])->save();
+    }
+
+    /** Indica si el empleado tiene un celular vinculado actualmente. */
+    public function hasMobileLinked(): bool
+    {
+        return $this->mobile_linked_at !== null;
     }
 }
