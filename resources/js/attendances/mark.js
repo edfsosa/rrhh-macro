@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { captureFaceSamples } from '../shared/face-capture-core.js';
 
 /**
  * =============================================================================
@@ -953,7 +954,17 @@ const statusBar           = document.getElementById("statusBar");
                             height: video.videoHeight,
                         });
 
-                        if (faceInFrameState !== "found") {
+                        // Feedback inmediato si la cara está muy chica — evita que el usuario
+                        // espere todo el ciclo de captura (5 muestras) para enterarse recién al fallar
+                        const box = detection.detection.box;
+                        if (box.width < MIN_FACE_SIZE || box.height < MIN_FACE_SIZE) {
+                            if (faceInFrameState !== "small") {
+                                faceInFrameState = "small";
+                                cancelAutoIdentifyDwell();
+                                setVideoState("detecting");
+                                setStatusBar("Acérquese un poco más a la cámara", "detecting");
+                            }
+                        } else if (faceInFrameState !== "found") {
                             faceInFrameState = "found";
                             setVideoState("face-found");
                             setStatusBar("Quédate quieto...", "found");
@@ -993,40 +1004,20 @@ const statusBar           = document.getElementById("statusBar");
      * @returns {Promise<number[]>} Array de 128 números representando el descriptor facial promediado
      */
     async function captureDescriptor(samples = 5, intervalMs = 150, onProgress = null) {
-        const descriptors = [];
-
-        for (let i = 0; i < samples; i++) {
-            try {
-                const det = await faceapi
-                    .detectSingleFace(video, tinyOptions)
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-
-                if (det?.descriptor) {
-                    const box = det.detection.box;
-                    if (box.width >= MIN_FACE_SIZE && box.height >= MIN_FACE_SIZE) {
-                        descriptors.push(Array.from(det.descriptor));
-                        if (onProgress) onProgress(descriptors.length);
-                    } else {
-                        logWarn(`Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${MIN_FACE_SIZE}px)`);
-                    }
+        const { averaged } = await captureFaceSamples(video, tinyOptions, {
+            samples,
+            intervalMs,
+            minFaceSize: MIN_FACE_SIZE,
+            minRequired: 3,
+            onProgress,
+            onRejectedSample: (reason, detail) => {
+                if (reason === 'too_small') {
+                    logWarn(`Rostro muy pequeño: ${Math.round(detail.width)}x${Math.round(detail.height)}px (mínimo ${MIN_FACE_SIZE}px)`);
+                } else if (reason === 'error') {
+                    logWarn('Error capturando muestra:', detail);
                 }
-            } catch (error) {
-                logWarn(`Error capturando muestra ${i + 1}:`, error);
-            }
-            if (i < samples - 1) await sleep(intervalMs);
-        }
-
-        if (descriptors.length < 3) {
-            throw new Error(`Solo se capturaron ${descriptors.length} muestras válidas (mínimo 3). Acerque el rostro a la cámara.`);
-        }
-
-        const averaged = new Array(128).fill(0);
-        for (let i = 0; i < 128; i++) {
-            let sum = 0;
-            for (const desc of descriptors) sum += desc[i];
-            averaged[i] = sum / descriptors.length;
-        }
+            },
+        });
         return averaged;
     }
 
@@ -1341,8 +1332,9 @@ const statusBar           = document.getElementById("statusBar");
                 return;
             }
             const detailed = buildDetailedError(e.message);
-            // Cooldown de 3s: drawLoop no actualiza estado visual ni se inicia nuevo dwell
-            notRecognizedUntil = Date.now() + 3000;
+            // Cooldown breve: drawLoop no actualiza estado visual ni se inicia nuevo dwell.
+            // Reducido de 3s a 1.5s — el modal de error ya frena al usuario, no hace falta duplicar la espera.
+            notRecognizedUntil = Date.now() + 1500;
             setVideoState("error");
             setStatusBar("No se pudo identificar", "error");
             await finishCaptureProgress("error");

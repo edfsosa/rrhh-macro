@@ -2,19 +2,21 @@
 
 namespace App\Models;
 
+use Database\Factories\AttendanceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceEvent extends Model
 {
-    /** @use HasFactory<\Database\Factories\AttendanceFactory> */
+    /** @use HasFactory<AttendanceFactory> */
     use HasFactory;
 
     protected $fillable = [
         'attendance_day_id',
         'event_type',
         'recorded_at',
+        'synced_at',
         'source',
         'location',
         'employee_id',
@@ -24,12 +26,14 @@ class AttendanceEvent extends Model
         'branch_name',
         'terminal_id',
         'branch_mismatch',
+        'client_event_id',
     ];
 
     protected $casts = [
-        'recorded_at'    => 'datetime',
-        'location'       => 'array',
-        'branch_mismatch'=> 'boolean',
+        'recorded_at' => 'datetime',
+        'synced_at' => 'datetime',
+        'location' => 'array',
+        'branch_mismatch' => 'boolean',
     ];
 
     /**
@@ -68,7 +72,7 @@ class AttendanceEvent extends Model
      */
     public function getLocationDisplayAttribute(): string
     {
-        if (!$this->location) {
+        if (! $this->location) {
             return 'Sin ubicación';
         }
 
@@ -83,7 +87,7 @@ class AttendanceEvent extends Model
 
             if (is_array($this->location)) {
                 return collect($this->location)
-                    ->map(fn($value, $key) => "{$key}: {$value}")
+                    ->map(fn ($value, $key) => "{$key}: {$value}")
                     ->join(', ');
             }
 
@@ -98,7 +102,7 @@ class AttendanceEvent extends Model
      */
     public function getGoogleMapsUrlAttribute(): ?string
     {
-        if (!$this->location || !is_array($this->location)) {
+        if (! $this->location || ! is_array($this->location)) {
             return null;
         }
 
@@ -182,8 +186,8 @@ class AttendanceEvent extends Model
     {
         return [
             'terminal' => 'Terminal (kiosco)',
-            'mobile'   => 'Móvil',
-            'manual'   => 'Manual (admin)',
+            'mobile' => 'Móvil',
+            'manual' => 'Manual (admin)',
         ];
     }
 
@@ -194,9 +198,9 @@ class AttendanceEvent extends Model
     {
         return match ($source) {
             'terminal' => 'Terminal',
-            'mobile'   => 'Móvil',
-            'manual'   => 'Manual',
-            default    => 'Desconocido',
+            'mobile' => 'Móvil',
+            'manual' => 'Manual',
+            default => 'Desconocido',
         };
     }
 
@@ -207,9 +211,9 @@ class AttendanceEvent extends Model
     {
         return match ($source) {
             'terminal' => 'info',
-            'mobile'   => 'success',
-            'manual'   => 'warning',
-            default    => 'gray',
+            'mobile' => 'success',
+            'manual' => 'warning',
+            default => 'gray',
         };
     }
 
@@ -220,9 +224,30 @@ class AttendanceEvent extends Model
     {
         return match ($source) {
             'terminal' => 'heroicon-o-computer-desktop',
-            'mobile'   => 'heroicon-o-device-phone-mobile',
-            'manual'   => 'heroicon-o-pencil-square',
-            default    => 'heroicon-o-question-mark-circle',
+            'mobile' => 'heroicon-o-device-phone-mobile',
+            'manual' => 'heroicon-o-pencil-square',
+            default => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    /**
+     * Máquina de estados de marcación diaria: dado el último evento del día,
+     * retorna qué tipos de evento son válidos a continuación. Compartida por
+     * el flujo de marcación en línea (AttendanceFaceMarkController::store())
+     * y el flujo de sincronización de terminales offline (AttendanceEventSyncService)
+     * para no duplicar la regla de negocio en dos lugares.
+     *
+     * @return array<int, string>
+     */
+    public static function allowedNextEventTypes(?string $last): array
+    {
+        return match ($last) {
+            null => ['check_in'],
+            'check_in' => ['break_start', 'check_out'],
+            'break_start' => ['break_end'],
+            'break_end' => ['break_start', 'check_out'],
+            'check_out' => [],
+            default => ['check_in'],
         };
     }
 
@@ -241,7 +266,7 @@ class AttendanceEvent extends Model
      */
     public function getFormattedLocation(): string
     {
-        if (!$this->hasValidLocation()) {
+        if (! $this->hasValidLocation()) {
             return 'Sin ubicación';
         }
 
@@ -265,7 +290,7 @@ class AttendanceEvent extends Model
      */
     public function getLocationTooltip(): string
     {
-        if (!$this->hasValidLocation()) {
+        if (! $this->hasValidLocation()) {
             return 'No hay datos de ubicación';
         }
 

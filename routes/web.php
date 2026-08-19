@@ -22,6 +22,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\SalaryReportController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ShiftPlannerController;
+use App\Http\Controllers\TerminalSetupController;
 use App\Http\Controllers\VacationDocumentController;
 use App\Http\Controllers\VacationReportController;
 use App\Http\Controllers\WarningController;
@@ -48,6 +49,13 @@ Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name
 
 // Terminal identificada por código — nueva arquitectura
 Route::get('/terminal/{code}', [AttendanceFaceMarkController::class, 'terminalByCode'])->name('terminal.show');
+
+// Provisión del terminal como PWA offline — enlace de un solo uso generado desde TerminalResource,
+// emite el token Sanctum que el kiosko usará contra la API de sincronización (routes/api.php).
+Route::prefix('terminal/{code}/setup/{setupToken}')->name('terminal.setup.')->middleware('throttle:10,1')->group(function () {
+    Route::get('/', [TerminalSetupController::class, 'show'])->name('show');
+    Route::post('/claim', [TerminalSetupController::class, 'claim'])->name('claim');
+});
 
 /*
 |--------------------------------------------------------------------------
