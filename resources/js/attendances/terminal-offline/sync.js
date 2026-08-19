@@ -10,7 +10,7 @@
  *               ver TerminalSetupController / terminal-setup.blade.php).
  */
 
-import { getMeta, setMeta, applyEmployeesDelta, logSync } from './db.js';
+import { getMeta, setMeta, applyEmployeesDelta, logSync, countPendingEvents, countConflictEvents } from './db.js';
 
 const API_BASE = '/api/v1/terminal';
 
@@ -73,12 +73,20 @@ export async function syncEmployees() {
 
 /**
  * Heartbeat: mantiene `last_seen_at` vivo en el servidor y refresca la
- * configuración de reconocimiento facial (umbral/gap) usada por el matcher local.
+ * configuración de reconocimiento facial (umbral/gap) usada por el matcher
+ * local. También reporta el tamaño actual de la cola offline (pendientes/en
+ * conflicto) — así un admin puede detectar en Filament un terminal cuya cola
+ * no se vacía, aunque el heartbeat en sí llegue con normalidad (ver
+ * `Terminal::sync_queue_status`).
  * @returns {Promise<void>}
  */
 export async function heartbeat() {
     try {
-        const data = await apiFetch('/heartbeat', { method: 'POST' });
+        const [pendingEvents, conflictEvents] = await Promise.all([countPendingEvents(), countConflictEvents()]);
+        const data = await apiFetch('/heartbeat', {
+            method: 'POST',
+            body: JSON.stringify({ pending_events: pendingEvents, conflict_events: conflictEvents }),
+        });
         if (!data.ok) throw new Error(data.message || 'Error en heartbeat');
 
         await setMeta('face_threshold', data.config.face_threshold);
@@ -105,8 +113,8 @@ export async function getFaceConfig() {
 
 /**
  * Estado del día (último evento / eventos permitidos) para un empleado ya
- * identificado localmente. Requiere red — en esta fase la marcación sigue
- * siendo síncrona/online, esto no se resuelve desde la caché local todavía.
+ * identificado localmente. Requiere red — el caller (`queue.js`,
+ * `getEmployeeStatus()`) cae a una resolución local si esta consulta falla.
  * @param {number} employeeId
  * @returns {Promise<{last_event: string|null, last_event_time: string|null, allowed_events: string[]}>}
  */

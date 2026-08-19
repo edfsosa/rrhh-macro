@@ -1078,6 +1078,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /**
+     * Pide al navegador que la cuota de almacenamiento de este origen sea
+     * "persistente" — reduce el riesgo de que el navegador borre IndexedDB
+     * (empleados cacheados, cola de marcaciones pendientes) bajo presión de
+     * espacio en disco. Best-effort: no todos los navegadores lo soportan, y
+     * la concesión depende de heurísticas del navegador (ej. Chrome la
+     * otorga más fácil en un dispositivo instalado como PWA/kiosko).
+     */
+    async function requestPersistentStorage() {
+        if (!navigator.storage?.persist) return;
+        try {
+            const granted = await navigator.storage.persist();
+            console.log(granted ? "Almacenamiento persistente concedido" : "Almacenamiento persistente no concedido (best-effort)");
+        } catch (error) {
+            console.warn("No se pudo solicitar almacenamiento persistente:", error.message);
+        }
+    }
+
+    /**
      * Migra el token de configuración (si venía de localStorage, ver
      * terminal-setup.blade.php) y hace la primera sincronización antes de
      * arrancar el reposo. Si el terminal no está provisionado, no bloquea el
@@ -1093,6 +1111,8 @@ document.addEventListener("DOMContentLoaded", () => {
             updateIdleSyncStatus("Terminal sin configurar");
             return;
         }
+
+        await requestPersistentStorage();
 
         try {
             updateIdleSyncStatus("Sincronizando...");

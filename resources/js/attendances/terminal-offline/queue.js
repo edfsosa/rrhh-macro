@@ -13,6 +13,7 @@
  */
 
 import {
+    getMeta,
     queueEvent,
     getPendingEvents,
     getEventsForEmployeeOnDate,
@@ -52,6 +53,18 @@ export function allowedNextEventTypes(lastEventType) {
     }
 }
 
+/**
+ * Hora actual corregida con el offset de reloj del último heartbeat exitoso
+ * (`server_clock_offset_ms`, ver sync.js) — un kiosko sin NTP configurado
+ * puede tener el reloj local desviado, lo que arrastraría el error a cada
+ * marcación capturada offline. Sin heartbeat previo el offset es 0.
+ * @returns {Promise<Date>}
+ */
+async function correctedNow() {
+    const offsetMs = (await getMeta('server_clock_offset_ms')) || 0;
+    return new Date(Date.now() + offsetMs);
+}
+
 /** @returns {string} Fecha local del dispositivo en formato YYYY-MM-DD. */
 function localDateString(date = new Date()) {
     const year = date.getFullYear();
@@ -72,7 +85,7 @@ function localDateString(date = new Date()) {
  */
 export async function resolveEmployeeStatus(employeeId) {
     const cached = await getEmployeeStatusCache(employeeId);
-    const today = localDateString();
+    const today = localDateString(await correctedNow());
     const localEvents = (await getEventsForEmployeeOnDate(employeeId, today))
         .filter((event) => event.status === 'pending') // los en conflicto no cuentan como "ya registrados"
         .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
@@ -113,13 +126,19 @@ export async function getEmployeeStatus(employeeId) {
  * Encola una marcación capturada localmente. Debe llamarse ANTES de intentar
  * sincronizar — así la marcación queda a salvo aunque el envío falle o la
  * pestaña se cierre a mitad de camino.
+ *
+ * `recorded_at` se corrige con el offset de reloj calculado en el último
+ * heartbeat exitoso (`server_clock_offset_ms`, ver sync.js) — un kiosko sin
+ * NTP configurado puede tener el reloj local desviado varios minutos, y esa
+ * desviación se arrastraría a cada marcación capturada mientras estuvo
+ * offline. Sin heartbeat previo el offset es 0 (no hay corrección posible).
  * @param {number} employeeId
  * @param {string} eventType
  * @returns {Promise<{client_event_id: string, recorded_at: string}>}
  */
 export async function enqueueMark(employeeId, eventType) {
     const clientEventId = crypto.randomUUID();
-    const recordedAt = new Date();
+    const recordedAt = await correctedNow();
 
     await queueEvent({
         client_event_id: clientEventId,
@@ -136,15 +155,29 @@ export async function enqueueMark(employeeId, eventType) {
 let flushInProgress = false;
 
 /**
- * Intenta sincronizar todos los eventos pendientes en un solo lote. Los
- * `synced`/`duplicate` se eliminan de la cola; los `conflict`/`rejected` se
- * marcan como tal (no se reintentan más) para revisión manual en Filament.
- * Si la red falla directamente (ni siquiera hay respuesta), todos quedan
- * `pending` para el próximo intento.
+ * Máximo de eventos por request de sincronización — debe coincidir con el
+ * límite del servidor (`TerminalEventSyncController`: `'events' => [...,
+ * 'max:200']`). Una sucursal con varios empleados y varias horas offline
+ * puede acumular más de 200 marcaciones en la cola; sin este chunking, un
+ * solo `submitEvents()` con todo de una vez se rechaza entero (422) y la
+ * cola queda atascada indefinidamente (confirmado con una prueba de carga
+ * de 250 eventos antes de este fix).
+ */
+const MAX_BATCH_SIZE = 200;
+
+/**
+ * Intenta sincronizar todos los eventos pendientes, en lotes de a lo sumo
+ * `MAX_BATCH_SIZE`. Los `synced`/`duplicate` se eliminan de la cola; los
+ * `conflict`/`rejected` se marcan como tal (no se reintentan más) para
+ * revisión manual en Filament. Si un lote falla por red (ni siquiera hay
+ * respuesta), ese lote y los siguientes quedan `pending` para el próximo
+ * intento — no tiene sentido seguir mandando lotes si el primero ya no
+ * pudo salir.
  *
  * Devuelve `results` (la respuesta cruda del servidor, una entrada por
- * `client_event_id`) para que el caller pueda saber qué pasó específicamente
- * con SU evento cuando encoló varios a la vez con otros ya pendientes.
+ * `client_event_id`, acumulada de todos los lotes que sí llegaron) para que
+ * el caller pueda saber qué pasó específicamente con SU evento cuando
+ * encoló varios a la vez con otros ya pendientes.
  * @returns {Promise<{synced: number, conflicts: number, stillPending: number, results: Array<object>}>}
  */
 export async function flushQueue() {
@@ -155,35 +188,42 @@ export async function flushQueue() {
         const pending = await getPendingEvents();
         if (pending.length === 0) return { synced: 0, conflicts: 0, stillPending: 0, results: [] };
 
-        let results;
-        try {
-            results = await submitEvents(pending.map(({ client_event_id, employee_id, event_type, recorded_at }) => ({
-                client_event_id,
-                employee_id,
-                event_type,
-                recorded_at,
-            })));
-        } catch (error) {
-            // Sin red o el servidor no respondió — todos quedan pendientes, se reintenta después.
-            for (const event of pending) await incrementQueuedEventAttempts(event.client_event_id);
-            console.warn('flushQueue: no se pudo sincronizar (sin red o error de servidor):', error.message);
-            return { synced: 0, conflicts: 0, stillPending: pending.length, results: [] };
-        }
-
         let synced = 0;
         let conflicts = 0;
+        const allResults = [];
 
-        for (const result of results) {
-            if (result.status === 'synced' || result.status === 'duplicate') {
-                await removeQueuedEvent(result.client_event_id);
-                synced++;
-            } else {
-                await markQueuedEventConflict(result.client_event_id, result.message);
-                conflicts++;
+        for (let offset = 0; offset < pending.length; offset += MAX_BATCH_SIZE) {
+            const batch = pending.slice(offset, offset + MAX_BATCH_SIZE);
+
+            let results;
+            try {
+                results = await submitEvents(batch.map(({ client_event_id, employee_id, event_type, recorded_at }) => ({
+                    client_event_id,
+                    employee_id,
+                    event_type,
+                    recorded_at,
+                })));
+            } catch (error) {
+                // Sin red o el servidor no respondió — este lote y los restantes (todavía no
+                // enviados) quedan pendientes para el próximo intento.
+                for (const event of pending.slice(offset)) await incrementQueuedEventAttempts(event.client_event_id);
+                console.warn(`flushQueue: no se pudo sincronizar el lote (${batch.length} de ${pending.length - offset} restantes):`, error.message);
+                break;
             }
+
+            for (const result of results) {
+                if (result.status === 'synced' || result.status === 'duplicate') {
+                    await removeQueuedEvent(result.client_event_id);
+                    synced++;
+                } else {
+                    await markQueuedEventConflict(result.client_event_id, result.message);
+                    conflicts++;
+                }
+            }
+            allResults.push(...results);
         }
 
-        return { synced, conflicts, stillPending: await countPendingEvents(), results };
+        return { synced, conflicts, stillPending: await countPendingEvents(), results: allResults };
     } finally {
         flushInProgress = false;
     }

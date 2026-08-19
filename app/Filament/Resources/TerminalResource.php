@@ -249,6 +249,23 @@ class TerminalResource extends Resource
                                 ->since(),
                         ]),
 
+                        InfoGrid::make(3)->schema([
+                            TextEntry::make('sync_queue_status')
+                                ->label('Cola de sincronización')
+                                ->badge()
+                                ->tooltip('Reportado por el kiosko en cada heartbeat')
+                                ->formatStateUsing(fn (string $state) => Terminal::getSyncQueueStatusLabels()[$state] ?? $state)
+                                ->color(fn (string $state) => Terminal::getSyncQueueStatusColors()[$state] ?? 'gray'),
+
+                            TextEntry::make('last_pending_events_count')
+                                ->label('Marcaciones pendientes')
+                                ->placeholder('Sin datos'),
+
+                            TextEntry::make('last_conflict_events_count')
+                                ->label('Marcaciones en conflicto')
+                                ->placeholder('Sin datos'),
+                        ]),
+
                         TextEntry::make('last_seen_at')
                             ->label('Última carga de página')
                             ->dateTime('d/m/Y H:i')
@@ -320,6 +337,13 @@ class TerminalResource extends Resource
                     ->formatStateUsing(fn (string $state) => Terminal::getConnectivityStatusLabels()[$state] ?? $state)
                     ->color(fn (string $state) => Terminal::getConnectivityStatusColors()[$state] ?? 'gray'),
 
+                TextColumn::make('sync_queue_status')
+                    ->label('Cola de sync')
+                    ->badge()
+                    ->tooltip('Marcaciones pendientes o en conflicto reportadas por el kiosko en su último heartbeat')
+                    ->formatStateUsing(fn (string $state) => Terminal::getSyncQueueStatusLabels()[$state] ?? $state)
+                    ->color(fn (string $state) => Terminal::getSyncQueueStatusColors()[$state] ?? 'gray'),
+
                 TextColumn::make('last_heartbeat_at')
                     ->label('Último heartbeat')
                     ->since()
@@ -369,6 +393,25 @@ class TerminalResource extends Resource
                             'never_connected' => $query->whereNull('last_heartbeat_at'),
                             'online' => $query->where('last_heartbeat_at', '>=', $threshold),
                             'stale' => $query->whereNotNull('last_heartbeat_at')->where('last_heartbeat_at', '<', $threshold),
+                            default => $query,
+                        };
+                    }),
+
+                SelectFilter::make('sync_queue_status')
+                    ->label('Cola de sync')
+                    ->options(Terminal::getSyncQueueStatusOptions())
+                    ->native(false)
+                    ->query(function (Builder $query, array $data) {
+                        if (blank($data['value'] ?? null)) {
+                            return $query;
+                        }
+
+                        return match ($data['value']) {
+                            'conflict' => $query->where('last_conflict_events_count', '>', 0),
+                            'pending' => $query->where('last_pending_events_count', '>', 0)
+                                ->where(fn ($q) => $q->whereNull('last_conflict_events_count')->orWhere('last_conflict_events_count', 0)),
+                            'ok' => $query->where(fn ($q) => $q->whereNull('last_pending_events_count')->orWhere('last_pending_events_count', 0))
+                                ->where(fn ($q) => $q->whereNull('last_conflict_events_count')->orWhere('last_conflict_events_count', 0)),
                             default => $query,
                         };
                     }),

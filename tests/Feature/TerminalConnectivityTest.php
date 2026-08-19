@@ -93,3 +93,51 @@ it('el sync de eventos actualiza last_event_sync_at', function () {
     $terminal->refresh();
     expect($terminal->last_event_sync_at)->not->toBeNull();
 });
+
+it('sin pendientes ni conflictos reportados, la cola de sync es ok', function () {
+    $terminal = makeConnectivityTerminal();
+
+    expect($terminal->sync_queue_status)->toBe('ok');
+});
+
+it('con pendientes y sin conflictos, la cola de sync es pending', function () {
+    $terminal = makeConnectivityTerminal();
+    $terminal->update(['last_pending_events_count' => 3, 'last_conflict_events_count' => 0]);
+
+    expect($terminal->fresh()->sync_queue_status)->toBe('pending');
+});
+
+it('con al menos un conflicto, la cola de sync es conflict aunque también haya pendientes', function () {
+    $terminal = makeConnectivityTerminal();
+    $terminal->update(['last_pending_events_count' => 3, 'last_conflict_events_count' => 1]);
+
+    expect($terminal->fresh()->sync_queue_status)->toBe('conflict');
+});
+
+it('el heartbeat guarda los contadores de cola que reporta el kiosko', function () {
+    $terminal = makeConnectivityTerminal();
+    Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/terminal/heartbeat', [
+        'pending_events' => 5,
+        'conflict_events' => 2,
+    ]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    $terminal->refresh();
+    expect($terminal->last_pending_events_count)->toBe(5)
+        ->and($terminal->last_conflict_events_count)->toBe(2)
+        ->and($terminal->sync_queue_status)->toBe('conflict');
+});
+
+it('el heartbeat sin contadores no rompe y deja los contadores en null', function () {
+    $terminal = makeConnectivityTerminal();
+    Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/terminal/heartbeat');
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    $terminal->refresh();
+    expect($terminal->last_pending_events_count)->toBeNull()
+        ->and($terminal->last_conflict_events_count)->toBeNull();
+});
