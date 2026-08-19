@@ -70,6 +70,14 @@
         };
     </script>
     @endisset
+
+    {{-- Service worker offline — scope acotado a /terminal/, no afecta el resto de la app --}}
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/terminal/' })
+                .catch((error) => console.warn('No se pudo registrar el service worker:', error));
+        }
+    </script>
 </body>
 
 </html>
