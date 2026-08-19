@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TerminalResource\Pages;
-use App\Models\Branch;
 use App\Models\Terminal;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section;
@@ -11,19 +10,20 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\Grid as InfoGrid;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\Grid as InfoGrid;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -31,19 +31,23 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 class TerminalResource extends Resource
 {
     protected static ?string $model = Terminal::class;
+
     protected static ?string $navigationLabel = 'Terminales';
+
     protected static ?string $label = 'terminal';
+
     protected static ?string $pluralLabel = 'terminales';
+
     protected static ?string $slug = 'terminales';
+
     protected static ?string $navigationIcon = 'heroicon-o-computer-desktop';
+
     protected static ?string $navigationGroup = 'Asistencias';
+
     protected static ?int $navigationSort = 6;
 
     /**
      * Formulario de creación y edición de terminales.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -125,7 +129,7 @@ class TerminalResource extends Resource
                             ->searchable()
                             ->preload()
                             ->native(false)
-                            ->default(fn() => Auth::id()),
+                            ->default(fn () => Auth::id()),
                     ])
                     ->columns(2),
             ]);
@@ -133,9 +137,6 @@ class TerminalResource extends Resource
 
     /**
      * Infolist de visualización de la terminal con QR de acceso.
-     *
-     * @param  Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -156,8 +157,8 @@ class TerminalResource extends Resource
 
                             TextEntry::make('status')
                                 ->label('Estado')
-                                ->formatStateUsing(fn(string $state) => Terminal::getStatusLabels()[$state] ?? $state)
-                                ->color(fn(string $state) => Terminal::getStatusColors()[$state] ?? 'gray')
+                                ->formatStateUsing(fn (string $state) => Terminal::getStatusLabels()[$state] ?? $state)
+                                ->color(fn (string $state) => Terminal::getStatusColors()[$state] ?? 'gray')
                                 ->badge(),
                         ]),
 
@@ -175,15 +176,15 @@ class TerminalResource extends Resource
                                 ->icon('heroicon-o-link')
                                 ->copyable()
                                 ->copyMessage('URL copiada')
-                                ->state(fn(Terminal $record) => $record->url),
+                                ->state(fn (Terminal $record) => $record->url),
                         ]),
 
                         TextEntry::make('qr_code')
                             ->label('QR de acceso')
                             ->html()
-                            ->state(fn(Terminal $record) => '<div style="display:inline-block;background:#fff;padding:12px;border-radius:8px;border:1px solid #e5e7eb">'
-                                . QrCode::size(180)->generate($record->url)
-                                . '</div>'
+                            ->state(fn (Terminal $record) => '<div style="display:inline-block;background:#fff;padding:12px;border-radius:8px;border:1px solid #e5e7eb">'
+                                .QrCode::size(180)->generate($record->url)
+                                .'</div>'
                             ),
                     ]),
 
@@ -222,7 +223,7 @@ class TerminalResource extends Resource
                             ->placeholder('Sin notas')
                             ->columnSpanFull(),
                     ])
-                    ->visible(fn(Terminal $record) => $record->device_brand || $record->device_model || $record->device_serial || $record->device_mac || $record->device_notes),
+                    ->visible(fn (Terminal $record) => $record->device_brand || $record->device_model || $record->device_serial || $record->device_mac || $record->device_notes),
 
                 InfoSection::make('Instalación')
                     ->schema([
@@ -237,15 +238,12 @@ class TerminalResource extends Resource
                                 ->placeholder('-'),
                         ]),
                     ])
-                    ->visible(fn(Terminal $record) => $record->installed_at || $record->installed_by_id),
+                    ->visible(fn (Terminal $record) => $record->installed_at || $record->installed_by_id),
             ]);
     }
 
     /**
      * Tabla de terminales con columnas, filtros y acciones de ciclo de vida.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -280,8 +278,8 @@ class TerminalResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Terminal::getStatusLabels()[$state] ?? $state)
-                    ->color(fn(string $state) => Terminal::getStatusColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn (string $state) => Terminal::getStatusLabels()[$state] ?? $state)
+                    ->color(fn (string $state) => Terminal::getStatusColors()[$state] ?? 'gray')
                     ->sortable(),
 
                 TextColumn::make('last_seen_at')
@@ -312,33 +310,67 @@ class TerminalResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                Action::make('activate')
-                    ->label('Activar')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn(Terminal $record) => $record->isInactive())
-                    ->requiresConfirmation()
-                    ->modalHeading('Activar terminal')
-                    ->modalDescription(fn(Terminal $record) => "La terminal \"{$record->name}\" volverá a estar disponible para marcaciones.")
-                    ->modalSubmitActionLabel('Sí, activar')
-                    ->action(function (Terminal $record) {
-                        $record->update(['status' => 'active']);
-                        Notification::make()->success()->title('Terminal activada')->send();
-                    }),
+                ActionGroup::make([
+                    Action::make('activate')
+                        ->label('Activar')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->visible(fn (Terminal $record) => $record->isInactive())
+                        ->requiresConfirmation()
+                        ->modalHeading('Activar terminal')
+                        ->modalDescription(fn (Terminal $record) => "La terminal \"{$record->name}\" volverá a estar disponible para marcaciones.")
+                        ->modalSubmitActionLabel('Sí, activar')
+                        ->action(function (Terminal $record) {
+                            $record->update(['status' => 'active']);
+                            Notification::make()->success()->title('Terminal activada')->send();
+                        }),
 
-                Action::make('deactivate')
-                    ->label('Desactivar')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn(Terminal $record) => $record->isActive())
-                    ->requiresConfirmation()
-                    ->modalHeading('Desactivar terminal')
-                    ->modalDescription(fn(Terminal $record) => "La terminal \"{$record->name}\" dejará de aceptar marcaciones y mostrará una pantalla de fuera de servicio.")
-                    ->modalSubmitActionLabel('Sí, desactivar')
-                    ->action(function (Terminal $record) {
-                        $record->update(['status' => 'inactive']);
-                        Notification::make()->warning()->title('Terminal desactivada')->send();
-                    }),
+                    Action::make('deactivate')
+                        ->label('Desactivar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->visible(fn (Terminal $record) => $record->isActive())
+                        ->requiresConfirmation()
+                        ->modalHeading('Desactivar terminal')
+                        ->modalDescription(fn (Terminal $record) => "La terminal \"{$record->name}\" dejará de aceptar marcaciones y mostrará una pantalla de fuera de servicio.")
+                        ->modalSubmitActionLabel('Sí, desactivar')
+                        ->action(function (Terminal $record) {
+                            $record->update(['status' => 'inactive']);
+                            Notification::make()->warning()->title('Terminal desactivada')->send();
+                        }),
+
+                    Action::make('generate_setup_link')
+                        ->label('Generar enlace de configuración')
+                        ->tooltip('Enlace/QR de un solo uso para vincular el dispositivo a la sincronización offline')
+                        ->icon('heroicon-o-qr-code')
+                        ->color('gray')
+                        ->modalHeading('Enlace de configuración del terminal')
+                        // La generación del token ocurre dentro del propio contenido del modal
+                        // (evaluado al abrir) en vez de mountUsing/action, para no depender de un
+                        // formulario que esta acción no tiene — ver comentario en el método.
+                        ->modalContent(fn (Terminal $record) => static::renderSetupLinkModal($record))
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar'),
+
+                    Action::make('revoke_token')
+                        ->label('Revocar token')
+                        ->tooltip('Invalida el acceso del terminal a la sincronización offline — requerirá re-provisión')
+                        ->icon('heroicon-o-shield-exclamation')
+                        ->color('danger')
+                        ->visible(fn (Terminal $record) => $record->tokens()->exists())
+                        ->requiresConfirmation()
+                        ->modalHeading('Revocar token de sincronización')
+                        ->modalDescription(fn (Terminal $record) => "El terminal \"{$record->name}\" perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar.")
+                        ->modalSubmitActionLabel('Sí, revocar')
+                        ->action(function (Terminal $record) {
+                            $record->revokeSyncTokens();
+                            Notification::make()
+                                ->success()
+                                ->title('Token revocado')
+                                ->body('El terminal deberá re-provisionarse para volver a sincronizar.')
+                                ->send();
+                        }),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -352,9 +384,25 @@ class TerminalResource extends Resource
     }
 
     /**
+     * Genera un nuevo token de configuración de un solo uso para el terminal y
+     * renderiza el modal con su URL/QR. Efecto colateral intencional dentro de
+     * un closure de contenido: si Livewire re-evalúa el modal más de una vez
+     * mientras está abierto, cada llamada genera Y muestra el token vigente
+     * en ese momento de forma consistente (nunca queda desincronizado con lo
+     * que se ve en pantalla) — a costa de invalidar tokens de configuración
+     * previos no usados, lo cual es aceptable para un enlace de un solo uso.
+     */
+    protected static function renderSetupLinkModal(Terminal $record): View
+    {
+        $expiresInMinutes = 30;
+        $setupToken = $record->generateSetupToken($expiresInMinutes);
+        $url = route('terminal.setup.show', ['code' => $record->code, 'setupToken' => $setupToken]);
+
+        return view('filament.modals.terminal-setup-link', compact('url', 'expiresInMinutes'));
+    }
+
+    /**
      * Relaciones del recurso.
-     *
-     * @return array
      */
     public static function getRelations(): array
     {
@@ -363,34 +411,29 @@ class TerminalResource extends Resource
 
     /**
      * Páginas del recurso.
-     *
-     * @return array
      */
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListTerminals::route('/'),
+            'index' => Pages\ListTerminals::route('/'),
             'create' => Pages\CreateTerminal::route('/create'),
-            'view'   => Pages\ViewTerminal::route('/{record}'),
-            'edit'   => Pages\EditTerminal::route('/{record}/edit'),
+            'view' => Pages\ViewTerminal::route('/{record}'),
+            'edit' => Pages\EditTerminal::route('/{record}/edit'),
         ];
     }
 
     /**
      * Badge de navegación: muestra el conteo de terminales inactivas.
-     *
-     * @return string|null
      */
     public static function getNavigationBadge(): ?string
     {
         $inactive = Terminal::where('status', 'inactive')->count();
+
         return $inactive > 0 ? (string) $inactive : null;
     }
 
     /**
      * Color del badge de navegación.
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeColor(): ?string
     {

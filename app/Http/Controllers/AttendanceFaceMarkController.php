@@ -8,13 +8,16 @@ use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
 use App\Models\Terminal;
 use App\Rules\FaceDescriptor;
+use App\Settings\GeneralSettings;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View as ViewContract;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use JsonException;
 use Throwable;
@@ -111,7 +114,7 @@ class AttendanceFaceMarkController extends Controller
 
         try {
             // CORRECCIÓN 4: Validar que el threshold sea válido
-            $threshold = (float) app(\App\Settings\GeneralSettings::class)->face_threshold;
+            $threshold = (float) app(GeneralSettings::class)->face_threshold;
             if ($threshold <= 0 || $threshold > 2.0) {
                 Log::warning("Umbral de reconocimiento facial inválido ({$threshold}), usando valor por defecto 0.45", ['threshold' => $threshold]);
                 $threshold = 0.45; // valor por defecto seguro
@@ -166,7 +169,7 @@ class AttendanceFaceMarkController extends Controller
             $allowed = $this->allowedNextEvents($last?->event_type);
 
             $photoUrl = $employee->photo
-                ? \Illuminate\Support\Facades\Storage::url($employee->photo)
+                ? Storage::url($employee->photo)
                 : url('/images/default-avatar.png');
 
             return response()->json([
@@ -234,7 +237,7 @@ class AttendanceFaceMarkController extends Controller
                 ->where('id', $data['employee_id'])
                 ->where('status', 'active')
                 ->firstOrFail();
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             Log::warning("Marcación fallida: empleado ID {$data['employee_id']} no encontrado o inactivo", [
                 'employee_id' => $data['employee_id'],
                 'ip' => $request->ip(),
@@ -558,7 +561,7 @@ class AttendanceFaceMarkController extends Controller
             }
 
             // Obtener gap mínimo de configuración
-            $minGap = (float) app(\App\Settings\GeneralSettings::class)->face_min_confidence_gap;
+            $minGap = (float) app(GeneralSettings::class)->face_min_confidence_gap;
 
             $identifiedLabel = $best ? "CI {$best->ci} {$best->first_name} {$best->last_name}" : 'ninguno';
             Log::info("Identificación facial: {$processedCount} candidatos procesados — resultado: {$identifiedLabel}", [
@@ -656,7 +659,11 @@ class AttendanceFaceMarkController extends Controller
         return $distance;
     }
 
-    /** Reglas de transición válidas */
+    /**
+     * Reglas de transición válidas — delega a AttendanceEvent::allowedNextEventTypes(),
+     * compartida con AttendanceEventSyncService (sync de terminales offline) para no
+     * duplicar la máquina de estados en dos lugares.
+     */
     protected function allowedNextEvents(?string $last): array
     {
         // CORRECCIÓN 20: Validar tipos de eventos conocidos
@@ -668,17 +675,7 @@ class AttendanceFaceMarkController extends Controller
             return ['check_in']; // Fallback seguro
         }
 
-        if ($last === null) {
-            return ['check_in'];
-        }
-
-        return match ($last) {
-            'check_in' => ['break_start', 'check_out'],
-            'break_start' => ['break_end'],
-            'break_end' => ['break_start', 'check_out'],
-            'check_out' => [], // ya terminó el día
-            default => ['check_in'], // fallback seguro
-        };
+        return AttendanceEvent::allowedNextEventTypes($last);
     }
 
     /** Traducciones de tipos de eventos a español */
@@ -728,7 +725,7 @@ class AttendanceFaceMarkController extends Controller
                 'ip_address' => $request->ip(),
                 'location' => $location,
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // No interrumpir el flujo principal si falla el registro del error
             Log::error('No se pudo persistir el fallo de marcación', [
                 'failure_type' => $failureType,

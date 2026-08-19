@@ -1,0 +1,78 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Employee;
+use App\Models\Terminal;
+use Carbon\Carbon;
+
+/**
+ * Sincronización incremental (delta) de descriptores faciales de empleados
+ * activos, scopeada por la sucursal del terminal — alimenta la caché offline
+ * del kiosko (IndexedDB) para que el reconocimiento facial pueda correr
+ * localmente sin conexión.
+ */
+class EmployeeDescriptorSyncService
+{
+    /**
+     * @return array{
+     *     employees: array<int, array{id: int, first_name: string, last_name: string, ci: string|null, face_descriptor: array}>,
+     *     tombstones: array<int, int>,
+     *     server_time: string,
+     *     sync_version: string,
+     * }
+     */
+    public function deltaSince(Terminal $terminal, ?Carbon $since): array
+    {
+        // Se toma antes de consultar para que el próximo `since` del cliente nunca
+        // quede por delante de datos que todavía no vio (mejor repetir de más que perder cambios).
+        $queryStartedAt = now();
+
+        $employees = Employee::query()
+            ->where('branch_id', $terminal->branch_id)
+            ->where('status', 'active')
+            ->whereNotNull('face_descriptor')
+            ->when($since, fn ($query) => $query->where('updated_at', '>', $since))
+            ->select(['id', 'first_name', 'last_name', 'ci', 'face_descriptor'])
+            ->get();
+
+        return [
+            'employees' => $employees->map(fn (Employee $employee) => [
+                'id' => $employee->id,
+                'first_name' => $employee->first_name,
+                'last_name' => $employee->last_name,
+                'ci' => $employee->ci,
+                'face_descriptor' => $employee->face_descriptor,
+            ])->values()->all(),
+            'tombstones' => $since ? $this->tombstonesSince($terminal, $since) : [],
+            'server_time' => now()->toIso8601String(),
+            'sync_version' => $queryStartedAt->toIso8601String(),
+        ];
+    }
+
+    /**
+     * IDs de empleados de esta sucursal que cambiaron desde `$since` y ya no
+     * califican para la caché offline (se desactivaron o perdieron su
+     * descriptor) — el kiosko debe eliminarlos de su copia local.
+     *
+     * Limitación conocida: si un empleado se movió a OTRA sucursal, esta
+     * consulta no lo detecta porque ya no aparece con branch_id = la
+     * sucursal del terminal. Un cambio de sucursal es infrecuente y, en el
+     * peor caso, deja un descriptor obsoleto en la caché del kiosko viejo
+     * hasta la próxima re-provisión — no un problema de seguridad (el
+     * descriptor ya era visible para ese kiosko), solo de limpieza.
+     *
+     * @return array<int, int>
+     */
+    private function tombstonesSince(Terminal $terminal, Carbon $since): array
+    {
+        return Employee::query()
+            ->where('branch_id', $terminal->branch_id)
+            ->where('updated_at', '>', $since)
+            ->where(function ($query) {
+                $query->where('status', '!=', 'active')->orWhereNull('face_descriptor');
+            })
+            ->pluck('id')
+            ->all();
+    }
+}
