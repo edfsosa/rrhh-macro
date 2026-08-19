@@ -117,8 +117,9 @@ export async function fetchEmployeeStatus(employeeId) {
 }
 
 /**
- * Envía un lote de eventos de marcación (hoy siempre de a uno, la cola
- * offline en lote llega en una fase posterior).
+ * Envía un lote de eventos de marcación — uno solo si se llama justo tras
+ * capturar la marcación con red disponible, o varios si se está vaciando la
+ * cola offline acumulada (ver terminal-offline/queue.js).
  * @param {Array<{client_event_id: string, employee_id: number, event_type: string, recorded_at: string, location?: object|null}>} events
  * @returns {Promise<Array<{client_event_id: string, status: string, event_id?: number, message?: string}>>}
  */

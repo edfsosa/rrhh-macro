@@ -30,6 +30,10 @@
                 </div>
             </div>
 
+            <p class="success-queued-notice" id="successQueuedNotice" style="display:none" role="status">
+                Guardado en el dispositivo — se sincronizará cuando haya conexión.
+            </p>
+
             <div class="countdown-bar" aria-hidden="true">
                 <div class="countdown-fill" id="countdownFill"></div>
             </div>

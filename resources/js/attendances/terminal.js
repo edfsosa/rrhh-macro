@@ -1,7 +1,8 @@
 import { captureFaceSamples } from '../shared/face-capture-core.js';
 import { migrateTokenFromLocalStorage, getMeta, getCachedEmployees } from './terminal-offline/db.js';
 import { identifyEmployee as matchDescriptor } from './terminal-offline/matcher.js';
-import { heartbeat, syncEmployees, getFaceConfig, fetchEmployeeStatus, submitEvents, TerminalAuthError } from './terminal-offline/sync.js';
+import { heartbeat, syncEmployees, getFaceConfig, TerminalAuthError } from './terminal-offline/sync.js';
+import { getEmployeeStatus, enqueueMark, flushQueue, countPendingEvents, countConflictEvents } from './terminal-offline/queue.js';
 
 document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const successEmployeeCI   = document.getElementById("successEmployeeCI");
     const successEventType    = document.getElementById("successEventType");
     const successTime         = document.getElementById("successTime");
+    const successQueuedNotice = document.getElementById("successQueuedNotice");
     const countdownEl         = document.getElementById("countdown");
     const countdownFill       = document.getElementById("countdownFill");
 
@@ -596,9 +598,9 @@ document.addEventListener("DOMContentLoaded", () => {
      * Identifica al empleado comparando el descriptor capturado contra la caché
      * local de empleados (employees_cache), con el mismo algoritmo de distancia
      * euclidiana + umbral/gap que corre en el servidor (ver terminal-offline/matcher.js).
-     * Solo la consulta de "qué eventos son válidos ahora" (fetchEmployeeStatus)
-     * sigue requiriendo red en esta fase — el reconocimiento en sí ya no depende
-     * del servidor.
+     * El estado del día (último evento / eventos permitidos) se resuelve vía
+     * getEmployeeStatus(), que intenta la consulta en línea y cae a lo que el
+     * kiosko ya sabe localmente si no hay red — ver terminal-offline/queue.js.
      */
     async function identifyEmployee(descriptor) {
         try {
@@ -619,7 +621,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return { ok: false, message: messages[reason] || "No identificado", reason };
             }
 
-            const status = await fetchEmployeeStatus(employee.id);
+            const status = await getEmployeeStatus(employee.id);
 
             return {
                 ok: true,
@@ -767,37 +769,48 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // REGISTRO DE MARCACIÓN — vía la API de sincronización (Sanctum)
+    // REGISTRO DE MARCACIÓN — cola offline + sync
     // ============================================================================
     /**
-     * Envía la marcación a /api/v1/terminal/events/sync con un client_event_id
-     * generado en el momento de la captura (deduplica reintentos con seguridad).
-     * En esta fase el envío sigue siendo síncrono/en línea — la cola de eventos
-     * offline (para cuando falla por falta de red) llega en una fase posterior.
+     * Encola la marcación en IndexedDB (durable — sobrevive un cierre de
+     * pestaña o un corte de luz) y de inmediato intenta sincronizarla. Si hay
+     * red, el empleado ve la confirmación normal. Si no la hay (o el envío
+     * falla), la marcación NO se pierde — queda en la cola y se reintenta
+     * solo en segundo plano — se le muestra una pantalla de éxito igual,
+     * aclarando que se sincronizará más tarde, para no asustar al empleado
+     * con un error cuando en realidad ya se guardó.
      */
     async function registerMark(employee, eventType) {
+        updateStatus("Registrando marcación...", "loading");
+
+        const { client_event_id: clientEventId, recorded_at: recordedAt } = await enqueueMark(employee.id, eventType);
+
+        if (!navigator.onLine) {
+            showSuccessScreen(employee, { recorded_at: recordedAt }, eventType, { queued: true });
+            await refreshIdleSyncStatus();
+            return;
+        }
+
         try {
-            updateStatus("Registrando marcación...", "loading");
+            const { results } = await flushQueue();
+            const ownResult = results.find((r) => r.client_event_id === clientEventId);
 
-            const recordedAt = new Date().toISOString();
-            const results = await submitEvents([{
-                client_event_id: crypto.randomUUID(),
-                employee_id: employee.id,
-                event_type: eventType,
-                recorded_at: recordedAt,
-            }]);
-
-            const result = results?.[0];
-
-            if (result?.status === "synced" || result?.status === "duplicate") {
-                showSuccessScreen(employee, { event_id: result.event_id, recorded_at: recordedAt }, eventType);
+            if (ownResult && ownResult.status !== "synced" && ownResult.status !== "duplicate") {
+                // El servidor ya respondió que esta marcación puntual es inválida (ej. secuencia
+                // rota) — no tiene sentido dejarla "pendiente", se le informa directo al empleado.
+                showError(ownResult.message || "La marcación fue rechazada por el servidor.");
             } else {
-                showError(result?.message || "No se pudo registrar la marcación.");
+                // Sincronizada (ownResult existe y es synced/duplicate) o todavía en cola porque la
+                // red falló a mitad de camino (ownResult ausente) — en ambos casos ya está a salvo.
+                showSuccessScreen(employee, { recorded_at: recordedAt }, eventType, { queued: !ownResult });
             }
         } catch (error) {
-            console.error("Error al registrar marcación:", error);
-            showError(error instanceof TerminalAuthError ? error.message : "Error de conexión al registrar la marcación.");
+            console.error("Error al sincronizar la cola:", error);
+            // La marcación ya está encolada de forma segura — no se pierde aunque esto falle.
+            showSuccessScreen(employee, { recorded_at: recordedAt }, eventType, { queued: true });
         }
+
+        await refreshIdleSyncStatus();
     }
 
     // ============================================================================
@@ -844,7 +857,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     // PANTALLAS DE RESULTADO
     // ============================================================================
-    function showSuccessScreen(employee, markData, eventType) {
+    /**
+     * @param {object} employee
+     * @param {{recorded_at?: string}} markData
+     * @param {string} eventType
+     * @param {{queued?: boolean}} [options] - queued=true: la marcación se guardó localmente
+     *        pero todavía no se confirmó con el servidor (sin red en el momento) — se avisa
+     *        sin asustar al empleado, ya que la marcación NO se perdió.
+     */
+    function showSuccessScreen(employee, markData, eventType, { queued = false } = {}) {
         const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
         if (successEmployeePhoto) {
             successEmployeePhoto.src = employee.photo_url || "";
@@ -858,6 +879,10 @@ document.addEventListener("DOMContentLoaded", () => {
         successTime.textContent = now.toLocaleTimeString("es-BO", {
             hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
         });
+
+        if (successQueuedNotice) {
+            successQueuedNotice.style.display = queued ? "" : "none";
+        }
 
         playBeep("success");
         showScreen("success");
@@ -1036,6 +1061,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /**
+     * Refleja en la pantalla idle el estado de la cola de eventos offline —
+     * se llama después de cada intento de sincronización (registerMark, sync
+     * en segundo plano, botón manual) para que el texto visible siempre
+     * refleje la cola real en IndexedDB, no solo el último resultado puntual.
+     */
+    async function refreshIdleSyncStatus() {
+        const [pending, conflicts] = await Promise.all([countPendingEvents(), countConflictEvents()]);
+        if (conflicts > 0) {
+            updateIdleSyncStatus(`${conflicts} marcación(es) requieren revisión`);
+        } else if (pending > 0) {
+            updateIdleSyncStatus(`${pending} marcación(es) pendiente(s) de sincronizar`);
+        } else {
+            updateIdleSyncStatus(navigator.onLine ? "Sincronizado" : "Sin conexión — usando datos locales");
+        }
+    }
+
+    /**
      * Migra el token de configuración (si venía de localStorage, ver
      * terminal-setup.blade.php) y hace la primera sincronización antes de
      * arrancar el reposo. Si el terminal no está provisionado, no bloquea el
@@ -1055,8 +1097,9 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             updateIdleSyncStatus("Sincronizando...");
             await heartbeat();
-            const result = await syncEmployees();
-            updateIdleSyncStatus(`Sincronizado — ${result.employees ? "actualizado" : "sin cambios"}`);
+            await syncEmployees();
+            await flushQueue();
+            await refreshIdleSyncStatus();
         } catch (error) {
             console.warn("Sincronización inicial falló (se reintentará en segundo plano):", error.message);
             updateIdleSyncStatus(navigator.onLine ? "Error al sincronizar" : "Sin conexión — usando datos locales");
@@ -1065,7 +1108,10 @@ document.addEventListener("DOMContentLoaded", () => {
         startBackgroundSync();
     }
 
-    /** Heartbeat + sync de empleados periódicos mientras haya conexión, más un intento al recuperarla. */
+    /**
+     * Heartbeat + sync de empleados + vaciado de la cola de eventos,
+     * periódicos mientras haya conexión, más un intento al recuperarla.
+     */
     function startBackgroundSync() {
         if (terminalState.backgroundSyncStarted) return;
         terminalState.backgroundSyncStarted = true;
@@ -1076,17 +1122,23 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         const runEmployeeSync = () => {
             if (!navigator.onLine) return;
-            syncEmployees()
-                .then((result) => updateIdleSyncStatus(`Sincronizado — ${result.employees} empleados`))
-                .catch((error) => console.warn("Sync de empleados en segundo plano falló:", error.message));
+            syncEmployees().catch((error) => console.warn("Sync de empleados en segundo plano falló:", error.message));
+        };
+        const runQueueFlush = () => {
+            if (!navigator.onLine) return;
+            flushQueue()
+                .then(() => refreshIdleSyncStatus())
+                .catch((error) => console.warn("Sincronización de cola en segundo plano falló:", error.message));
         };
 
         setInterval(runHeartbeat, 90 * 1000);
         setInterval(runEmployeeSync, 5 * 60 * 1000);
+        setInterval(runQueueFlush, 30 * 1000);
 
         window.addEventListener("online", () => {
             runHeartbeat();
             runEmployeeSync();
+            runQueueFlush();
         });
     }
 
@@ -1098,8 +1150,9 @@ document.addEventListener("DOMContentLoaded", () => {
             updateIdleSyncStatus("Sincronizando...");
             try {
                 await heartbeat();
-                const result = await syncEmployees();
-                updateIdleSyncStatus(`Sincronizado — ${result.employees} empleados`);
+                await syncEmployees();
+                await flushQueue();
+                await refreshIdleSyncStatus();
             } catch (error) {
                 updateIdleSyncStatus(error instanceof TerminalAuthError ? "Terminal sin configurar" : "Error al sincronizar");
             } finally {

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
+use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
 use App\Models\Terminal;
 use Carbon\Carbon;
@@ -69,6 +70,11 @@ class AttendanceEventSyncService
         $clientEventId = $eventData['client_event_id'];
 
         if (! $employee) {
+            $this->recordSyncFailure($terminal, 'employee_not_found', 'Empleado no encontrado o inactivo al sincronizar marcación offline.', [
+                'client_event_id' => $clientEventId,
+                'attempted_employee_id' => $eventData['employee_id'] ?? null,
+            ]);
+
             return [
                 'client_event_id' => $clientEventId,
                 'status' => 'rejected',
@@ -149,6 +155,20 @@ class AttendanceEventSyncService
                 'allowed_events' => $allowed,
             ]);
 
+            $this->recordSyncFailure(
+                $terminal,
+                'sync_conflict',
+                'La secuencia de marcación ya no es válida en el servidor al sincronizar (último evento registrado: '.($last->event_type ?? 'ninguno').').',
+                [
+                    'client_event_id' => $clientEventId,
+                    'attempted_event' => $eventData['event_type'],
+                    'last_event' => $last?->event_type,
+                    'allowed_events' => $allowed,
+                ],
+                $employee,
+                $eventData['event_type'],
+            );
+
             return [
                 'client_event_id' => $clientEventId,
                 'status' => 'conflict',
@@ -181,6 +201,41 @@ class AttendanceEventSyncService
             'status' => 'synced',
             'event_id' => $event->id,
         ];
+    }
+
+    /**
+     * Persiste un intento fallido de sincronización para revisión en Filament
+     * (AttendanceMarkFailureResource) — mismo patrón que
+     * AttendanceFaceMarkController::recordFailure(), pero sin Request (esta
+     * capa corre en background/batch, no hay IP de un usuario final que registrar).
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    private function recordSyncFailure(
+        Terminal $terminal,
+        string $failureType,
+        string $message,
+        array $metadata = [],
+        ?Employee $employee = null,
+        ?string $eventType = null,
+    ): void {
+        try {
+            AttendanceMarkFailure::record([
+                'mode' => 'terminal',
+                'failure_type' => $failureType,
+                'employee_id' => $employee?->id,
+                'branch_id' => $terminal->branch_id,
+                'attempted_event_type' => $eventType,
+                'failure_message' => $message,
+                'metadata' => ! empty($metadata) ? $metadata : null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('No se pudo persistir el fallo de sincronización offline', [
+                'failure_type' => $failureType,
+                'terminal_id' => $terminal->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

@@ -788,6 +788,18 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
 .auto-close-message { font-size: .8rem; color: var(--c-subtle); margin-bottom: var(--sp-4); }
 #countdown { font-weight: 700; color: var(--c-primary); }
 
+/* Aviso de marcación guardada offline (sin confirmar todavía con el servidor) */
+.success-queued-notice {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--c-warning);
+    background: var(--c-warning-bg);
+    border: 1px solid var(--c-warning-ring);
+    border-radius: var(--r-md, .5rem);
+    padding: var(--sp-2, .5rem) var(--sp-3, .75rem);
+    margin-bottom: var(--sp-4);
+}
+
 .error-message {
     font-size: clamp(.875rem, 2vw, 1.0625rem);
     color: var(--c-muted); line-height: 1.6;
