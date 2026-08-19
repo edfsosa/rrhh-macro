@@ -1,3 +1,5 @@
+import { captureFaceSamples } from '../shared/face-capture-core.js';
+
 document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     // ELEMENTOS DEL DOM
@@ -106,6 +108,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const tinyOptions  = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 });
     const lightOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
+
+    /** Tamaño mínimo de rostro en píxeles para aceptar una detección (drawLoop y captureDescriptor) */
+    const MIN_FACE_SIZE = 100;
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -529,9 +534,14 @@ document.addEventListener("DOMContentLoaded", () => {
                         updateStatus("Posicione su rostro dentro del óvalo...");
                     }
                     if (detection) {
-                        terminalState.faceDetected = true;
-                        setTerminalVideoState("face-found");  // teal — rostro detectado
-                        setIdStatusDot("face-found");
+                        // Feedback inmediato si la cara está muy chica — evita intentos de captura
+                        // que fallarían igual al final del ciclo de 5 muestras
+                        const box = detection.detection.box;
+                        const tooSmall = box.width < MIN_FACE_SIZE || box.height < MIN_FACE_SIZE;
+                        terminalState.faceDetected = !tooSmall;
+                        setTerminalVideoState(tooSmall ? "detecting" : "face-found");
+                        setIdStatusDot(tooSmall ? "detecting" : "face-found");
+                        if (tooSmall) updateStatus("Acérquese un poco más a la cámara");
                     } else {
                         terminalState.faceDetected = false;
                         setTerminalVideoState("detecting");   // naranja — sin rostro
@@ -549,39 +559,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function captureDescriptor(samples = 5, intervalMs = 150, onProgress = null) {
-        const descriptors = [];
-        const MIN_FACE_SIZE = 100;
-
-        for (let i = 0; i < samples; i++) {
-            try {
-                const detection = await faceapi
-                    .detectSingleFace(video, tinyOptions)
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-
-                if (detection && detection.descriptor) {
-                    const box = detection.detection.box;
-                    if (box.width >= MIN_FACE_SIZE && box.height >= MIN_FACE_SIZE) {
-                        descriptors.push(Array.from(detection.descriptor));
-                        if (onProgress) onProgress(descriptors.length);
-                    }
-                }
-            } catch (error) {
-                console.error(`Error capturando muestra ${i + 1}:`, error);
-            }
-            if (i < samples - 1) await sleep(intervalMs);
-        }
-
-        if (descriptors.length < 3) {
-            throw new Error(`Solo se capturaron ${descriptors.length} muestras válidas (mínimo 3). Acerque el rostro a la cámara.`);
-        }
-
-        const averaged = new Array(128).fill(0);
-        for (let i = 0; i < 128; i++) {
-            let sum = 0;
-            for (const desc of descriptors) sum += desc[i];
-            averaged[i] = sum / descriptors.length;
-        }
+        const { averaged } = await captureFaceSamples(video, tinyOptions, {
+            samples,
+            intervalMs,
+            minFaceSize: MIN_FACE_SIZE,
+            minRequired: 3,
+            onProgress,
+            onRejectedSample: (reason, detail) => {
+                if (reason === 'error') console.error('Error capturando muestra:', detail);
+            },
+        });
         return averaged;
     }
 
@@ -682,8 +669,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     await finishCaptureProgress("error");
 
-                    // No reconocido — forzar naranja y bloquear drawLoop 2 segundos
-                    terminalState.notRecognizedUntil = Date.now() + 2000;
+                    // No reconocido — forzar naranja y bloquear drawLoop.
+                    // Reducido de 2s a 1.2s para que el siguiente intento no se sienta tan lento.
+                    terminalState.notRecognizedUntil = Date.now() + 1200;
                     terminalState.inNotRecognizedCooldown = true;
                     setTerminalVideoState("detecting");
                     setIdStatusDot("detecting");
@@ -697,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } finally {
                 if (terminalState.identifyInterval) terminalState.isProcessing = false;
             }
-        }, 3000);
+        }, 1500); // Reducido de 3000ms: con el cooldown ya acotado, un intervalo más corto evita esperas innecesarias entre intentos
     }
 
     function stopAutoIdentification() {

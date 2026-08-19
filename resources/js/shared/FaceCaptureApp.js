@@ -14,6 +14,8 @@
  * @version 2.1.0
  */
 
+import { captureFaceSamples } from './face-capture-core.js';
+
 /**
  * Configuración global de la aplicación
  */
@@ -758,88 +760,51 @@ export class FaceCaptureApp {
         intervalMs = CONFIG.CAPTURE.intervalMs,
         onProgress = null
     ) {
-        const descriptors = [];
-        const scores = [];
-        let attempts = 0;
-        let lastValidBox = null;
-        const maxAttempts = samples * 3;
         const minFaceSize = CONFIG.CAPTURE.minFaceSize || 120;
         const minRequired = CONFIG.CAPTURE.minSamples || Math.ceil(samples * 0.7);
+        const maxAttempts = samples * 3;
 
-        while (descriptors.length < samples && attempts < maxAttempts) {
-            attempts++;
+        let validCount = 0;
 
-            try {
-                const detection = await faceapi
-                    .detectSingleFace(this.video, this.tinyOptions)
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-
-                if (detection?.descriptor) {
-                    const box = detection.detection.box;
-                    if (box.width >= minFaceSize && box.height >= minFaceSize) {
-                        descriptors.push(detection.descriptor);
-                        scores.push(detection.detection.score);
-                        lastValidBox = box;
-                        if (onProgress) onProgress(descriptors.length);
-                        this.updateStatus(
-                            `Capturando muestra ${descriptors.length} de ${samples}... no te muevas`
-                        );
-                    } else {
-                        console.warn(`Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${minFaceSize}px)`);
-                        this.updateStatus(
-                            `Acércate más a la cámara (${descriptors.length} de ${samples})`
-                        );
-                    }
-                } else {
-                    this.updateStatus(
-                        `Buscando rostro... (${descriptors.length} de ${samples})`
-                    );
+        const result = await captureFaceSamples(this.video, this.tinyOptions, {
+            samples,
+            intervalMs,
+            minFaceSize,
+            minRequired,
+            maxAttempts,
+            onProgress: (count) => {
+                validCount = count;
+                if (onProgress) onProgress(count);
+                this.updateStatus(`Capturando muestra ${count} de ${samples}... no te muevas`);
+            },
+            onRejectedSample: (reason, detail) => {
+                if (reason === 'too_small') {
+                    console.warn(`Rostro muy pequeño: ${Math.round(detail.width)}x${Math.round(detail.height)}px (mínimo ${minFaceSize}px)`);
+                    this.updateStatus(`Acércate más a la cámara (${validCount} de ${samples})`);
+                } else if (reason === 'no_face') {
+                    this.updateStatus(`Buscando rostro... (${validCount} de ${samples})`);
+                } else if (reason === 'error') {
+                    console.warn('Error en captura individual:', detail);
                 }
+            },
+        });
 
-                await this.sleep(intervalMs);
-            } catch (error) {
-                console.warn("Error en captura individual:", error);
-                await this.sleep(intervalMs * 2);
-            }
+        if (result.samples.length < samples) {
+            console.info(`Capturadas ${result.samples.length} de ${samples} muestras (mínimo ${minRequired} cumplido)`);
         }
 
-        if (descriptors.length < minRequired) {
-            throw new Error(
-                `Solo se capturaron ${descriptors.length} de ${samples} muestras requeridas. Acércate más a la cámara e intenta nuevamente.`
-            );
-        }
+        const lastValid = result.samples[result.samples.length - 1];
+        const scores = result.samples.map((s) => s.score);
 
-        if (descriptors.length < samples) {
-            console.info(`Capturadas ${descriptors.length} de ${samples} muestras (mínimo ${minRequired} cumplido)`);
-        }
-
-        this._lastCaptureSamples = descriptors.length;
+        this._lastCaptureSamples = result.samples.length;
         this._lastCaptureAvgScore = scores.length
             ? scores.reduce((a, b) => a + b, 0) / scores.length
             : 0;
-        this._lastFaceCropBase64 = lastValidBox
-            ? this.extractFaceCrop(lastValidBox)
+        this._lastFaceCropBase64 = lastValid
+            ? this.extractFaceCrop(lastValid.box)
             : null;
 
-        return this.averageDescriptors(descriptors);
-    }
-
-    averageDescriptors(descriptors) {
-        const length = CONFIG.CAPTURE.descriptorLength;
-        const averaged = new Float32Array(length).fill(0);
-
-        for (const descriptor of descriptors) {
-            for (let i = 0; i < length; i++) {
-                averaged[i] += descriptor[i];
-            }
-        }
-
-        for (let i = 0; i < length; i++) {
-            averaged[i] /= descriptors.length;
-        }
-
-        return Array.from(averaged);
+        return result.averaged;
     }
 
     // =========================================================================
