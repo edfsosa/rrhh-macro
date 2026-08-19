@@ -171,7 +171,7 @@ class AttendanceEventSyncService
             'recorded_at' => $recordedAt,
             'synced_at' => now(),
             'source' => 'terminal',
-            'location' => $eventData['location'] ?? null,
+            'location' => $eventData['location'] ?? $this->resolveFallbackLocation($terminal, $employee),
             'terminal_id' => $terminal->id,
             'branch_mismatch' => $branchMismatch,
         ]);
@@ -180,6 +180,26 @@ class AttendanceEventSyncService
             'client_event_id' => $clientEventId,
             'status' => 'synced',
             'event_id' => $event->id,
+        ];
+    }
+
+    /**
+     * El kiosko no envía GPS (mismo criterio que AttendanceFaceMarkController::store()
+     * en modo terminal) — se usan las coordenadas de la sucursal de la terminal, o
+     * las de la sucursal del empleado si la terminal no tiene sucursal asignada.
+     */
+    private function resolveFallbackLocation(Terminal $terminal, Employee $employee): ?array
+    {
+        $branch = $terminal->branch ?? $employee->branch;
+        $coordinates = $branch?->coordinates;
+
+        if (! $coordinates || ! isset($coordinates['lat'], $coordinates['lng'])) {
+            return null;
+        }
+
+        return [
+            'lat' => (float) $coordinates['lat'],
+            'lng' => (float) $coordinates['lng'],
         ];
     }
 }

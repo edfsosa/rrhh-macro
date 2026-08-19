@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttendanceDay;
+use App\Models\AttendanceEvent;
+use App\Models\Employee;
 use App\Models\Terminal;
 use App\Services\EmployeeDescriptorSyncService;
 use Carbon\Carbon;
@@ -46,5 +49,41 @@ class TerminalEmployeeSyncController extends Controller
         $delta = $this->syncService->deltaSince($terminal, $since);
 
         return response()->json(array_merge(['ok' => true], $delta));
+    }
+
+    /**
+     * GET /api/v1/terminal/employees/{employee}/status
+     *
+     * Estado de marcación del día en curso para un empleado ya identificado
+     * localmente por el kiosko (matching client-side, ver terminal-offline/matcher.js).
+     * El kiosko todavía depende de esta consulta en línea para saber qué
+     * eventos son válidos a continuación — la resolución 100% offline de este
+     * estado es responsabilidad de una fase posterior (cola de eventos).
+     */
+    public function status(Request $request, Employee $employee): JsonResponse
+    {
+        /** @var Terminal $terminal */
+        $terminal = $request->user();
+
+        if ($employee->status !== 'active' || $employee->branch_id !== $terminal->branch_id) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Empleado no disponible para este terminal.',
+            ], 404);
+        }
+
+        $today = now(config('app.timezone'))->toDateString();
+
+        $day = AttendanceDay::where('employee_id', $employee->id)->where('date', $today)->first();
+        $last = $day
+            ? AttendanceEvent::where('attendance_day_id', $day->id)->latest('recorded_at')->first()
+            : null;
+
+        return response()->json([
+            'ok' => true,
+            'last_event' => $last?->event_type,
+            'last_event_time' => $last?->recorded_at?->format('H:i'),
+            'allowed_events' => AttendanceEvent::allowedNextEventTypes($last?->event_type),
+        ]);
     }
 }

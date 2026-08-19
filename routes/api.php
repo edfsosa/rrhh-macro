@@ -22,6 +22,10 @@ Route::prefix('v1/terminal')->name('api.terminal.')->middleware(['auth:sanctum']
         ->middleware('ability:terminal:sync')
         ->name('employees.sync');
 
+    Route::get('/employees/{employee}/status', [TerminalEmployeeSyncController::class, 'status'])
+        ->middleware('ability:terminal:sync')
+        ->name('employees.status');
+
     Route::post('/events/sync', [TerminalEventSyncController::class, 'store'])
         ->middleware('ability:terminal:sync')
         ->name('events.sync');
