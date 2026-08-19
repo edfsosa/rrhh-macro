@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Settings\GeneralSettings;
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,10 +18,17 @@ use Laravel\Sanctum\HasApiTokens;
  * Puede autenticarse contra la API de sincronización offline (ver routes/api.php)
  * mediante un token Sanctum con ability `terminal:sync`, emitido al reclamar un
  * enlace de configuración (setup_token) generado desde TerminalResource.
+ *
+ * Implementa `Authenticatable` (no solo `HasApiTokens`) porque el terminal es
+ * el "usuario" autenticado en las rutas de la API de sincronización — sin
+ * esto, `$request->user()` funciona en producción (el guard de Sanctum
+ * resuelve el usuario sin pasar por `Guard::setUser()`), pero el helper de
+ * test `Sanctum::actingAs()` sí llama `setUser()` directamente, que exige
+ * el contrato `Authenticatable` con tipado estricto.
  */
-class Terminal extends Model
+class Terminal extends Model implements AuthenticatableContract
 {
-    use HasApiTokens;
+    use Authenticatable, HasApiTokens;
 
     /** Ability Sanctum requerida para consumir la API de sincronización de terminales. */
     public const SYNC_ABILITY = 'terminal:sync';
