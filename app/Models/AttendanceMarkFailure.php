@@ -327,8 +327,8 @@ class AttendanceMarkFailure extends Model
             $event = $day->events()->create([
                 'event_type' => $eventType,
                 'recorded_at' => $recordedAt,
-                'synced_at' => $this->mode === 'terminal' ? now() : null,
-                'source' => $this->mode === 'terminal' ? 'terminal' : 'manual',
+                'synced_at' => in_array($this->mode, ['terminal', 'mobile'], true) ? now() : null,
+                'source' => in_array($this->mode, ['terminal', 'mobile'], true) ? $this->mode : 'manual',
                 'location' => $this->metadata['location'] ?? $this->location,
                 'terminal_id' => $this->metadata['terminal_id'] ?? null,
                 'branch_mismatch' => false,

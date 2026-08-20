@@ -17,6 +17,7 @@ use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MerchandiseReportController;
 use App\Http\Controllers\MerchandiseWithdrawalController;
+use App\Http\Controllers\MobileLinkController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\SalaryReportController;
@@ -55,6 +56,16 @@ Route::get('/terminal/{code}', [AttendanceFaceMarkController::class, 'terminalBy
 Route::prefix('terminal/{code}/setup/{setupToken}')->name('terminal.setup.')->middleware('throttle:10,1')->group(function () {
     Route::get('/', [TerminalSetupController::class, 'show'])->name('show');
     Route::post('/claim', [TerminalSetupController::class, 'claim'])->name('claim');
+});
+
+// Vinculación del celular personal para marcación offline — el propio empleado se
+// identifica con CI + fecha de nacimiento (sin enlace de un solo uso generado por
+// un admin, a diferencia del terminal: acá el dato personal ES la credencial).
+// Emite el token Sanctum que el celular usará contra la API de sincronización
+// (routes/api.php, prefijo v1/mobile).
+Route::prefix('vincular-celular')->name('mobile-link.')->middleware('throttle:10,1')->group(function () {
+    Route::get('/', [MobileLinkController::class, 'show'])->name('show');
+    Route::post('/', [MobileLinkController::class, 'claim'])->name('claim');
 });
 
 /*

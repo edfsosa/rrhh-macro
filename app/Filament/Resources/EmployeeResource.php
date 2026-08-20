@@ -44,6 +44,7 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -769,6 +770,14 @@ class EmployeeResource extends Resource
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('mobile_linked_at')
+                    ->label('Celular vinculado')
+                    ->formatStateUsing(fn ($state) => $state ? 'Vinculado' : 'No vinculado')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'success' : 'gray')
+                    ->tooltip(fn (Employee $record) => $record->mobile_linked_at?->format('d/m/Y H:i'))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
                     ->label('Registrado')
                     ->dateTime('d/m/Y H:i')
@@ -862,7 +871,7 @@ class EmployeeResource extends Resource
                             );
                     }),
 
-                \Filament\Tables\Filters\TernaryFilter::make('has_face')
+                TernaryFilter::make('has_face')
                     ->label('Reconocimiento facial')
                     ->placeholder('Todos')
                     ->trueLabel('Con rostro registrado')
@@ -980,6 +989,26 @@ class EmployeeResource extends Resource
                                 ->success()
                                 ->title('Estado actualizado')
                                 ->body("El estado de {$record->full_name} cambió a: ".Employee::getStatusOptions()[$data['status']])
+                                ->send();
+                        }),
+
+                    Action::make('revoke_mobile_session')
+                        ->label('Revocar sesión móvil')
+                        ->icon('heroicon-o-device-phone-mobile')
+                        ->color('danger')
+                        ->tooltip('Desvincula el celular vinculado a este empleado para marcación offline — requerirá vincularse de nuevo desde /vincular-celular')
+                        ->visible(fn (Employee $record): bool => $record->hasMobileLinked())
+                        ->requiresConfirmation()
+                        ->modalHeading('Revocar sesión móvil')
+                        ->modalDescription(fn (Employee $record) => "El celular vinculado de {$record->first_name} {$record->last_name} perderá acceso a la marcación offline de inmediato. Deberá vincularse de nuevo con CI + fecha de nacimiento.")
+                        ->modalSubmitActionLabel('Sí, revocar')
+                        ->action(function (Employee $record) {
+                            $record->revokeMobileToken();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Sesión móvil revocada')
+                                ->body('El empleado deberá vincular su celular de nuevo para volver a marcar offline.')
                                 ->send();
                         }),
                 ]),
