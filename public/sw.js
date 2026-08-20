@@ -1,25 +1,29 @@
 /**
  * =============================================================================
- * SERVICE WORKER — KIOSKO DE MARCACIÓN (offline shell)
+ * SERVICE WORKER — MARCACIÓN DE ASISTENCIA (offline shell)
  * =============================================================================
  *
- * Hand-rolled, sin Workbox/vite-plugin-pwa — alcance acotado a una sola página
- * (/terminal/*), registrado con scope explícito en terminal.blade.php.
+ * Hand-rolled, sin Workbox/vite-plugin-pwa. Un mismo script compartido entre
+ * dos flujos con scope de registro distinto:
+ * - Kiosko de sucursal: /terminal/* (registrado en terminal.blade.php).
+ * - Celular personal del empleado: /marcar (registrado en mark.blade.php,
+ *   Parte C Fase 2 — la vinculación en /vincular-celular NO se cachea, es
+ *   una acción intrínsecamente online).
  *
- * Responsabilidad de esta fase: que el shell del kiosko, sus assets de Vite y
- * los modelos de face-api.js queden disponibles offline. NO incluye todavía
- * matching client-side ni cola de eventos (fases posteriores) — los POST a
- * /marcar/* siguen requiriendo red en esta fase.
+ * Responsabilidad: que el shell de cada página, sus assets de Vite y los
+ * modelos de face-api.js queden disponibles offline. El matching client-side
+ * y la cola de eventos viven en JS (terminal-offline/ y mobile-offline/), no acá.
  */
 
-const CACHE_VERSION = 'nominapp-terminal-v1';
+const CACHE_VERSION = 'nominapp-attendance-v1';
 
 /**
  * Contenido estático que nunca cambia sin un deploy — cache-first.
- * `/build/assets/` se cachea completo (no solo `terminal-*`): Vite separa en
- * chunks compartidos los módulos importados por varios entrypoints (ej.
- * face-capture-core.js, usado también por mark.js/capture-face.js), así que
- * filtrar por nombre del entrypoint deja afuera esos chunks y rompe el offline.
+ * `/build/assets/` se cachea completo (no solo `terminal-*`/`mark-*`): Vite
+ * separa en chunks compartidos los módulos importados por varios entrypoints
+ * (ej. face-capture-core.js, usado tanto por terminal.js como por mark.js),
+ * así que filtrar por nombre del entrypoint deja afuera esos chunks y rompe
+ * el offline.
  */
 const CACHE_FIRST_PATTERNS = [
     /^\/models\//, // modelos de face-api.js (tinyFaceDetector, faceLandmark68, faceRecognition)
@@ -27,10 +31,11 @@ const CACHE_FIRST_PATTERNS = [
     /^\/build\/assets\//, // todos los bundles JS/CSS de Vite (nombres con hash de contenido — seguros de cachear indefinidamente)
 ];
 
-/** Shell HTML del kiosko — stale-while-revalidate para que un reload offline funcione. */
+/** Shell HTML del kiosko y del celular — stale-while-revalidate para que un reload offline funcione. */
 const SHELL_PATTERNS = [
     /^\/terminal\/?$/,
     /^\/terminal\/[a-z0-9]+\/?$/,
+    /^\/marcar\/?$/,
 ];
 
 self.addEventListener('install', () => {

@@ -73,7 +73,7 @@
             <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
             <circle cx="12" cy="20" r="1" fill="currentColor"/>
         </svg>
-        <span>Sin conexión — las marcaciones no pueden registrarse</span>
+        <span>Sin conexión — la marcación se guarda en el dispositivo y se sincroniza al reconectar</span>
     </div>
 
     <main id="main-content" class="page-wrapper">
@@ -114,6 +114,15 @@
     </div>
 
     <script defer src="{{ asset('js/face-api.min.js') }}"></script>
+
+    {{-- Service worker offline — scope acotado a /marcar (sin barra final: la ruta
+    real no la tiene), no afecta /vincular-celular ni el resto de la app. --}}
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/marcar' })
+                .catch((error) => console.warn('No se pudo registrar el service worker:', error));
+        }
+    </script>
 </body>
 
 </html>

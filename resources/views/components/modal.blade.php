@@ -54,6 +54,11 @@
             <span id="{{ $id }}MetaEvent" class="modal-meta-badge"></span>
             <span id="{{ $id }}MetaTime"  class="modal-meta-time"></span>
         </div>
+
+        {{-- Aviso de marcación guardada offline (sin confirmar todavía con el servidor) --}}
+        <p id="{{ $id }}QueuedNotice" class="success-queued-notice" style="display:none" role="status">
+            Guardado en el dispositivo — se sincronizará cuando haya conexión.
+        </p>
         @endif
 
         <div class="modal-actions">
