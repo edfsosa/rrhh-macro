@@ -5,7 +5,7 @@ Sistema de gestión de recursos humanos y nómina, desarrollado con Laravel y Fi
 ## Características
 
 - Gestión de empleados y departamentos
-- Control de asistencia con reconocimiento facial
+- Control de asistencia con reconocimiento facial, con marcación offline vía PWA (kiosko de sucursal y celular personal)
 - Gestión de nóminas y períodos de pago
 - Administración de vacaciones y ausencias
 - Sistema de préstamos con cuotas
