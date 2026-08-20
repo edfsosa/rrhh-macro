@@ -73,7 +73,7 @@
             <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
             <circle cx="12" cy="20" r="1" fill="currentColor"/>
         </svg>
-        <span>Sin conexión — las marcaciones no pueden registrarse</span>
+        <span>Sin conexión — la marcación se guarda en el dispositivo y se sincroniza al reconectar</span>
     </div>
 
     <main id="main-content" class="page-wrapper">

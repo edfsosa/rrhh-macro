@@ -945,6 +945,18 @@ select#eventType { display: none; }
 }
 .modal-meta-time  { font-size: .875rem; color: var(--c-muted); }
 
+/* Aviso de marcación guardada offline (sin confirmar todavía con el servidor) */
+.success-queued-notice {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--c-warning);
+    background: var(--c-warning-bg);
+    border: 1px solid var(--c-warning-ring);
+    border-radius: var(--r-md);
+    padding: var(--sp-2) var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
 .modal-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
 .btn-modal-retry   { background: var(--c-primary); color: #fff; }
 .btn-modal-retry:hover { background: var(--c-primary-h); }

@@ -1,5 +1,9 @@
 import L from 'leaflet';
 import { captureFaceSamples } from '../shared/face-capture-core.js';
+import { migrateTokenFromLocalStorage, getMeta, getOwnEmployee } from './mobile-offline/db.js';
+import { identifyEmployee as matchDescriptor } from './mobile-offline/matcher.js';
+import { heartbeat, getFaceConfig, MobileAuthError } from './mobile-offline/sync.js';
+import { getOwnStatus, enqueueMark, flushQueue } from './mobile-offline/queue.js';
 
 /**
  * =============================================================================
@@ -97,17 +101,6 @@ const statusBar           = document.getElementById("statusBar");
     // ==========================================================================
     // CONFIGURACIÓN Y CONSTANTES
     // ==========================================================================
-
-    /**
-     * Token CSRF para las peticiones POST
-     * @type {string}
-     */
-    const csrfToken = document.querySelector("meta[name=csrf-token]");
-    const CSRF = csrfToken ? csrfToken.content : "";
-
-    if (!CSRF) {
-        logWarn("Token CSRF no encontrado. Esto puede causar errores en las peticiones POST.");
-    }
 
     /**
      * URI donde se encuentran los modelos de face-api.js
@@ -334,9 +327,6 @@ const statusBar           = document.getElementById("statusBar");
             return !navigator.onLine
                 ? "Sin conexión a internet. Verifique la red del dispositivo y vuelva a intentar."
                 : "Error de conexión al servidor. Verifique que el dispositivo tenga acceso a la red y vuelva a intentar.";
-        }
-        if (msg.includes("csrf") || msg.includes("419")) {
-            return "La sesión expiró. Por favor, recargue la página para continuar.";
         }
         if (msg.includes("event") || msg.includes("evento") || msg.includes("allowed")) {
             return "No hay tipos de marcación disponibles para este empleado en este momento. Consulte con el departamento de RRHH.";
@@ -803,8 +793,76 @@ const statusBar           = document.getElementById("statusBar");
         return;
     }
 
-    // Iniciar el sistema con pantalla de carga
-    initializeSystem();
+    /**
+     * Confirma que el celular ya fue vinculado (CI + fecha de nacimiento en
+     * /vincular-celular, ver MobileLinkController) antes de arrancar la
+     * cámara — sin token no hay nada que identificar localmente. Migra
+     * primero el token que mobile-link.blade.php deja en localStorage tras
+     * una vinculación exitosa (mismo patrón que terminal.js con el kiosko).
+     * @returns {Promise<boolean>}
+     */
+    async function ensureLinkedDevice() {
+        await migrateTokenFromLocalStorage();
+        const token = await getMeta("api_token");
+        if (!token) {
+            window.location.href = "/vincular-celular";
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Sincroniza la configuración de reconocimiento facial y el descriptor
+     * facial propio (heartbeat) antes de identificar — sin esto no hay nada
+     * contra qué comparar localmente. Si el token fue revocado (empleado
+     * desvinculado o baja), redirige a vincular de nuevo. Un fallo de red
+     * simple no bloquea el arranque: se sigue con lo que ya estaba cacheado
+     * de una sesión anterior (o, si nunca hubo una, la identificación
+     * fallará con un mensaje claro hasta que haya conexión al menos una vez).
+     */
+    async function initializeOfflineSync() {
+        try {
+            await heartbeat();
+        } catch (error) {
+            if (error instanceof MobileAuthError) {
+                window.location.href = "/vincular-celular";
+                return;
+            }
+            logWarn("No se pudo sincronizar con el servidor (heartbeat):", error.message);
+        }
+    }
+
+    /**
+     * Reintenta heartbeat y vaciar la cola de marcaciones pendientes en
+     * segundo plano — mismo patrón que terminal.js del kiosko, adaptado sin
+     * sync de empleados (acá no existe, ver mobile-offline/sync.js).
+     */
+    function startBackgroundSync() {
+        const runHeartbeat = () => {
+            if (!navigator.onLine) return;
+            heartbeat().catch((error) => logWarn("Heartbeat en segundo plano falló:", error.message));
+        };
+        const runQueueFlush = () => {
+            if (!navigator.onLine) return;
+            flushQueue().catch((error) => logWarn("Sincronización de cola en segundo plano falló:", error.message));
+        };
+
+        setInterval(runHeartbeat, 90 * 1000);
+        setInterval(runQueueFlush, 30 * 1000);
+
+        window.addEventListener("online", () => {
+            runHeartbeat();
+            runQueueFlush();
+        });
+    }
+
+    // Iniciar el sistema con pantalla de carga — solo si el celular ya está vinculado.
+    (async () => {
+        if (!(await ensureLinkedDevice())) return;
+        await initializeOfflineSync();
+        await initializeSystem();
+        startBackgroundSync();
+    })();
 
     // ==========================================================================
     // FUNCIONES DE CÁMARA Y MODELOS
@@ -1132,8 +1190,9 @@ const statusBar           = document.getElementById("statusBar");
             const isEmployeeSelected = !!(state.employee && state.employee.id);
             const isEventSelected = !!eventTypeEl.value;
             const isLocationSet = !!state.location;
-            const isOnline = navigator.onLine;
-            const canMark = isEmployeeSelected && isEventSelected && isLocationSet && isOnline;
+            // Sin conexión ya no bloquea: la marcación se guarda en el dispositivo (cola
+            // offline, ver mobile-offline/queue.js) y se sincroniza cuando haya señal.
+            const canMark = isEmployeeSelected && isEventSelected && isLocationSet;
 
             btnMark.disabled = !canMark;
             btnMark.setAttribute("aria-disabled", canMark ? "false" : "true");
@@ -1142,9 +1201,6 @@ const statusBar           = document.getElementById("statusBar");
                 if (canMark) {
                     markHint.textContent = "";
                     markHint.classList.add("hidden");
-                } else if (!isOnline) {
-                    markHint.textContent = "Sin conexión — la marcación no puede registrarse ahora";
-                    markHint.classList.remove("hidden");
                 } else if (isEmployeeSelected && !isEventSelected) {
                     markHint.textContent = "Seleccioná el tipo de marcación para continuar";
                     markHint.classList.remove("hidden");
@@ -1232,10 +1288,6 @@ const statusBar           = document.getElementById("statusBar");
      */
     async function runIdentification(fromDwell = false) {
         if (isIdentifying) return;
-        if (!navigator.onLine) {
-            setStatusBar("Sin conexión — no se puede identificar ahora", "error");
-            return;
-        }
         isIdentifying = true;
 
         cancelAutoIdentifyDwell();
@@ -1255,28 +1307,41 @@ const statusBar           = document.getElementById("statusBar");
                 updateCaptureProgress(count);
             });
 
-            logStatus("Enviando datos para identificación...");
+            logStatus("Identificando...");
             setStatusBar("Identificando empleado...", "found");
 
-            if (!CSRF) throw new Error("Token CSRF no disponible");
+            // Matching 100% local contra el único descriptor cacheado (el propio, sincronizado
+            // vía heartbeat) — sin esto no hay red de contingencia: el celular solo conoce a su dueño.
+            const { threshold, minGap } = await getFaceConfig();
+            const ownEmployee = await getOwnEmployee();
 
-            const resp = await fetch("/marcar/identificar", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "X-CSRF-TOKEN": CSRF,
-                },
-                body: JSON.stringify({ face_descriptor: descriptor, source: "mobile" }),
-            });
+            if (threshold == null || minGap == null || !ownEmployee) {
+                throw new Error("Todavía no se sincronizó tu perfil — conectate a internet al menos una vez.");
+            }
 
-            if (resp.status === 419) throw Object.assign(new Error("session_expired"), { is419: true });
+            const { employee: matched, reason } = matchDescriptor(descriptor, [ownEmployee], threshold, minGap);
 
-            const json = await resp.json();
-            if (!json.ok) throw new Error(json.message || "No identificado");
+            if (!matched) {
+                const messages = {
+                    no_match: "No se pudo identificar el rostro. Intente nuevamente.",
+                    ambiguous: "Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.",
+                };
+                throw new Error(messages[reason] || "No identificado");
+            }
 
-            state.employee = json.employee;
-            state.allowed  = json.allowed_events || [];
+            const employee = {
+                id: matched.id,
+                first_name: matched.first_name,
+                last_name: matched.last_name,
+                ci: matched.ci,
+            };
+
+            // Estado del día: intenta consulta en línea (y la cachea); si no hay red, cae a lo
+            // que el propio celular ya sabe (ver mobile-offline/queue.js).
+            const status = await getOwnStatus();
+
+            state.employee = employee;
+            state.allowed  = status.allowed_events || [];
 
             await finishCaptureProgress("success");
 
@@ -1287,7 +1352,7 @@ const statusBar           = document.getElementById("statusBar");
                 faceInFrameState = null;
                 if (video) video.srcObject = null;
 
-                const fullName = `${json.employee.first_name || ""} ${json.employee.last_name || ""}`.trim();
+                const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
                 const titleEl = document.getElementById("successModalTitle");
                 const descEl  = document.getElementById("successModalDesc");
                 if (titleEl) titleEl.textContent = "¡Jornada completada!";
@@ -1301,7 +1366,7 @@ const statusBar           = document.getElementById("statusBar");
 
             enableStep2(state.allowed);
             checkEnableMark();
-            transitionToStep2(json.employee, json.last_event, json.last_event_time);
+            transitionToStep2(employee, status.last_event, status.last_event_time);
             navigator.vibrate?.(80);
             logStatus("Empleado identificado ✓");
 
@@ -1321,13 +1386,13 @@ const statusBar           = document.getElementById("statusBar");
 
         } catch (e) {
             logError("Error en la identificación:", e);
-            if (e.is419) {
+            if (e instanceof MobileAuthError) {
                 await finishCaptureProgress("error");
                 playBeep("error");
                 showErrorModal(
-                    "Sesión expirada",
-                    "La sesión ha caducado. Recargue la página para continuar.",
-                    false
+                    "Celular desvinculado",
+                    "Este celular ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
+                    () => { window.location.href = "/vincular-celular"; }
                 );
                 return;
             }
@@ -1547,7 +1612,7 @@ const statusBar           = document.getElementById("statusBar");
      *              y configura eventos para cerrarlo (botón, backdrop, tecla ESC)
      * @returns {void}
      */
-    function showSuccessModal(name, eventType, time) {
+    function showSuccessModal(name, eventType, time, { queued = false } = {}) {
         const modal = document.getElementById("successModal");
         const closeModal = document.getElementById("closeModal");
 
@@ -1561,6 +1626,7 @@ const statusBar           = document.getElementById("statusBar");
         const nameEl    = document.getElementById("successModalMetaName");
         const eventEl   = document.getElementById("successModalMetaEvent");
         const timeEl    = document.getElementById("successModalMetaTime");
+        const queuedEl  = document.getElementById("successModalQueuedNotice");
 
         if (metaEl && name && eventType && time) {
             if (nameEl)  nameEl.textContent  = name;
@@ -1570,6 +1636,10 @@ const statusBar           = document.getElementById("statusBar");
         } else if (metaEl) {
             metaEl.classList.add("hidden");
         }
+
+        // Marcación guardada en el dispositivo pero todavía no confirmada por el servidor
+        // (sin red en el momento) — avisar sin asustar: no se perdió, se sincroniza sola.
+        if (queuedEl) queuedEl.style.display = queued ? "" : "none";
 
         previousActiveElement = document.activeElement;
 
@@ -1924,9 +1994,6 @@ const statusBar           = document.getElementById("statusBar");
                 if (!state.location) {
                     throw new Error("Ubicación no válida.");
                 }
-                if (!CSRF) {
-                    throw new Error("Token CSRF no disponible");
-                }
 
                 // Ventana anti-duplicados: bloquear el mismo empleado + evento dentro de 60s
                 const DUPLICATE_WINDOW_MS = 60000;
@@ -1964,50 +2031,56 @@ const statusBar           = document.getElementById("statusBar");
                     }
                 }
 
-                const payload = {
-                    employee_id: state.employee.id,
-                    event_type: eventTypeEl.value,
-                    source: "mobile",
-                    location: {
-                        lat: state.location.lat,
-                        lng: state.location.lng,
-                    },
-                };
-
-                logStatus("Enviando marcación al servidor...");
+                logStatus("Registrando marcación...");
                 btnMark.classList.add("btn-loading");
                 btnMark.innerHTML = `${SPINNER_SVG} Registrando...`;
 
-                const resp = await fetch("/marcar", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": CSRF,
-                    },
-                    body: JSON.stringify(payload),
-                });
+                // Encolar SIEMPRE primero — la marcación queda a salvo en el dispositivo
+                // aunque el envío falle o no haya red (ver mobile-offline/queue.js).
+                const { client_event_id: clientEventId, recorded_at: recordedAt } = await enqueueMark(
+                    eventTypeEl.value,
+                    { lat: state.location.lat, lng: state.location.lng },
+                );
 
-                if (resp.status === 419) throw Object.assign(new Error("session_expired"), { is419: true });
+                let queued = true;
+                let rejectedMessage = null;
 
-                const json = await resp.json();
-                if (!resp.ok || !json.ok) {
-                    throw new Error(json.message || "No se pudo registrar la marcación.");
+                if (navigator.onLine) {
+                    try {
+                        const { results } = await flushQueue();
+                        const ownResult = results.find((r) => r.client_event_id === clientEventId);
+
+                        if (ownResult && ownResult.status !== "synced" && ownResult.status !== "duplicate") {
+                            // El servidor ya respondió que esta marcación puntual es inválida (ej.
+                            // secuencia rota) — no tiene sentido dejarla "pendiente", se informa directo.
+                            rejectedMessage = ownResult.message || "La marcación fue rechazada por el servidor.";
+                        } else {
+                            // Sincronizada (ownResult existe y es synced/duplicate) o todavía en cola
+                            // porque la red falló a mitad de camino (ownResult ausente) — a salvo en ambos casos.
+                            queued = !ownResult;
+                        }
+                    } catch (flushError) {
+                        if (flushError instanceof MobileAuthError) throw flushError;
+                        logWarn("No se pudo sincronizar de inmediato, queda en cola:", flushError.message);
+                    }
                 }
 
-                logStatus("Marcación registrada correctamente");
+                if (rejectedMessage) throw new Error(rejectedMessage);
+
+                logStatus(queued ? "Marcación guardada — pendiente de sincronizar" : "Marcación registrada correctamente");
                 lastMark = { employeeId: state.employee.id, eventType: eventTypeEl.value, time: Date.now() };
                 playBeep("success");
                 navigator.vibrate?.(120);
                 const fullName = `${state.employee.first_name || ""} ${state.employee.last_name || ""}`.trim();
-                showSuccessModal(fullName, eventTypeEl.value, new Date());
+                showSuccessModal(fullName, eventTypeEl.value, new Date(recordedAt), { queued });
             } catch (e) {
                 logError("Error en la marcación:", e);
-                if (e.is419) {
+                if (e instanceof MobileAuthError) {
                     playBeep("error");
                     showErrorModal(
-                        "Sesión expirada",
-                        "La sesión ha caducado. Recargue la página para continuar.",
-                        false
+                        "Celular desvinculado",
+                        "Este celular ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
+                        () => { window.location.href = "/vincular-celular"; }
                     );
                     return;
                 }

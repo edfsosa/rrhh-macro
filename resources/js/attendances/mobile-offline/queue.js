@@ -25,7 +25,7 @@ import {
     getEmployeeStatusCache,
     setEmployeeStatusCache,
 } from './db.js';
-import { submitEvents, fetchStatus } from './sync.js';
+import { submitEvents, fetchStatus, MobileAuthError } from './sync.js';
 
 /**
  * Máquina de estados de marcación diaria — mismo criterio que
@@ -118,6 +118,9 @@ export async function getOwnStatus() {
         if (employeeId) await setEmployeeStatusCache(employeeId, status);
         return status;
     } catch (error) {
+        // Token revocado — no es un fallo de red recuperable con el estado local, el
+        // caller (mark.js) debe mandar al empleado a re-vincular el dispositivo.
+        if (error instanceof MobileAuthError) throw error;
         console.warn('No se pudo consultar el estado en línea del empleado, usando estado local:', error.message);
         return resolveOwnStatus();
     }
@@ -197,6 +200,12 @@ export async function flushQueue() {
                     location: location ?? undefined,
                 })));
             } catch (error) {
+                // Token revocado — no es un fallo de red recuperable, el caller (mark.js)
+                // debe mandar al empleado a re-vincular el dispositivo. Los eventos de este
+                // lote y los restantes quedan `pending` tal cual (se reintentan solos una
+                // vez que el empleado se re-vincule).
+                if (error instanceof MobileAuthError) throw error;
+
                 // Sin red o el servidor no respondió — este lote y los restantes (todavía no
                 // enviados) quedan pendientes para el próximo intento.
                 for (const event of pending.slice(offset)) await incrementQueuedEventAttempts(event.client_event_id);
