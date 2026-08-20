@@ -36,6 +36,8 @@ class MobileHeartbeatController extends Controller
             ], 403);
         }
 
+        $employee->forceFill(['mobile_last_heartbeat_at' => now()])->save();
+
         return response()->json([
             'ok' => true,
             'server_time' => now()->toIso8601String(),

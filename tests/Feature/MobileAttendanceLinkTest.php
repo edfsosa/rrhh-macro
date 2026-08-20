@@ -8,7 +8,10 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Terminal;
+use App\Models\User;
+use App\Notifications\MobileDeviceRelinkedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -213,4 +216,78 @@ it('un token de terminal no puede usar las rutas móviles (ability distinta)', f
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 
     $this->postJson('/api/v1/mobile/heartbeat')->assertStatus(403);
+});
+
+// ─── Hardening (Fase 4) ─────────────────────────────────────────────────────
+
+it('no notifica a los admins en la primera vinculación', function () {
+    Notification::fake();
+    User::create(['name' => 'Admin', 'email' => 'admin-first@test.com', 'password' => bcrypt('secret')]);
+
+    $employee = makeLinkableEmployee();
+
+    $this->postJson('/vincular-celular', [
+        'ci' => $employee->ci,
+        'birth_date' => '1990-05-15',
+    ])->assertOk();
+
+    Notification::assertNothingSent();
+});
+
+it('notifica a todos los admins cuando un celular ya vinculado se re-vincula', function () {
+    $employee = makeLinkableEmployee();
+    $admin1 = User::create(['name' => 'Admin 1', 'email' => 'admin-relink1@test.com', 'password' => bcrypt('secret')]);
+    $admin2 = User::create(['name' => 'Admin 2', 'email' => 'admin-relink2@test.com', 'password' => bcrypt('secret')]);
+
+    // Primera vinculación — sin notificación (no hay nada previo que "reemplazar").
+    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
+
+    Notification::fake();
+
+    // Segunda vinculación del mismo empleado — el dispositivo anterior existía.
+    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
+
+    Notification::assertSentTo(
+        [$admin1, $admin2],
+        MobileDeviceRelinkedNotification::class,
+        fn ($notification) => $notification->employee->is($employee)
+    );
+});
+
+it('el heartbeat actualiza mobile_last_heartbeat_at', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    expect($employee->mobile_last_heartbeat_at)->toBeNull();
+
+    $this->postJson('/api/v1/mobile/heartbeat')->assertOk();
+
+    expect($employee->fresh()->mobile_last_heartbeat_at)->not->toBeNull();
+});
+
+it('revocar el celular limpia mobile_last_heartbeat_at además de mobile_linked_at', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+    $this->postJson('/api/v1/mobile/heartbeat')->assertOk();
+    expect($employee->fresh()->mobile_last_heartbeat_at)->not->toBeNull();
+
+    $employee->fresh()->revokeMobileToken();
+
+    $fresh = $employee->fresh();
+    expect($fresh->mobile_linked_at)->toBeNull()
+        ->and($fresh->mobile_last_heartbeat_at)->toBeNull();
+});
+
+it('el POST de vincular-celular tiene throttling más estricto que el GET', function () {
+    $employee = makeLinkableEmployee();
+
+    // 5 intentos permitidos por minuto (credenciales incorrectas a propósito, no importa el resultado).
+    for ($i = 0; $i < 5; $i++) {
+        $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
+            ->assertStatus(422);
+    }
+
+    // El 6º intento en la misma ventana debe ser rechazado por el rate limiter.
+    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
+        ->assertStatus(429);
 });
