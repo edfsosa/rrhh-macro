@@ -67,6 +67,7 @@ Two separate axes that converge in `Contract`:
 | Schedules | `ScheduleAssignmentService` — asignación de horarios fijos con vigencia por fechas |
 | Rotations | `RotationService` — asignación de patrones rotativos y resolución de turno efectivo por fecha |
 | Attendance | `AttendanceDay`, `AttendanceEvent`, observers auto-calculate daily totals |
+| Attendance offline (kiosko/celular) | `Terminal`, `Employee` (Sanctum), `AttendanceMarkFailure` — ver "Módulo de Asistencia — Marcación Offline" más abajo |
 | Face Recognition | TensorFlow.js (128-element descriptors), `FaceEnrollment`, `FaceCaptureApp.js` |
 | Warnings | `Warning` — registro documental de amonestaciones laborales (sin impacto en nómina por ahora) |
 
@@ -299,6 +300,24 @@ Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un
 ### Módulo de Vacaciones
 
 **Pago con nómina (`payment_method = 'with_payroll'`):** `PayrollService::resolveVacationPays()` paga la remuneración vacacional **completa como pago único** en el período de nómina que contiene el `start_date` de la vacación — **no se prorratea** aunque el `end_date` caiga en el período de nómina siguiente. Es una convención intencional (lump sum al inicio de la vacación), no un bug. `Vacation.payment_status` es un enum simple `unpaid`/`paid` — no rastrea montos parciales, así que implementar prorrateo real requeriría un cambio de modelo de datos, no solo de lógica.
+
+### Módulo de Asistencia — Marcación Offline (Kiosko y Celular)
+
+Documento completo con arquitectura, decisiones y deuda técnica: **`docs/marcacion-offline.md`**. Resumen:
+
+Dos dispositivos marcan asistencia por reconocimiento facial (face-api.js, 100% client-side), ambos con soporte offline vía PWA:
+- **Kiosko/terminal** (`Terminal`) — compartido por sucursal, cachea el descriptor de *todos* los empleados activos de esa sucursal. Provisión por enlace de un solo uso generado por un admin.
+- **Celular personal** (`Employee`) — individual, cachea *únicamente* el propio descriptor. Vinculación self-service en `/vincular-celular` con CI + fecha de nacimiento (no es un factor de auth completo — el match facial sigue siendo el control real). Un dispositivo vinculado a la vez: vincular uno nuevo revoca el anterior y notifica a los admins.
+
+**Auth:** un único guard `auth:sanctum` sirve tokens de `Terminal` (`ability: terminal:sync`) y `Employee` (`ability: mobile:sync`) — Sanctum resuelve el `tokenable` de forma polimórfica sin config adicional en `config/auth.php`. Ambos modelos usan `HasApiTokens` + `Illuminate\Auth\Authenticatable` (este último solo necesario para que `Sanctum::actingAs()` funcione en tests).
+
+**Cliente offline:** IndexedDB (`resources/js/attendances/terminal-offline/` y `mobile-offline/`, módulos `db.js`/`matcher.js`/`queue.js` compartidos en su mayoría) + cola de eventos con `client_event_id` idempotente + service worker (`public/sw.js`) cacheando modelos/assets/shell.
+
+**Conflictos de sync:** si un evento offline ya no es válido al sincronizar (otro origen registró algo mientras el dispositivo estaba desconectado), se rechaza puntualmente y se registra en `AttendanceMarkFailure` (`failure_type: sync_conflict`) — nunca se descarta silenciosamente. Un admin lo revisa en `AttendanceMarkFailureResource`: **aprobar** (reconstruye el evento, revalidando la secuencia contra el estado *actual*) o **descartar**.
+
+**Reconocimiento facial:** `face_threshold` (0.50) y `face_min_confidence_gap` (0.05) en `GeneralSettings`, ajustados con datos reales de `AttendanceMarkFailure`. Lógica de captura común en `resources/js/shared/face-capture-core.js`.
+
+**Runbooks:** `docs/runbook-terminal-revocacion-reprovision.md`, `docs/runbook-celular-vinculacion-revocacion.md`.
 
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
