@@ -114,6 +114,15 @@
     </div>
 
     <script defer src="{{ asset('js/face-api.min.js') }}"></script>
+
+    {{-- Service worker offline — scope acotado a /marcar (sin barra final: la ruta
+    real no la tiene), no afecta /vincular-celular ni el resto de la app. --}}
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/marcar' })
+                .catch((error) => console.warn('No se pudo registrar el service worker:', error));
+        }
+    </script>
 </body>
 
 </html>
