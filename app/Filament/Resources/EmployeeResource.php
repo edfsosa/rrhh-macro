@@ -778,6 +778,13 @@ class EmployeeResource extends Resource
                     ->tooltip(fn (Employee $record) => $record->mobile_linked_at?->format('d/m/Y H:i'))
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('mobile_last_heartbeat_at')
+                    ->label('Último sync celular')
+                    ->since()
+                    ->placeholder('Sin sincronizar')
+                    ->tooltip(fn (Employee $record) => $record->mobile_last_heartbeat_at?->format('d/m/Y H:i'))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
                     ->label('Registrado')
                     ->dateTime('d/m/Y H:i')

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\MobileDeviceRelinkedNotification;
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Illuminate\Auth\Authenticatable;
@@ -53,6 +54,7 @@ class Employee extends Model implements AuthenticatableContract
         'status',
         'face_descriptor',
         'mobile_linked_at',
+        'mobile_last_heartbeat_at',
     ];
 
     protected $casts = [
@@ -60,6 +62,7 @@ class Employee extends Model implements AuthenticatableContract
         'maternity_protection_until' => 'date',
         'face_descriptor' => 'array',
         'mobile_linked_at' => 'datetime',
+        'mobile_last_heartbeat_at' => 'datetime',
     ];
 
     // ───────────────────────────────────────────
@@ -1188,9 +1191,19 @@ class Employee extends Model implements AuthenticatableContract
      */
     public function claimMobileToken(): string
     {
+        // Se evalúa antes de pisar mobile_linked_at — distingue una vinculación
+        // nueva (sin aviso, es el flujo normal) de una re-vinculación (ver
+        // MobileDeviceRelinkedNotification: CI+fecha es una credencial débil,
+        // esto da visibilidad a un admin ante un posible acoso/DoS dirigido).
+        $isRelink = $this->hasMobileLinked();
+
         $this->tokens()->where('name', 'like', 'mobile:%')->delete();
 
         $this->forceFill(['mobile_linked_at' => now()])->save();
+
+        if ($isRelink) {
+            User::all()->each(fn (User $user) => $user->notify(new MobileDeviceRelinkedNotification($this)));
+        }
 
         return $this->createToken('mobile:'.$this->id, [self::MOBILE_SYNC_ABILITY])->plainTextToken;
     }
@@ -1199,7 +1212,7 @@ class Employee extends Model implements AuthenticatableContract
     public function revokeMobileToken(): void
     {
         $this->tokens()->where('name', 'like', 'mobile:%')->delete();
-        $this->forceFill(['mobile_linked_at' => null])->save();
+        $this->forceFill(['mobile_linked_at' => null, 'mobile_last_heartbeat_at' => null])->save();
     }
 
     /** Indica si el empleado tiene un celular vinculado actualmente. */

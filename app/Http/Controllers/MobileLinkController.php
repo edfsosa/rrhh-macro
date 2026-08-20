@@ -32,7 +32,9 @@ class MobileLinkController extends Controller
      * Valida CI + fecha de nacimiento y emite el token Sanctum del empleado.
      * El mensaje de error es deliberadamente genérico (no distingue "CI no
      * existe" de "fecha incorrecta") para no facilitar enumeración de CIs
-     * válidos — la ruta ya está limitada por `throttle:10,1`.
+     * válidos — la ruta ya está limitada por `throttle:5,1` + `throttle:15,1440`
+     * (más estricto que otros enlaces públicos del proyecto: CI+fecha de
+     * nacimiento es una credencial de baja entropía).
      */
     public function claim(Request $request): JsonResponse
     {
@@ -49,8 +51,11 @@ class MobileLinkController extends Controller
             ->first();
 
         if (! $employee) {
+            // Se loguea el CI intentado (no la fecha) para poder correlacionar en logs
+            // si un mismo CI está siendo atacado desde distintas IPs, o viceversa.
             Log::warning('Intento de vinculación de celular con datos inválidos', [
                 'ip' => $request->ip(),
+                'ci' => $data['ci'],
             ]);
 
             return response()->json([
