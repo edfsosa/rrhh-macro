@@ -1,14 +1,12 @@
 name: Deploy
-
 on:
   workflow_dispatch:
     inputs:
       environment:
         description: 'Instancia a la que desplegar'
         type: choice
-        options: [bar777, arca]
+        options: [bar777, arca, nextup-demo]
         required: true
-
 jobs:
   deploy-bar777:
     if: ${{ inputs.environment == 'bar777' }}
@@ -31,7 +29,6 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASS: ${{ secrets.SMTP_PASS }}
       NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
-
   deploy-arca:
     if: ${{ inputs.environment == 'arca' }}
     permissions:
@@ -48,6 +45,27 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.ARCA_SSH_PRIVATE_KEY }}
       DEPLOY_PATH: ${{ secrets.ARCA_DEPLOY_PATH }}
       APP_URL: ${{ secrets.ARCA_APP_URL }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+  deploy-nextup-demo:
+    if: ${{ inputs.environment == 'nextup-demo' }}
+    permissions:
+      contents: write
+    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@9fc64c40637a060f8c1ac7c792c44d0717244b03 # v1.2.0
+    with:
+      environment_name: nextup-demo
+      run_tests: true
+      run_migrations: true
+    secrets:
+      SSH_HOST: ${{ secrets.NEXTUP_DEMO_SSH_HOST }}
+      SSH_PORT: ${{ secrets.NEXTUP_DEMO_SSH_PORT }}
+      SSH_USER: ${{ secrets.NEXTUP_DEMO_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.NEXTUP_DEMO_SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.NEXTUP_DEMO_DEPLOY_PATH }}
+      APP_URL: ${{ secrets.NEXTUP_DEMO_APP_URL }}
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
       SMTP_PORT: ${{ secrets.SMTP_PORT }}
       SMTP_USER: ${{ secrets.SMTP_USER }}
