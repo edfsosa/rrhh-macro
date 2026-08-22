@@ -358,9 +358,11 @@ it('el límite diario notifica a los admins con la IP y el CI intentado, una sol
     ]);
 
     $response = MobileLinkController::throttledResponse($exception, $request);
+    $data = $response->getData(true);
 
-    $response->assertStatus(429)->assertJson(['ok' => false]);
-    expect($response->json('message'))->toContain('RRHH');
+    expect($response->getStatusCode())->toBe(429)
+        ->and($data['ok'])->toBeFalse()
+        ->and($data['message'])->toContain('RRHH');
 
     Notification::assertSentTimes(MobileLinkThrottledNotification::class, 1);
     Notification::assertSentTo(User::first(), MobileLinkThrottledNotification::class, function ($notification) {
