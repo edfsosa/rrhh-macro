@@ -431,7 +431,12 @@ class AttendanceMarkFailureResource extends Resource
                         KeyValueEntry::make('metadata')
                             ->label('')
                             ->columnSpanFull()
-                            ->getStateUsing(fn (AttendanceMarkFailure $record) => $record->metadata ?? []),
+                            ->getStateUsing(fn (AttendanceMarkFailure $record) => collect($record->metadata ?? [])
+                                ->map(fn ($value) => is_array($value)
+                                    ? json_encode($value, JSON_UNESCAPED_UNICODE)
+                                    : $value)
+                                ->toArray()
+                            ),
                     ])
                     ->visible(fn (AttendanceMarkFailure $record) => ! empty($record->metadata)),
             ]);
