@@ -42,7 +42,7 @@ it('el QR de acceso es un data URI SVG válido, no HTML crudo', function () {
             ->instance()
             ->getInfolist('infolist')
             ->getFlatComponents()
-    )->first(fn ($c) => $c->getName() === 'qr_code');
+    )->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'qr_code');
 
     expect($component)->not->toBeNull();
 
