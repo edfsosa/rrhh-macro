@@ -67,6 +67,35 @@ class EmployeeResource extends Resource
     protected static ?int $navigationSort = 1;
 
     /**
+     * Resuelve el `company_id` a partir de un `branch_id` — usado para
+     * filtrar departamento/cargo del contrato inicial por la empresa
+     * elegida, mismo criterio que ya aplica `ContractsRelationManager`
+     * al editar (ahí vía `$this->getOwnerRecord()->branch?->company_id`).
+     */
+    private static function companyIdFromBranch(mixed $branchId): ?int
+    {
+        return $branchId ? Branch::find($branchId)?->company_id : null;
+    }
+
+    /**
+     * Indica si la CI actualmente cargada en el form ya pertenece a otro
+     * empleado — usado para el aviso en vivo del campo `ci` (antes de que
+     * la validación `unique()` recién se dispare al hacer submit).
+     */
+    private static function ciDuplicateWarning(Get $get, ?Employee $record): bool
+    {
+        $ci = $get('ci');
+
+        if (blank($ci)) {
+            return false;
+        }
+
+        return Employee::where('ci', $ci)
+            ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
+            ->exists();
+    }
+
+    /**
      * Define el formulario para crear y editar empleados.
      */
     public static function form(Form $form): Form
@@ -107,7 +136,11 @@ class EmployeeResource extends Resource
                                             ->step(1)
                                             ->required()
                                             ->unique(Employee::class, 'ci', ignoreRecord: true)
-                                            ->helperText('Número sin puntos ni guiones.'),
+                                            ->helperText('Número sin puntos ni guiones.')
+                                            ->live(onBlur: true)
+                                            ->hint(fn (Get $get, ?Employee $record) => static::ciDuplicateWarning($get, $record) ? 'Ya existe un empleado con esta CI' : null)
+                                            ->hintColor('danger')
+                                            ->hintIcon(fn (Get $get, ?Employee $record) => static::ciDuplicateWarning($get, $record) ? 'heroicon-o-exclamation-triangle' : null),
 
                                         TextInput::make('first_name')
                                             ->label('Nombre(s)')
@@ -196,6 +229,7 @@ class EmployeeResource extends Resource
                             ->native(false)
                             ->live()
                             ->dehydrated(false)
+                            ->default(fn () => Company::active()->count() === 1 ? Company::active()->value('id') : null)
                             ->afterStateUpdated(fn (callable $set) => $set('branch_id', null))
                             ->helperText('Seleccioná la empresa para filtrar las sucursales.')
                             ->afterStateHydrated(function (callable $set, callable $get) {
@@ -219,6 +253,12 @@ class EmployeeResource extends Resource
                             ->searchable()
                             ->native(false)
                             ->required()
+                            ->default(function (callable $get) {
+                                $companyId = $get('company_id');
+                                $query = Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId));
+
+                                return $query->count() === 1 ? $query->value('id') : null;
+                            })
                             ->helperText('Sucursal donde trabaja el empleado.'),
 
                         Select::make('reports_to_id')
@@ -376,11 +416,18 @@ class EmployeeResource extends Resource
                         Grid::make(2)->schema([
                             Select::make('ic_department_id')
                                 ->label('Departamento')
-                                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
+                                ->options(function (Get $get) {
+                                    $companyId = static::companyIdFromBranch($get('branch_id'));
+
+                                    return Department::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id');
+                                })
                                 ->searchable()
                                 ->native(false)
                                 ->live()
                                 ->afterStateUpdated(fn (Set $set) => $set('ic_position_id', null))
+                                ->helperText('Solo se muestran los departamentos de la empresa seleccionada arriba.')
                                 ->dehydrated(false),
 
                             Select::make('ic_position_id')
@@ -388,9 +435,22 @@ class EmployeeResource extends Resource
                                 ->options(function (Get $get) {
                                     $deptId = $get('ic_department_id');
 
-                                    return $deptId
-                                        ? Position::where('department_id', $deptId)->orderBy('name')->pluck('name', 'id')->toArray()
-                                        : Position::getOptionsWithDepartment();
+                                    if ($deptId) {
+                                        return Position::where('department_id', $deptId)->orderBy('name')->pluck('name', 'id')->toArray();
+                                    }
+
+                                    $companyId = static::companyIdFromBranch($get('branch_id'));
+
+                                    return Position::query()
+                                        ->when($companyId, fn ($q) => $q->whereHas('department', fn ($d) => $d->where('company_id', $companyId)))
+                                        ->with('department')
+                                        ->get()
+                                        ->mapWithKeys(fn ($position) => [
+                                            $position->id => $position->department
+                                                ? "{$position->name} - {$position->department->name}"
+                                                : $position->name,
+                                        ])
+                                        ->toArray();
                                 })
                                 ->searchable()
                                 ->native(false)
