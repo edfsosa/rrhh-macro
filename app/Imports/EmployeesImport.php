@@ -128,8 +128,15 @@ class EmployeesImport implements ToCollection, WithStartRow
                 continue;
             }
 
-            if (filled($sanitized['email']) && Employee::where('email', $sanitized['email'])->exists()) {
-                $this->failures[] = ['row' => $rowNum, 'name' => $name, 'reason' => "Ya existe un empleado con el email {$sanitized['email']}"];
+            // sanitizeFormData() normaliza el email a string (nunca a null) aunque
+            // venga vacío — a diferencia de 'phone', que sí lo hace. Sin este
+            // ajuste, dos filas sin email insertarían '' en ambas, lo que en
+            // MySQL real (a diferencia de SQLite) viola el unique constraint de
+            // la columna (empresa con varios empleados sin email cargado).
+            $email = filled($sanitized['email']) ? $sanitized['email'] : null;
+
+            if ($email && Employee::where('email', $email)->exists()) {
+                $this->failures[] = ['row' => $rowNum, 'name' => $name, 'reason' => "Ya existe un empleado con el email {$email}"];
 
                 continue;
             }
@@ -144,7 +151,7 @@ class EmployeesImport implements ToCollection, WithStartRow
                 'gender' => $gender,
                 'branch_id' => $branch->id,
                 'phone' => $sanitized['phone'],
-                'email' => $sanitized['email'],
+                'email' => $email,
                 'nationality' => $nationality !== '' ? $nationality : 'Paraguaya',
                 'status' => 'active',
                 'face_descriptor' => null,
@@ -181,10 +188,13 @@ class EmployeesImport implements ToCollection, WithStartRow
         }
 
         foreach (['d/m/Y', 'd-m-Y', 'Y-m-d'] as $format) {
-            $date = Carbon::createFromFormat('!'.$format, $raw);
-
-            if ($date !== false) {
-                return $date->startOfDay();
+            try {
+                // En modo estricto (Carbon 3) createFromFormat() lanza
+                // InvalidFormatException en vez de retornar false cuando el
+                // string no matchea — a diferencia de Carbon 2.
+                return Carbon::createFromFormat('!'.$format, $raw)->startOfDay();
+            } catch (Throwable) {
+                continue;
             }
         }
 
