@@ -59,8 +59,9 @@ it('no preselecciona sucursal cuando la empresa tiene más de una', function () 
 it('avisa en vivo si la CI ya está en uso por otro empleado', function () {
     $this->actingAs(User::factory()->create());
 
-    $branch = Branch::factory()->create();
-    Employee::factory()->create(['ci' => '5551234', 'branch_id' => $branch->id]);
+    $company = Company::create(['name' => 'Empresa Hint', 'ruc' => '9-9', 'employer_number' => 9]);
+    $branch = Branch::create(['name' => 'Sucursal Hint', 'company_id' => $company->id]);
+    Employee::create(['first_name' => 'Existente', 'last_name' => 'X', 'ci' => '5551234', 'branch_id' => $branch->id, 'status' => 'active']);
 
     $field = Livewire::test(CreateEmployee::class)
         ->set('data.ci', '5551234')
