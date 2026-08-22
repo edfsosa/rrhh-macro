@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\FaceEnrollmentResource\Pages;
+use App\Models\Employee;
 use App\Models\FaceEnrollment;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -258,7 +259,11 @@ class FaceEnrollmentResource extends Resource
                             ]),
                     ])
                     ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar'),
+                    ->modalCancelActionLabel('Cerrar')
+                    ->extraModalFooterActions(fn (FaceEnrollment $record): array => static::whatsappShareAction(
+                        $record->employee,
+                        route('face-enrollment.show', $record->token)
+                    )),
 
                 Action::make('regenerate_link')
                     ->label('Regenerar Enlace')
@@ -304,6 +309,7 @@ class FaceEnrollmentResource extends Resource
                                     ->label('Abrir enlace')
                                     ->url($url)
                                     ->openUrlInNewTab(),
+                                ...static::whatsappNotificationAction($enrollment->employee, $url),
                             ])
                             ->send();
                     }),
@@ -401,6 +407,68 @@ class FaceEnrollmentResource extends Resource
             ->emptyStateIcon('heroicon-o-finger-print')
             ->paginated([10, 25, 50, 100])
             ->defaultPaginationPageOption(10);
+    }
+
+    /**
+     * Construye la URL de WhatsApp para compartir el enlace de captura facial
+     * con el empleado, o null si no tiene teléfono cargado.
+     */
+    private static function buildWhatsappUrl(?Employee $employee, string $url): ?string
+    {
+        if (! $employee || blank($employee->phone)) {
+            return null;
+        }
+
+        $message = "Hola {$employee->first_name}, usa este enlace para registrar tu rostro: {$url}";
+
+        return 'https://api.whatsapp.com/send?phone=595'.ltrim($employee->phone, '0').'&text='.urlencode($message);
+    }
+
+    /**
+     * Botón "Enviar por WhatsApp" para el pie de un modal (ej. "Ver Enlace").
+     *
+     * @return array<int, Action>
+     */
+    private static function whatsappShareAction(?Employee $employee, string $url): array
+    {
+        $whatsappUrl = static::buildWhatsappUrl($employee, $url);
+
+        if (! $whatsappUrl) {
+            return [];
+        }
+
+        return [
+            Action::make('send_whatsapp')
+                ->label('Enviar por WhatsApp')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->color('success')
+                ->url($whatsappUrl)
+                ->openUrlInNewTab(),
+        ];
+    }
+
+    /**
+     * Acción "Enviar por WhatsApp" para el arreglo de acciones de una
+     * `Filament\Notifications\Notification` (ej. tras regenerar el enlace).
+     *
+     * @return array<int, \Filament\Notifications\Actions\Action>
+     */
+    private static function whatsappNotificationAction(?Employee $employee, string $url): array
+    {
+        $whatsappUrl = static::buildWhatsappUrl($employee, $url);
+
+        if (! $whatsappUrl) {
+            return [];
+        }
+
+        return [
+            \Filament\Notifications\Actions\Action::make('send_whatsapp')
+                ->label('Enviar por WhatsApp')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->color('success')
+                ->url($whatsappUrl)
+                ->openUrlInNewTab(),
+        ];
     }
 
     /**
