@@ -16,6 +16,27 @@ class ViewTerminal extends ViewRecord
     protected static string $resource = TerminalResource::class;
 
     /**
+     * Al llegar desde la creación con `?provision=1` (ver
+     * CreateTerminal::getRedirectUrl()), abre automáticamente el modal de
+     * "Generar enlace de configuración" — evita que el admin tenga que volver
+     * a la lista para conseguir el QR justo después de crear el terminal.
+     *
+     * No puede hacerse en mount(): `mountAction()` resuelve la acción contra
+     * `cachedActions`, que recién se puebla en el hook de Livewire
+     * `bootedInteractsWithHeaderActions()` — que corre después de mount().
+     * Llamarlo ahí antes de tiempo hace que `getMountedAction()` no encuentre
+     * la acción y la desmonte de inmediato, sin abrir el modal.
+     */
+    public function bootedInteractsWithHeaderActions(): void
+    {
+        parent::bootedInteractsWithHeaderActions();
+
+        if (request()->boolean('provision')) {
+            $this->mountAction('generate_setup_link');
+        }
+    }
+
+    /**
      * Acciones del encabezado de la página de detalle.
      */
     protected function getHeaderActions(): array
@@ -70,6 +91,35 @@ class ViewTerminal extends ViewRecord
                         ->send();
 
                     $this->refreshFormData(['code']);
+                }),
+
+            Action::make('generate_setup_link')
+                ->label('Generar enlace de configuración')
+                ->tooltip('Enlace/QR de un solo uso para vincular el dispositivo a la sincronización offline')
+                ->icon('heroicon-o-qr-code')
+                ->color('gray')
+                ->modalHeading('Enlace de configuración del terminal')
+                ->modalContent(fn () => TerminalResource::renderSetupLinkModal($this->record))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Cerrar'),
+
+            Action::make('revoke_token')
+                ->label('Revocar token')
+                ->tooltip('Invalida el acceso del terminal a la sincronización offline — requerirá re-provisión')
+                ->icon('heroicon-o-shield-exclamation')
+                ->color('danger')
+                ->visible(fn () => $this->record->tokens()->exists())
+                ->requiresConfirmation()
+                ->modalHeading('Revocar token de sincronización')
+                ->modalDescription('El terminal perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar.')
+                ->modalSubmitActionLabel('Sí, revocar')
+                ->action(function () {
+                    $this->record->revokeSyncTokens();
+                    Notification::make()
+                        ->success()
+                        ->title('Token revocado')
+                        ->body('El terminal deberá re-provisionarse para volver a sincronizar.')
+                        ->send();
                 }),
 
             EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
