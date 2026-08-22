@@ -64,7 +64,7 @@ class MobileLinkController extends Controller
             ], 422);
         }
 
-        $plainTextToken = $employee->claimMobileToken();
+        $plainTextToken = $employee->claimMobileToken($request->userAgent());
 
         Log::info("Celular vinculado para el empleado #{$employee->id} ({$employee->first_name} {$employee->last_name})", [
             'employee_id' => $employee->id,

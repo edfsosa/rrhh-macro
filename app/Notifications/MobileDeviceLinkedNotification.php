@@ -8,17 +8,12 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notificación a los admins cuando el celular vinculado de un empleado se
- * re-vincula (había un dispositivo ya vinculado y se reemplazó por otro).
- *
- * CI + fecha de nacimiento es una credencial débil (baja entropía) — alguien
- * con esos datos de otro empleado podría re-vincular su propio celular y así
- * revocar silenciosamente el dispositivo legítimo (denegación de servicio
- * dirigida). Esta notificación no previene el ataque, pero da visibilidad
- * para que un admin investigue una re-vinculación que el empleado no
- * reconoce (ver runbook de vinculación/revocación de celulares).
+ * Notificación a los admins cuando un empleado vincula su celular por
+ * primera vez (sin dispositivo previo) para marcación offline. A diferencia
+ * de `MobileDeviceRelinkedNotification` (tono de advertencia, posible
+ * incidente de seguridad), esta es puramente informativa.
  */
-class MobileDeviceRelinkedNotification extends Notification
+class MobileDeviceLinkedNotification extends Notification
 {
     use Queueable;
 
@@ -40,17 +35,17 @@ class MobileDeviceRelinkedNotification extends Notification
      */
     public function toDatabase(object $notifiable): array
     {
-        $body = "El celular vinculado de {$this->employee->full_name} (CI: {$this->employee->ci}) fue reemplazado por uno nuevo. Si el empleado no reconoce este cambio, revocá el acceso desde su ficha.";
+        $body = "{$this->employee->full_name} (CI: {$this->employee->ci}) vinculó su celular para marcar asistencia offline.";
 
         if (filled($this->userAgent)) {
-            $body .= " Dispositivo nuevo: {$this->userAgent}";
+            $body .= " Dispositivo: {$this->userAgent}";
         }
 
         return [
-            'title' => 'Celular re-vinculado',
+            'title' => 'Celular vinculado',
             'body' => $body,
             'icon' => 'heroicon-o-device-phone-mobile',
-            'color' => 'warning',
+            'color' => 'success',
             'actions' => [
                 [
                     'label' => 'Ver empleado',

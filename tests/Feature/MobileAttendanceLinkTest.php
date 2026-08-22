@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Terminal;
 use App\Models\User;
+use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -220,9 +221,9 @@ it('un token de terminal no puede usar las rutas móviles (ability distinta)', f
 
 // ─── Hardening (Fase 4) ─────────────────────────────────────────────────────
 
-it('no notifica a los admins en la primera vinculación', function () {
+it('notifica a los admins (sin advertencia) en la primera vinculación', function () {
     Notification::fake();
-    User::create(['name' => 'Admin', 'email' => 'admin-first@test.com', 'password' => bcrypt('secret')]);
+    $admin = User::create(['name' => 'Admin', 'email' => 'admin-first@test.com', 'password' => bcrypt('secret')]);
 
     $employee = makeLinkableEmployee();
 
@@ -231,7 +232,12 @@ it('no notifica a los admins en la primera vinculación', function () {
         'birth_date' => '1990-05-15',
     ])->assertOk();
 
-    Notification::assertNothingSent();
+    Notification::assertSentTo(
+        $admin,
+        MobileDeviceLinkedNotification::class,
+        fn ($notification) => $notification->employee->is($employee)
+    );
+    Notification::assertNotSentTo($admin, MobileDeviceRelinkedNotification::class);
 });
 
 it('notifica a todos los admins cuando un celular ya vinculado se re-vincula', function () {
