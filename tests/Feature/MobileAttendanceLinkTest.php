@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\MobileLinkController;
 use App\Models\AttendanceEvent;
 use App\Models\Branch;
 use App\Models\Company;
@@ -11,7 +12,10 @@ use App\Models\Terminal;
 use App\Models\User;
 use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
+use App\Notifications\MobileLinkThrottledNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -296,4 +300,94 @@ it('el POST de vincular-celular tiene throttling más estricto que el GET', func
     // El 6º intento en la misma ventana debe ser rechazado por el rate limiter.
     $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
         ->assertStatus(429);
+});
+
+/**
+ * Regresión: el 429 del throttling por minuto mostraba el mensaje genérico
+ * de Laravel ("Too Many Attempts.", en inglés, sin indicar cuánto esperar).
+ */
+it('el 429 por límite de minuto tiene un mensaje en español con el tiempo de espera', function () {
+    $employee = makeLinkableEmployee();
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])->assertStatus(422);
+    }
+
+    $response = $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01']);
+
+    $response->assertStatus(429)->assertJson(['ok' => false]);
+    expect($response->json('message'))->toContain('Demasiados intentos')
+        ->and($response->json('message'))->toContain('minuto');
+});
+
+/**
+ * Regresión: otras rutas públicas con throttling (terminal/setup,
+ * registro-facial) no deben verse afectadas por el render() scopeado a
+ * mobile-link.claim en bootstrap/app.php — deben mantener el 429 default.
+ */
+it('el 429 de otras rutas throttled no se ve afectado por el mensaje de vincular-celular', function () {
+    // terminal/{code}/setup/{setupToken} usa throttle:10,1 (sin scopear en bootstrap/app.php).
+    for ($i = 0; $i < 10; $i++) {
+        $this->getJson('/terminal/BOGUS/setup/faketoken');
+    }
+
+    $response = $this->getJson('/terminal/BOGUS/setup/faketoken');
+
+    $response->assertStatus(429);
+    // No debe tener la forma de MobileLinkController::throttledResponse() ('ok' + 'message' en español).
+    expect($response->json('ok'))->toBeNull();
+});
+
+/**
+ * MobileLinkController::throttledResponse() es la lógica que arma el mensaje
+ * y decide si notificar a los admins — se prueba directamente (sin esperar
+ * 15 requests reales limitadas a 5/minuto) construyendo la excepción con los
+ * headers exactos que produce ThrottleRequests::buildException().
+ */
+it('el límite diario notifica a los admins con la IP y el CI intentado, una sola vez por día', function () {
+    Notification::fake();
+    User::factory()->create();
+
+    $request = Request::create('/vincular-celular', 'POST', ['ci' => '4445556']);
+    $request->server->set('REMOTE_ADDR', '203.0.113.20');
+
+    $exception = new ThrottleRequestsException('Too Many Attempts.', null, [
+        'Retry-After' => 43200,
+        'X-RateLimit-Limit' => 15,
+        'X-RateLimit-Remaining' => 0,
+    ]);
+
+    $response = MobileLinkController::throttledResponse($exception, $request);
+    $data = $response->getData(true);
+
+    expect($response->getStatusCode())->toBe(429)
+        ->and($data['ok'])->toBeFalse()
+        ->and($data['message'])->toContain('RRHH');
+
+    Notification::assertSentTimes(MobileLinkThrottledNotification::class, 1);
+    Notification::assertSentTo(User::first(), MobileLinkThrottledNotification::class, function ($notification) {
+        return $notification->ip === '203.0.113.20' && $notification->lastCiAttempted === '4445556';
+    });
+
+    // Un segundo 429 diario de la MISMA IP el mismo día no debe volver a notificar.
+    MobileLinkController::throttledResponse($exception, $request);
+    Notification::assertSentTimes(MobileLinkThrottledNotification::class, 1);
+});
+
+it('el límite por minuto (distinto de 15) no notifica a los admins', function () {
+    Notification::fake();
+    User::factory()->create();
+
+    $request = Request::create('/vincular-celular', 'POST', ['ci' => '1112223']);
+    $request->server->set('REMOTE_ADDR', '203.0.113.10');
+
+    $exception = new ThrottleRequestsException('Too Many Attempts.', null, [
+        'Retry-After' => 45,
+        'X-RateLimit-Limit' => 5,
+        'X-RateLimit-Remaining' => 0,
+    ]);
+
+    MobileLinkController::throttledResponse($exception, $request);
+
+    Notification::assertNothingSent();
 });

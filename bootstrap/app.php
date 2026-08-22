@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\MobileLinkController;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Request;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 
@@ -22,5 +25,15 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Mensaje en español + tiempo de espera para el throttling de vinculación
+        // de celular — ver MobileLinkController::throttledResponse(). Sin esto, el
+        // empleado ve el 429 genérico de Laravel ("Too Many Attempts.", en inglés,
+        // sin contexto de cuánto esperar ni a quién contactar).
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if (! $request->routeIs('mobile-link.claim')) {
+                return null;
+            }
+
+            return MobileLinkController::throttledResponse($e, $request);
+        });
     })->create();

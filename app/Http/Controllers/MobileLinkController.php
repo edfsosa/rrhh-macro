@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\User;
+use App\Notifications\MobileLinkThrottledNotification;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
@@ -82,5 +86,62 @@ class MobileLinkController extends Controller
                 'face_descriptor' => $employee->face_descriptor,
             ],
         ]);
+    }
+
+    /**
+     * Traduce el 429 genérico de Laravel ("Too Many Attempts.") a un mensaje
+     * en español con el tiempo de espera real, para la ruta de vinculación
+     * de celular (`throttle:5,1,mobile-link-minute` +
+     * `throttle:15,1440,mobile-link-day` en routes/web.php). Registrado
+     * desde `bootstrap/app.php`, scopeado a esta única ruta — el resto de
+     * los enlaces públicos del proyecto (registro-facial, terminal/setup)
+     * quedan con el comportamiento por defecto, fuera de alcance acá.
+     *
+     * El header `X-RateLimit-Limit` distingue qué throttle disparó la
+     * excepción sin necesitar adivinar la clave interna del rate limiter:
+     * 5 = límite por minuto (probablemente un usuario tipeando mal),
+     * 15 = límite diario (señal más fuerte de empleado trabado o fuerza
+     * bruta — amerita avisar a los admins).
+     */
+    public static function throttledResponse(ThrottleRequestsException $exception, Request $request): JsonResponse
+    {
+        $headers = $exception->getHeaders();
+        $retryAfterSeconds = (int) ($headers['Retry-After'] ?? 60);
+        $limit = (int) ($headers['X-RateLimit-Limit'] ?? 0);
+
+        if ($limit === 15) {
+            static::notifyAdminsOfDailyLimitOnce($request->ip(), $request->input('ci'));
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Alcanzó el límite de intentos por hoy. Contacte a RRHH para vincular su dispositivo.',
+            ], 429, $headers);
+        }
+
+        $minutes = max(1, (int) ceil($retryAfterSeconds / 60));
+
+        return response()->json([
+            'ok' => false,
+            'message' => "Demasiados intentos. Espere {$minutes} minuto".($minutes === 1 ? '' : 's').' e intente de nuevo.',
+        ], 429, $headers);
+    }
+
+    /**
+     * Notifica a los admins como máximo una vez por IP por día calendario
+     * cuando se agota el límite diario — sin este flag, la notificación se
+     * dispararía en cada uno de los intentos bloqueados posteriores (el
+     * contador del rate limiter queda fijo en el máximo el resto del día).
+     */
+    private static function notifyAdminsOfDailyLimitOnce(string $ip, ?string $lastCiAttempted): void
+    {
+        $notifiedKey = 'mobile-link-day-notified:'.$ip.':'.now()->format('Y-m-d');
+
+        if (Cache::has($notifiedKey)) {
+            return;
+        }
+
+        Cache::put($notifiedKey, true, now()->endOfDay());
+
+        User::all()->each(fn (User $user) => $user->notify(new MobileLinkThrottledNotification($ip, $lastCiAttempted)));
     }
 }

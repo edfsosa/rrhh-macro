@@ -76,6 +76,28 @@
         <span>Sin conexión — la marcación se guarda en el dispositivo y se sincroniza al reconectar</span>
     </div>
 
+    {{-- Conflicto de sincronización: una marcación encolada offline fue rechazada por el
+    servidor al reconectar (ej. secuencia inválida) — no es accionable por el empleado, solo
+    informativo (RRHH la revisa en AttendanceMarkFailureResource); se puede cerrar el aviso. --}}
+    <div id="conflictBanner" class="conflict-banner" role="alert" aria-live="polite" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>Una marcación reciente no pudo confirmarse — RRHH la va a revisar.</span>
+        <button type="button" id="btnDismissConflict" class="conflict-dismiss-btn">Entendido</button>
+    </div>
+
+    {{-- Estado de sincronización offline + sync manual — paridad con el botón "Sincronizar"
+    del kiosko (terminal-idle.blade.php). --}}
+    <div class="sync-status-row" id="syncStatusRow">
+        <span class="sync-status-text" id="syncStatusText" aria-live="polite"></span>
+        <button type="button" id="btnSyncNow" class="sync-status-btn" aria-label="Sincronizar marcaciones pendientes">
+            Sincronizar
+        </button>
+    </div>
+
     <main id="main-content" class="page-wrapper">
         <div class="main-grid">
             <x-attendance.video-section />

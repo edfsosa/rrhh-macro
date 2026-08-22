@@ -141,6 +141,73 @@ body.modal-open { overflow: hidden; }
 }
 .offline-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
 .offline-banner.is-visible { max-height: 48px; opacity: 1; padding: var(--sp-2) var(--sp-4); }
+
+/* ============================================================
+   BANNER DE CONFLICTO DE SINCRONIZACIÓN
+   ============================================================ */
+.conflict-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--c-danger-bg);
+    border-bottom: 1px solid var(--c-danger-ring);
+    color: var(--c-danger);
+    font-size: .8125rem;
+    font-weight: 600;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 400ms ease, opacity 400ms ease, padding 400ms ease;
+}
+.conflict-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
+.conflict-banner.is-visible { max-height: 64px; opacity: 1; padding: var(--sp-2) var(--sp-4); }
+.conflict-dismiss-btn {
+    background: transparent;
+    border: 1px solid var(--c-danger);
+    color: var(--c-danger);
+    font: inherit;
+    font-size: .75rem;
+    font-weight: 700;
+    padding: 2px var(--sp-3);
+    border-radius: var(--r);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--tr-f), color var(--tr-f);
+}
+.conflict-dismiss-btn:hover { background: var(--c-danger); color: #fff; }
+
+/* ============================================================
+   ESTADO DE SINCRONIZACIÓN OFFLINE (celular)
+   ============================================================ */
+.sync-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-1) var(--sp-4);
+    background: var(--c-bg);
+    border-bottom: 1px solid var(--c-border);
+    font-size: .75rem;
+}
+.sync-status-text { color: var(--c-muted); min-width: 0; }
+.sync-status-btn {
+    background: transparent;
+    border: 1px solid var(--c-border-s);
+    color: var(--c-muted);
+    font: inherit;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: 2px var(--sp-3);
+    border-radius: var(--r);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--tr-f), color var(--tr-f);
+}
+.sync-status-btn:hover:not(:disabled) { background: var(--c-surface); color: var(--c-text); }
+.sync-status-btn:disabled { opacity: .5; cursor: not-allowed; }
 .app-mode-badge {
     background: var(--c-primary-bg);
     color: var(--c-primary);
