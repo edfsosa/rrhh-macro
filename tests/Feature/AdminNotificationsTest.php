@@ -150,6 +150,7 @@ it('la url de la notificación de conflicto apunta al detalle real del fallo', f
         'employee_id' => $employee->id,
         'branch_id' => $employee->branch_id,
         'attempted_event_type' => 'break_start',
+        'failure_message' => 'test',
     ]);
 
     $notification = new SyncConflictPendingNotification($failure);
