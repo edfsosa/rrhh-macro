@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
@@ -1189,21 +1190,23 @@ class Employee extends Model implements AuthenticatableContract
      *
      * @return string Token Sanctum en texto plano — solo se retorna una vez, nunca se persiste en claro.
      */
-    public function claimMobileToken(): string
+    public function claimMobileToken(?string $userAgent = null): string
     {
         // Se evalúa antes de pisar mobile_linked_at — distingue una vinculación
-        // nueva (sin aviso, es el flujo normal) de una re-vinculación (ver
-        // MobileDeviceRelinkedNotification: CI+fecha es una credencial débil,
-        // esto da visibilidad a un admin ante un posible acoso/DoS dirigido).
+        // nueva (informativa) de una re-vinculación (ver MobileDeviceRelinkedNotification:
+        // CI+fecha es una credencial débil, esto da visibilidad a un admin ante un
+        // posible acoso/DoS dirigido).
         $isRelink = $this->hasMobileLinked();
 
         $this->tokens()->where('name', 'like', 'mobile:%')->delete();
 
         $this->forceFill(['mobile_linked_at' => now()])->save();
 
-        if ($isRelink) {
-            User::all()->each(fn (User $user) => $user->notify(new MobileDeviceRelinkedNotification($this)));
-        }
+        $notification = $isRelink
+            ? new MobileDeviceRelinkedNotification($this, $userAgent)
+            : new MobileDeviceLinkedNotification($this, $userAgent);
+
+        User::all()->each(fn (User $user) => $user->notify($notification));
 
         return $this->createToken('mobile:'.$this->id, [self::MOBILE_SYNC_ABILITY])->plainTextToken;
     }

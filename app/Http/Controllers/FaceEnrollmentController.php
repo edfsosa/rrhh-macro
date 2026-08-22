@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\FaceEnrollment;
+use App\Models\User;
+use App\Notifications\FaceEnrollmentPendingApprovalNotification;
 use App\Rules\FaceDescriptor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -109,6 +111,8 @@ class FaceEnrollmentController extends Controller
                 'enrollment_id' => $enrollment->id,
                 'employee_id' => $enrollment->employee_id,
             ]);
+
+            User::all()->each(fn (User $user) => $user->notify(new FaceEnrollmentPendingApprovalNotification($enrollment)));
 
             // Retornar una respuesta JSON indicando éxito
             return response()->json([

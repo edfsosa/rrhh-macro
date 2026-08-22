@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\TerminalProvisionedNotification;
 use App\Settings\GeneralSettings;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -382,6 +383,8 @@ class Terminal extends Model implements AuthenticatableContract
             'setup_token' => null,
             'setup_token_expires_at' => null,
         ])->save();
+
+        User::all()->each(fn (User $user) => $user->notify(new TerminalProvisionedNotification($this)));
 
         return $this->createToken('kiosk:'.$this->code, [self::SYNC_ABILITY])->plainTextToken;
     }

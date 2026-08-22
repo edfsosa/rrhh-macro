@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\SyncConflictPendingNotification;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -177,16 +178,26 @@ class AttendanceMarkFailure extends Model
     }
 
     /**
-     * Crea y persiste un registro de fallo de marcación.
+     * Crea y persiste un registro de fallo de marcación. Los conflictos de
+     * sincronización (`sync_conflict`) además notifican a todos los admins —
+     * es el único tipo de fallo que requiere revisión manual obligatoria
+     * (ver `canBeResolved()`); el resto (`face_no_match`, etc.) son
+     * demasiado frecuentes en el uso normal como para notificar cada uno.
      *
      * @param  array<string, mixed>  $data
      */
     public static function record(array $data): static
     {
-        return static::create(array_merge(
+        $failure = static::create(array_merge(
             ['occurred_at' => now()],
             $data,
         ));
+
+        if ($failure->failure_type === 'sync_conflict') {
+            User::all()->each(fn (User $user) => $user->notify(new SyncConflictPendingNotification($failure)));
+        }
+
+        return $failure;
     }
 
     /**
