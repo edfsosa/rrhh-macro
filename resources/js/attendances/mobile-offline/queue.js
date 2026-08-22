@@ -22,6 +22,7 @@ import {
     incrementQueuedEventAttempts,
     countPendingEvents,
     countConflictEvents,
+    dismissConflictEvents,
     getEmployeeStatusCache,
     setEmployeeStatusCache,
 } from './db.js';
@@ -231,4 +232,4 @@ export async function flushQueue() {
     }
 }
 
-export { countPendingEvents, countConflictEvents };
+export { countPendingEvents, countConflictEvents, dismissConflictEvents };

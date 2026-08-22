@@ -209,6 +209,23 @@ export async function countConflictEvents() {
     return all.filter((event) => event.status === 'conflict').length;
 }
 
+/**
+ * Elimina del store local los eventos en conflicto — el registro real de lo
+ * ocurrido ya vive en el servidor (`AttendanceMarkFailure`, revisado por un
+ * admin en Filament); la copia local solo sirve para avisarle una vez al
+ * empleado. Sin esto, el aviso de conflicto en /marcar quedaría pegado para
+ * siempre (nada más limpia `outbound_events` del lado del cliente).
+ */
+export async function dismissConflictEvents() {
+    const db = await getDb();
+    const all = await db.getAll('outbound_events');
+    const tx = db.transaction('outbound_events', 'readwrite');
+    for (const event of all) {
+        if (event.status === 'conflict') await tx.store.delete(event.client_event_id);
+    }
+    await tx.done;
+}
+
 // =========================================================================
 // CACHÉ DE ESTADO (employee_status_cache)
 // =========================================================================

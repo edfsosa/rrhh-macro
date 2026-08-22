@@ -3,7 +3,14 @@ import { captureFaceSamples } from '../shared/face-capture-core.js';
 import { migrateTokenFromLocalStorage, getMeta, getOwnEmployee } from './mobile-offline/db.js';
 import { identifyEmployee as matchDescriptor } from './mobile-offline/matcher.js';
 import { heartbeat, getFaceConfig, MobileAuthError } from './mobile-offline/sync.js';
-import { getOwnStatus, enqueueMark, flushQueue } from './mobile-offline/queue.js';
+import {
+    getOwnStatus,
+    enqueueMark,
+    flushQueue,
+    countPendingEvents,
+    countConflictEvents,
+    dismissConflictEvents,
+} from './mobile-offline/queue.js';
 
 /**
  * =============================================================================
@@ -97,6 +104,10 @@ const statusBar           = document.getElementById("statusBar");
     const gpsBannerText       = document.getElementById("gpsBannerText");
     const gpsBannerRetry      = document.getElementById("gpsBannerRetry");
     const markHint            = document.getElementById("markHint");
+    const syncStatusText      = document.getElementById("syncStatusText");
+    const btnSyncNow          = document.getElementById("btnSyncNow");
+    const conflictBanner      = document.getElementById("conflictBanner");
+    const btnDismissConflict  = document.getElementById("btnDismissConflict");
 
     // ==========================================================================
     // CONFIGURACIÓN Y CONSTANTES
@@ -381,6 +392,76 @@ const statusBar           = document.getElementById("statusBar");
         banner.setAttribute("aria-hidden", String(!isOffline));
         // Re-evaluar botón de marcación al cambiar estado de conexión
         checkEnableMark();
+    }
+
+    // --------------------------------------------------------------------------
+    // ESTADO DE SINCRONIZACIÓN OFFLINE — paridad con refreshIdleSyncStatus()
+    // de terminal.js (kiosko): mismo texto/prioridad (conflictos > pendientes >
+    // sincronizado), pero acá además hay un aviso separado (conflictBanner)
+    // porque un conflicto en el celular es del propio empleado, no de un
+    // tercero — amerita más que una línea de texto discreta.
+    // --------------------------------------------------------------------------
+    function updateSyncStatus(text) {
+        if (syncStatusText) syncStatusText.textContent = text;
+    }
+
+    /**
+     * Refleja en la fila de estado la cola de eventos offline real (no solo
+     * el último resultado puntual) — se llama después de cada intento de
+     * sincronización (marcación, sync de fondo, botón manual, carga inicial).
+     */
+    async function refreshSyncStatus() {
+        const [pending, conflicts] = await Promise.all([countPendingEvents(), countConflictEvents()]);
+
+        if (conflicts > 0) {
+            updateSyncStatus(`${conflicts} marcación(es) requieren revisión`);
+        } else if (pending > 0) {
+            updateSyncStatus(`${pending} marcación(es) pendiente(s) de sincronizar`);
+        } else {
+            updateSyncStatus(navigator.onLine ? "Sincronizado" : "Sin conexión — usando datos locales");
+        }
+
+        if (conflictBanner) {
+            conflictBanner.classList.toggle("is-visible", conflicts > 0);
+            conflictBanner.setAttribute("aria-hidden", String(conflicts === 0));
+        }
+    }
+
+    // Botón "Entendido" del aviso de conflicto — el empleado no puede resolverlo
+    // (ya lo revisa RRHH en Filament), solo confirma que lo vio. Limpia la copia
+    // local para que el aviso no quede pegado para siempre.
+    if (btnDismissConflict) {
+        btnDismissConflict.addEventListener("click", async () => {
+            btnDismissConflict.disabled = true;
+            try {
+                await dismissConflictEvents();
+                await refreshSyncStatus();
+            } finally {
+                btnDismissConflict.disabled = false;
+            }
+        });
+    }
+
+    // Botón "Sincronizar" manual — mismo patrón que btnForceSync en terminal.js.
+    if (btnSyncNow) {
+        btnSyncNow.addEventListener("click", async () => {
+            btnSyncNow.disabled = true;
+            updateSyncStatus("Sincronizando...");
+            try {
+                await heartbeat();
+                await flushQueue();
+                await refreshSyncStatus();
+            } catch (error) {
+                if (error instanceof MobileAuthError) {
+                    window.location.href = "/vincular-celular";
+                    return;
+                }
+                logWarn("Sincronización manual falló:", error.message);
+                await refreshSyncStatus();
+            } finally {
+                btnSyncNow.disabled = false;
+            }
+        });
     }
 
     // --------------------------------------------------------------------------
@@ -821,8 +902,10 @@ const statusBar           = document.getElementById("statusBar");
      * fallará con un mensaje claro hasta que haya conexión al menos una vez).
      */
     async function initializeOfflineSync() {
+        updateSyncStatus("Sincronizando...");
         try {
             await heartbeat();
+            await flushQueue();
         } catch (error) {
             if (error instanceof MobileAuthError) {
                 window.location.href = "/vincular-celular";
@@ -830,6 +913,7 @@ const statusBar           = document.getElementById("statusBar");
             }
             logWarn("No se pudo sincronizar con el servidor (heartbeat):", error.message);
         }
+        await refreshSyncStatus();
     }
 
     /**
@@ -844,7 +928,9 @@ const statusBar           = document.getElementById("statusBar");
         };
         const runQueueFlush = () => {
             if (!navigator.onLine) return;
-            flushQueue().catch((error) => logWarn("Sincronización de cola en segundo plano falló:", error.message));
+            flushQueue()
+                .then(() => refreshSyncStatus())
+                .catch((error) => logWarn("Sincronización de cola en segundo plano falló:", error.message));
         };
 
         setInterval(runHeartbeat, 90 * 1000);
@@ -2091,6 +2177,7 @@ const statusBar           = document.getElementById("statusBar");
                 btnMark.classList.remove("btn-loading");
                 btnMark.textContent = "Confirmar marcación";
                 btnMark.disabled = false;
+                refreshSyncStatus();
             }
         });
     }
