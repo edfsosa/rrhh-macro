@@ -89,6 +89,11 @@ it('sincroniza un evento nuevo y lo marca con origen terminal', function () {
  * 22:30, 3 horas adelantado.
  */
 it('convierte recorded_at de UTC a la timezone de la app antes de persistir', function () {
+    // Se fija explícitamente (en vez de asumir el app.timezone ambiente, que en
+    // CI es UTC) para que el test ejercite realmente la conversión y no solo
+    // coincida "por casualidad" cuando origen y destino son el mismo UTC.
+    config(['app.timezone' => 'America/Asuncion']);
+
     $employee = makeSyncEmployee();
     $terminal = makeSyncTerminal($employee);
     $clientEventId = (string) Str::uuid();
@@ -102,7 +107,7 @@ it('convierte recorded_at de UTC a la timezone de la app antes de persistir', fu
 
     $event = AttendanceEvent::where('client_event_id', $clientEventId)->first();
     expect($event->recorded_at->format('Y-m-d H:i:s'))->toBe('2026-08-23 19:30:00')
-        ->and($event->recorded_at->timezone->getName())->toBe(config('app.timezone'));
+        ->and($event->recorded_at->timezone->getName())->toBe('America/Asuncion');
 });
 
 it('es idempotente — reenviar el mismo client_event_id no duplica el evento', function () {
