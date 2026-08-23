@@ -13,14 +13,23 @@ class CreateTerminal extends CreateRecord
 
     /**
      * Notificación de éxito al crear la terminal.
-     *
-     * @return Notification|null
      */
     protected function getCreatedNotification(): ?Notification
     {
         return Notification::make()
             ->success()
             ->title('Terminal creada')
-            ->body("La terminal \"{$this->record->name}\" fue creada. Configurá el dispositivo con la URL generada.");
+            ->body("La terminal \"{$this->record->name}\" fue creada. Generá el enlace de configuración para provisionar el dispositivo.");
+    }
+
+    /**
+     * Redirige al detalle del terminal recién creado con `?provision=1` —
+     * ViewTerminal::mount() lo detecta y abre de una el modal "Generar enlace
+     * de configuración", para que el admin no tenga que volver a la lista a
+     * buscar el QR justo después de crear el terminal.
+     */
+    protected function getRedirectUrl(): string
+    {
+        return static::getResource()::getUrl('view', ['record' => $this->getRecord()]).'?provision=1';
     }
 }

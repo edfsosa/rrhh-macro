@@ -12,6 +12,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Grid as InfoGrid;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -181,13 +182,23 @@ class TerminalResource extends Resource
                                 ->state(fn (Terminal $record) => $record->url),
                         ]),
 
-                        TextEntry::make('qr_code')
+                        ImageEntry::make('qr_code')
                             ->label('QR de acceso')
-                            ->html()
-                            ->state(fn (Terminal $record) => '<div style="display:inline-block;background:#fff;padding:12px;border-radius:8px;border:1px solid #e5e7eb">'
-                                .QrCode::size(180)->generate($record->url)
-                                .'</div>'
-                            ),
+                            // No usar TextEntry->html() acá: el sanitizador HTML de Filament
+                            // (Symfony HtmlSanitizer, vía Str::sanitizeHtml()) elimina el <svg>
+                            // completo porque SVG no está en su lista de elementos "seguros" —
+                            // el QR quedaba invisible (solo el <div> contenedor vacío). Un data
+                            // URI en ImageEntry evita el sanitizador por completo: Filament lo
+                            // detecta (str($state)->startsWith('data:')) y lo usa tal cual como
+                            // src de <img>, sin pasar por el pipeline de HTML.
+                            ->state(fn (Terminal $record) => 'data:image/svg+xml;base64,'
+                                .base64_encode((string) QrCode::size(180)->generate($record->url))
+                            )
+                            ->height(180)
+                            ->extraImgAttributes([
+                                'style' => 'background:#fff;padding:12px;border-radius:8px;border:1px solid #e5e7eb',
+                                'alt' => 'Código QR de acceso al terminal',
+                            ]),
                     ]),
 
                 InfoSection::make('Dispositivo')
@@ -492,14 +503,16 @@ class TerminalResource extends Resource
 
     /**
      * Genera un nuevo token de configuración de un solo uso para el terminal y
-     * renderiza el modal con su URL/QR. Efecto colateral intencional dentro de
-     * un closure de contenido: si Livewire re-evalúa el modal más de una vez
-     * mientras está abierto, cada llamada genera Y muestra el token vigente
-     * en ese momento de forma consistente (nunca queda desincronizado con lo
-     * que se ve en pantalla) — a costa de invalidar tokens de configuración
+     * renderiza el modal con su URL/QR. Público porque lo usan tanto la acción
+     * de tabla (`ListTerminals`) como el header action equivalente en
+     * `ViewTerminal`. Efecto colateral intencional dentro de un closure de
+     * contenido: si Livewire re-evalúa el modal más de una vez mientras está
+     * abierto, cada llamada genera Y muestra el token vigente en ese momento
+     * de forma consistente (nunca queda desincronizado con lo que se ve en
+     * pantalla) — a costa de invalidar tokens de configuración
      * previos no usados, lo cual es aceptable para un enlace de un solo uso.
      */
-    protected static function renderSetupLinkModal(Terminal $record): View
+    public static function renderSetupLinkModal(Terminal $record): View
     {
         $expiresInMinutes = 30;
         $setupToken = $record->generateSetupToken($expiresInMinutes);
