@@ -208,6 +208,16 @@ body.modal-open { overflow: hidden; }
 }
 .sync-status-btn:hover:not(:disabled) { background: var(--c-surface); color: var(--c-text); }
 .sync-status-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Desvincular celular: acción rara y destructiva — discreta hasta el hover, no compite visualmente con "Sincronizar". */
+.sync-status-btn--unlink {
+    border-color: transparent;
+    margin-left: auto;
+}
+.sync-status-btn--unlink:hover:not(:disabled) {
+    background: var(--c-danger-bg);
+    color: var(--c-danger);
+    border-color: var(--c-danger-bg);
+}
 .app-mode-badge {
     background: var(--c-primary-bg);
     color: var(--c-primary);

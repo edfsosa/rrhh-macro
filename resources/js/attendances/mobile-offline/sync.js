@@ -97,6 +97,19 @@ export async function fetchStatus() {
 }
 
 /**
+ * Auto-desvinculación: el propio empleado decide desvincular este celular
+ * (ej. antes de venderlo o prestarlo) desde /marcar — a diferencia de
+ * "Revocar sesión móvil" en EmployeeResource (accionada por un admin). El
+ * caller es responsable de vaciar la caché local (ver `resetDb()` en
+ * `db.js`) tras una respuesta exitosa.
+ * @returns {Promise<void>}
+ */
+export async function unlinkDevice() {
+    const data = await apiFetch('/unlink', { method: 'POST' });
+    if (!data.ok) throw new Error(data.message || 'No se pudo desvincular el dispositivo.');
+}
+
+/**
  * Envía un lote de eventos de marcación — uno solo si se llama justo tras
  * capturar la marcación con red disponible, o varios si se está vaciando la
  * cola offline acumulada (ver mobile-offline/queue.js). A diferencia del

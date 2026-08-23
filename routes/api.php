@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MobileEventSyncController;
 use App\Http\Controllers\Api\MobileHeartbeatController;
 use App\Http\Controllers\Api\MobileStatusController;
+use App\Http\Controllers\Api\MobileUnlinkController;
 use App\Http\Controllers\Api\TerminalEmployeeSyncController;
 use App\Http\Controllers\Api\TerminalEventSyncController;
 use App\Http\Controllers\Api\TerminalHeartbeatController;
@@ -59,4 +60,8 @@ Route::prefix('v1/mobile')->name('api.mobile.')->middleware(['auth:sanctum'])->g
     Route::post('/events/sync', [MobileEventSyncController::class, 'store'])
         ->middleware('ability:mobile:sync')
         ->name('events.sync');
+
+    Route::post('/unlink', [MobileUnlinkController::class, 'store'])
+        ->middleware('ability:mobile:sync')
+        ->name('unlink');
 });

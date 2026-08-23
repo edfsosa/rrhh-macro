@@ -96,6 +96,9 @@
         <button type="button" id="btnSyncNow" class="sync-status-btn" aria-label="Sincronizar marcaciones pendientes">
             Sincronizar
         </button>
+        <button type="button" id="btnUnlinkDevice" class="sync-status-btn sync-status-btn--unlink" aria-label="Desvincular este celular">
+            Desvincular celular
+        </button>
     </div>
 
     <main id="main-content" class="page-wrapper">

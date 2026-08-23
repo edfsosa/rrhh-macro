@@ -223,6 +223,42 @@ it('un token de terminal no puede usar las rutas móviles (ability distinta)', f
     $this->postJson('/api/v1/mobile/heartbeat')->assertStatus(403);
 });
 
+// ─── Auto-desvinculación (/api/v1/mobile/unlink) ───────────────────────────
+
+it('unlink revoca el token propio del empleado — auto-servicio, sin admin', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/mobile/unlink');
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($employee->fresh()->hasMobileLinked())->toBeFalse()
+        ->and($employee->tokens()->count())->toBe(0);
+});
+
+it('unlink deja al empleado listo para vincular un celular nuevo', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+    $this->postJson('/api/v1/mobile/unlink')->assertOk();
+
+    $response = $this->postJson('/vincular-celular', [
+        'ci' => $employee->ci,
+        'birth_date' => '1990-05-15',
+    ]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+});
+
+it('un token de terminal no puede usar el endpoint de unlink móvil (ability distinta)', function () {
+    $employee = makeLinkableEmployee();
+    $terminal = Terminal::create([
+        'name' => 'Kiosko Test', 'branch_id' => $employee->branch_id,
+    ]);
+    Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
+
+    $this->postJson('/api/v1/mobile/unlink')->assertStatus(403);
+});
+
 // ─── Hardening (Fase 4) ─────────────────────────────────────────────────────
 
 it('notifica a los admins (sin advertencia) en la primera vinculación', function () {

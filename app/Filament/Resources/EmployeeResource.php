@@ -1067,7 +1067,14 @@ class EmployeeResource extends Resource
                         ->visible(fn (Employee $record): bool => $record->hasMobileLinked())
                         ->requiresConfirmation()
                         ->modalHeading('Revocar sesión móvil')
-                        ->modalDescription(fn (Employee $record) => "El celular vinculado de {$record->first_name} {$record->last_name} perderá acceso a la marcación offline de inmediato. Deberá vincularse de nuevo con CI + fecha de nacimiento.")
+                        ->modalDescription(function (Employee $record): string {
+                            $base = "El celular vinculado de {$record->first_name} {$record->last_name} perderá acceso a la marcación offline de inmediato. Deberá vincularse de nuevo con CI + fecha de nacimiento.";
+
+                            $linkedAt = $record->mobile_linked_at?->format('d/m/Y H:i');
+                            $lastSync = $record->mobile_last_heartbeat_at?->diffForHumans() ?? 'nunca sincronizó';
+
+                            return "{$base} Vinculado el {$linkedAt}. Último sync: {$lastSync}.";
+                        })
                         ->modalSubmitActionLabel('Sí, revocar')
                         ->action(function (Employee $record) {
                             $record->revokeMobileToken();
