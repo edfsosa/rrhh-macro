@@ -95,7 +95,12 @@ class AttendanceEventSyncService
         }
 
         try {
-            $recordedAt = Carbon::parse($eventData['recorded_at']);
+            // El kiosko manda recorded_at en UTC (Date.toISOString()) — convertir a la
+            // timezone de la app ANTES de persistir, no solo para calcular $date. Sin esto
+            // el evento queda guardado con la hora UTC "cruda" (ej. 3 horas adelantado en
+            // America/Asuncion), porque el resto de la app asume que recorded_at ya está en
+            // hora local.
+            $recordedAt = Carbon::parse($eventData['recorded_at'])->timezone(config('app.timezone'));
         } catch (Throwable) {
             return [
                 'client_event_id' => $clientEventId,
@@ -105,7 +110,7 @@ class AttendanceEventSyncService
             ];
         }
 
-        $date = $recordedAt->copy()->timezone(config('app.timezone'))->toDateString();
+        $date = $recordedAt->toDateString();
 
         try {
             return DB::transaction(fn () => $this->insertEvent($terminal, $employee, $eventData, $clientEventId, $recordedAt, $date));
