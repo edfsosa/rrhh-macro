@@ -96,9 +96,12 @@ it('convierte recorded_at de UTC a la timezone de la app antes de persistir', fu
         'recorded_at' => '2026-08-23T22:30:00.000Z',
     ]]);
 
+    // El valor leído de vuelta se re-hidrata con el timezone default de PHP a
+    // nivel de proceso (fijado una sola vez al boot vía date_default_timezone_set()),
+    // no con el config() recién sobreescrito — por eso solo se verifica el
+    // valor de reloj persistido, no el nombre de la timezone del objeto leído.
     $event = AttendanceEvent::where('client_event_id', $clientEventId)->first();
-    expect($event->recorded_at->format('Y-m-d H:i:s'))->toBe('2026-08-23 19:30:00')
-        ->and($event->recorded_at->timezone->getName())->toBe('America/Asuncion');
+    expect($event->recorded_at->format('Y-m-d H:i:s'))->toBe('2026-08-23 19:30:00');
 });
 
 it('es idempotente — reenviar el mismo client_event_id no duplica el evento', function () {
