@@ -148,6 +148,17 @@ export async function enqueueMark(employeeId, eventType) {
         date: localDateString(recordedAt),
     });
 
+    // Refresca el caché de estado de inmediato — sin esto, una vez que este
+    // evento se sincroniza y se borra de outbound_events, resolveEmployeeStatus()
+    // no tiene forma de saber que ya se registró (el caché queda con el
+    // último estado confirmado ANTES de esta marcación) y vuelve a ofrecer
+    // los mismos eventos permitidos que antes de marcar.
+    await setEmployeeStatusCache(employeeId, {
+        last_event: eventType,
+        last_event_time: recordedAt.toTimeString().slice(0, 5),
+        allowed_events: allowedNextEventTypes(eventType),
+    });
+
     return { client_event_id: clientEventId, recorded_at: recordedAt.toISOString() };
 }
 

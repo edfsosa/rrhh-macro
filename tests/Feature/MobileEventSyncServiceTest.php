@@ -74,6 +74,36 @@ it('sincroniza un evento nuevo y lo marca con origen mobile', function () {
         ->and($event->terminal_id)->toBeNull();
 });
 
+/**
+ * Regresión: el celular manda recorded_at en UTC (Date.toISOString(), ej.
+ * "...T22:30:00.000Z"). Antes del fix, ese valor se persistía tal cual (sin
+ * convertir a la timezone de la app), guardando la hora UTC "cruda" — un
+ * empleado que marcó a las 19:30 en Paraguay (UTC-3) quedaba con recorded_at
+ * en 22:30, 3 horas adelantado.
+ */
+it('convierte recorded_at de UTC a la timezone de la app antes de persistir', function () {
+    // Se fija explícitamente (en vez de asumir el app.timezone ambiente, que en
+    // CI es UTC) para que el test ejercite realmente la conversión y no solo
+    // coincida "por casualidad" cuando origen y destino son el mismo UTC.
+    config(['app.timezone' => 'America/Asuncion']);
+
+    $employee = makeMobileSyncEmployee();
+    $clientEventId = (string) Str::uuid();
+
+    app(MobileEventSyncService::class)->syncBatch($employee, [[
+        'client_event_id' => $clientEventId,
+        'event_type' => 'check_in',
+        'recorded_at' => '2026-08-23T22:30:00.000Z',
+    ]]);
+
+    // El valor leído de vuelta se re-hidrata con el timezone default de PHP a
+    // nivel de proceso (fijado una sola vez al boot vía date_default_timezone_set()),
+    // no con el config() recién sobreescrito — por eso solo se verifica el
+    // valor de reloj persistido, no el nombre de la timezone del objeto leído.
+    $event = AttendanceEvent::where('client_event_id', $clientEventId)->first();
+    expect($event->recorded_at->format('Y-m-d H:i:s'))->toBe('2026-08-23 19:30:00');
+});
+
 it('es idempotente — reenviar el mismo client_event_id no duplica el evento', function () {
     $employee = makeMobileSyncEmployee();
     $clientEventId = (string) Str::uuid();
