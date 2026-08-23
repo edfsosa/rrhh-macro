@@ -121,6 +121,22 @@ export async function logSync(type, ok, detail = null) {
 }
 
 /**
+ * Vacía por completo la caché local del celular — llamado tras una
+ * auto-desvinculación exitosa (ver `unlinkDevice()` en `sync.js`). El
+ * dispositivo queda como recién instalado: sin token, sin empleado
+ * cacheado, sin cola de eventos ni estado. Cualquier marcación pendiente de
+ * sincronizar en `outbound_events` se pierde — el caller es responsable de
+ * intentar `flushQueue()` y advertir al usuario antes de llamar a esto.
+ * @returns {Promise<void>}
+ */
+export async function resetDb() {
+    const db = await getDb();
+    await Promise.all(
+        ['mobile_meta', 'outbound_events', 'employee_status_cache', 'sync_log'].map((store) => db.clear(store))
+    );
+}
+
+/**
  * Empleado dueño del dispositivo, con su descriptor facial cacheado — el
  * único "candidato" contra el que el matcher local compara.
  * @returns {Promise<{id: number, first_name: string, last_name: string, ci: string|null, face_descriptor: number[]}|undefined>}

@@ -1,8 +1,8 @@
 import L from 'leaflet';
 import { captureFaceSamples } from '../shared/face-capture-core.js';
-import { migrateTokenFromLocalStorage, getMeta, getOwnEmployee } from './mobile-offline/db.js';
+import { migrateTokenFromLocalStorage, getMeta, getOwnEmployee, resetDb } from './mobile-offline/db.js';
 import { identifyEmployee as matchDescriptor } from './mobile-offline/matcher.js';
-import { heartbeat, getFaceConfig, MobileAuthError } from './mobile-offline/sync.js';
+import { heartbeat, getFaceConfig, unlinkDevice, MobileAuthError } from './mobile-offline/sync.js';
 import {
     getOwnStatus,
     enqueueMark,
@@ -106,6 +106,7 @@ const statusBar           = document.getElementById("statusBar");
     const markHint            = document.getElementById("markHint");
     const syncStatusText      = document.getElementById("syncStatusText");
     const btnSyncNow          = document.getElementById("btnSyncNow");
+    const btnUnlinkDevice     = document.getElementById("btnUnlinkDevice");
     const conflictBanner      = document.getElementById("conflictBanner");
     const btnDismissConflict  = document.getElementById("btnDismissConflict");
 
@@ -460,6 +461,51 @@ const statusBar           = document.getElementById("statusBar");
                 await refreshSyncStatus();
             } finally {
                 btnSyncNow.disabled = false;
+            }
+        });
+    }
+
+    // Botón "Desvincular celular" — auto-servicio del empleado (ej. antes de
+    // vender o prestar el dispositivo), a diferencia de "Revocar sesión móvil"
+    // en EmployeeResource (accionada por un admin). Intenta sincronizar lo
+    // pendiente primero para no perder marcaciones sin necesidad; si igual
+    // queda algo sin confirmar, avisa antes de continuar (informa, no bloquea
+    // — el empleado decide).
+    if (btnUnlinkDevice) {
+        btnUnlinkDevice.addEventListener("click", async () => {
+            btnUnlinkDevice.disabled = true;
+            try {
+                if (navigator.onLine) {
+                    try {
+                        await flushQueue();
+                    } catch (error) {
+                        logWarn("No se pudo sincronizar antes de desvincular:", error.message);
+                    }
+                }
+
+                const pending = await countPendingEvents();
+                const warning = pending > 0
+                    ? `Tenés ${pending} marcación(es) sin sincronizar — se van a perder. `
+                    : "";
+                const confirmed = window.confirm(
+                    `${warning}¿Seguro que querés desvincular este celular? Vas a necesitar tu CI y fecha de nacimiento para volver a vincularlo.`
+                );
+                if (!confirmed) return;
+
+                await unlinkDevice();
+                await resetDb();
+                window.location.href = "/vincular-celular";
+            } catch (error) {
+                if (error instanceof MobileAuthError) {
+                    // El token ya no era válido — el dispositivo ya está desvinculado
+                    // del lado del servidor, solo falta limpiar la copia local.
+                    await resetDb();
+                    window.location.href = "/vincular-celular";
+                    return;
+                }
+                window.alert(error.message || "No se pudo desvincular el dispositivo. Intentá de nuevo.");
+            } finally {
+                btnUnlinkDevice.disabled = false;
             }
         });
     }
