@@ -933,6 +933,16 @@ select#eventType { display: none; }
     letter-spacing: .03em;
 }
 
+/* Última marcación de hoy — aprovecha el espacio entre el reloj y el ícono central */
+.splash-status {
+    font-size: .8125rem; font-weight: 500;
+    color: var(--c-muted);
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-2) var(--sp-4);
+}
+
 /* — Bloque central: ícono + título + hint — */
 .splash-center {
     display: flex; flex-direction: column;

@@ -203,6 +203,14 @@ const statusBar           = document.getElementById("statusBar");
      */
     let lastDetectionTime = 0;
 
+    /**
+     * Reasignada en el bloque del splash con la función real — permite que
+     * initializeOfflineSync() la vuelva a disparar tras el heartbeat inicial sin
+     * acoplar ambos bloques directamente. No-op si la página no tiene splash.
+     * @type {() => void}
+     */
+    let refreshSplashPersonalization = () => {};
+
     /** Instancia del mapa Leaflet del mini-mapa de ubicación */
     let locationMap    = null;
     /** Marcador del mini-mapa */
@@ -1021,6 +1029,10 @@ const statusBar           = document.getElementById("statusBar");
             logWarn("No se pudo sincronizar con el servidor (heartbeat):", error.message);
         }
         await refreshSyncStatus();
+        // Un dispositivo recién vinculado todavía no tenía own_employee cacheado la
+        // primera vez que se llamó (ver bloque del splash) — ahora que el heartbeat
+        // ya lo escribió en IndexedDB, reintentar para completar el saludo.
+        refreshSplashPersonalization();
     }
 
     /**
@@ -2187,13 +2199,21 @@ const statusBar           = document.getElementById("statusBar");
         const splashGreetingEl = document.getElementById("splashGreeting");
         const splashTimeEl     = document.getElementById("splashTime");
         const splashDateEl     = document.getElementById("splashDate");
+        const splashStatusEl   = document.getElementById("splashStatus");
+
+        // Nombre propio cacheado (mismo dato que ya usa Mis marcaciones) — normalmente
+        // ya está en IndexedDB de una sesión anterior, así que suele completarse antes
+        // de que el empleado termine de leer la pantalla. Se recalcula el saludo con
+        // él ya incorporado en cuanto resuelve, sin bloquear el reloj mientras tanto.
+        let ownFirstName = null;
 
         const updateSplashClock = () => {
             const now  = new Date();
             const hour = now.getHours();
 
             if (splashGreetingEl) {
-                splashGreetingEl.textContent = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+                const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+                splashGreetingEl.textContent = ownFirstName ? `${greeting}, ${ownFirstName}` : greeting;
             }
             if (splashTimeEl) {
                 splashTimeEl.textContent = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -2208,6 +2228,32 @@ const statusBar           = document.getElementById("statusBar");
 
         updateSplashClock();
         const splashClockInterval = setInterval(updateSplashClock, 10000);
+
+        // Se llama dos veces: acá mismo (caché de una sesión anterior, si existe) y de
+        // nuevo desde initializeOfflineSync() tras el heartbeat inicial — un dispositivo
+        // recién vinculado todavía no tiene own_employee cacheado en este primer intento,
+        // solo lo consigue una vez que ese heartbeat termina de escribirlo.
+        refreshSplashPersonalization = () => {
+            getOwnEmployee()
+                .then((employee) => {
+                    if (employee?.first_name) {
+                        ownFirstName = employee.first_name;
+                        updateSplashClock();
+                    }
+                })
+                .catch(() => {}); // sin caché todavía — se queda con el saludo genérico
+
+            getOwnStatus()
+                .then((status) => {
+                    if (!splashStatusEl) return;
+                    splashStatusEl.textContent = status.last_event
+                        ? `Hoy: ${translateEventType(status.last_event)}${status.last_event_time ? ` · ${status.last_event_time}` : ""}`
+                        : "Todavía no marcaste hoy";
+                    splashStatusEl.classList.remove("hidden");
+                })
+                .catch(() => {}); // sin red y sin nada cacheado todavía — se deja oculto, no vale la pena mostrar un error acá
+        };
+        refreshSplashPersonalization();
 
         const handleSplashTap = () => {
             if (splashHandled) return;
