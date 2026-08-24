@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
@@ -32,7 +33,27 @@ class MobileDeviceRelinkedNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', 'mail'];
+    }
+
+    /**
+     * Envía por email a los admins además de la campanita — una
+     * re-vinculación puede indicar un intento de acoso/DoS dirigido (ver
+     * docblock de la clase) y no debería depender de que alguien revise
+     * Filament a tiempo.
+     */
+    public function toMail(object $notifiable): MailMessage
+    {
+        $mail = (new MailMessage)
+            ->subject('Dispositivo re-vinculado — '.$this->employee->full_name)
+            ->line("El dispositivo vinculado de {$this->employee->full_name} (CI: {$this->employee->ci}) fue reemplazado por uno nuevo.")
+            ->line('Si el empleado no reconoce este cambio, revocá el acceso desde su ficha.');
+
+        if (filled($this->userAgent)) {
+            $mail->line("Dispositivo nuevo: {$this->userAgent}");
+        }
+
+        return $mail->action('Ver empleado', EmployeeResource::getUrl('view', ['record' => $this->employee]));
     }
 
     /**
