@@ -150,6 +150,16 @@ it('el heartbeat devuelve la config vigente y el descriptor facial del empleado'
         ->and($response->json('config.face_threshold'))->not->toBeNull();
 });
 
+it('el heartbeat también devuelve photo_thumbnail para que el celular muestre la foto real', function () {
+    $employee = makeLinkableEmployee(['photo_thumbnail' => 'data:image/jpeg;base64,FAKE_THUMBNAIL']);
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/mobile/heartbeat');
+
+    $response->assertOk();
+    expect($response->json('employee.photo_thumbnail'))->toBe('data:image/jpeg;base64,FAKE_THUMBNAIL');
+});
+
 it('el heartbeat revoca el token y responde 403 si el empleado ya no está activo', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
