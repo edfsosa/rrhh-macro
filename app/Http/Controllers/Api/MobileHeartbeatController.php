@@ -52,6 +52,8 @@ class MobileHeartbeatController extends Controller
                 'ci' => $employee->ci,
                 'face_descriptor' => $employee->face_descriptor,
                 'photo_thumbnail' => $employee->photo_thumbnail,
+                'branch_name' => $employee->branch?->name,
+                'company_name' => $employee->branch?->company?->name,
             ],
         ]);
     }

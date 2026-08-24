@@ -20,6 +20,7 @@
         <header class="terminal-header">
             <div class="terminal-header-brand">
                 <span class="terminal-mode-badge">Modo Terminal</span>
+                <span id="terminalHeaderLocation" class="terminal-location-badge"></span>
                 <button type="button" id="btnThemeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -67,6 +68,7 @@
             name: @json($terminal->name),
             branch_id: {{ $terminal->branch_id ?? 'null' }},
             branch_name: @json($terminal->branch?->name),
+            company_name: @json($terminal->branch?->company?->name),
         };
     </script>
     @endisset

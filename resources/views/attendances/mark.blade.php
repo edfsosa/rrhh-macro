@@ -64,6 +64,7 @@
     <header class="app-header">
         <div class="app-header-brand">
             <span class="app-mode-badge">Marcación Facial</span>
+            <span id="headerLocation" class="app-location-badge"></span>
         </div>
         <div class="app-clock" id="headerClock" aria-live="off" aria-label="Hora actual"></div>
     </header>
