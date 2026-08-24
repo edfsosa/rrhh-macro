@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -1182,6 +1183,18 @@ class Employee extends Model implements AuthenticatableContract
     // MARCACIÓN OFFLINE POR DISPOSITIVO — VINCULACIÓN Y TOKEN SANCTUM
     // =========================================================================
 
+    /** Historial completo de dispositivos vinculados (uno por cada vinculación real). */
+    public function devices(): HasMany
+    {
+        return $this->hasMany(EmployeeDevice::class)->latest('linked_at');
+    }
+
+    /** Dispositivo actualmente vinculado (unlinked_at null) — a lo sumo uno por empleado. */
+    public function activeDevice(): HasOne
+    {
+        return $this->hasOne(EmployeeDevice::class)->whereNull('unlinked_at')->latest('linked_at');
+    }
+
     /**
      * Emite un token Sanctum (ability `mobile:sync`) para el dispositivo personal
      * del empleado, tras validarse con CI + fecha de nacimiento (ver
@@ -1197,10 +1210,23 @@ class Employee extends Model implements AuthenticatableContract
         // CI+fecha es una credencial débil, esto da visibilidad a un admin ante un
         // posible acoso/DoS dirigido).
         $isRelink = $this->hasMobileLinked();
+        $linkedAt = now();
 
         $this->tokens()->where('name', 'like', 'mobile:%')->delete();
 
-        $this->forceFill(['mobile_linked_at' => now()])->save();
+        // Cierra el dispositivo activo anterior (si había) antes de abrir uno
+        // nuevo — nunca quedan dos registros con unlinked_at null a la vez.
+        $this->activeDevice?->update(['unlinked_at' => $linkedAt]);
+        $newDevice = $this->devices()->create([
+            'linked_at' => $linkedAt,
+            'user_agent' => $userAgent,
+        ]);
+        // setRelation en vez de dejar que quede cacheado el activeDevice anterior (o
+        // null) en esta misma instancia — sin esto, $employee->activeDevice después de
+        // llamar a este método devolvería el valor viejo hasta un refresh() explícito.
+        $this->setRelation('activeDevice', $newDevice);
+
+        $this->forceFill(['mobile_linked_at' => $linkedAt])->save();
 
         $notification = $isRelink
             ? new MobileDeviceRelinkedNotification($this, $userAgent)
@@ -1215,6 +1241,8 @@ class Employee extends Model implements AuthenticatableContract
     public function revokeMobileToken(): void
     {
         $this->tokens()->where('name', 'like', 'mobile:%')->delete();
+        $this->activeDevice?->update(['unlinked_at' => now()]);
+        $this->setRelation('activeDevice', null);
         $this->forceFill(['mobile_linked_at' => null, 'mobile_last_heartbeat_at' => null])->save();
     }
 
