@@ -182,7 +182,47 @@ it('status devuelve el último evento y los eventos permitidos para el propio em
             'ok' => true,
             'last_event' => null,
             'allowed_events' => ['check_in'],
+            'today_events' => [],
         ]);
+});
+
+/**
+ * Regresión: alimenta la pantalla "Mis marcaciones" en /marcar — a diferencia
+ * del resto de la respuesta, esta lista completa del día no tiene resolución
+ * offline local equivalente (ver resolveOwnStatus() en mobile-offline/queue.js).
+ */
+it('status devuelve la lista completa de eventos de hoy, no solo el último', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $this->postJson('/api/v1/mobile/events/sync', [
+        'events' => [
+            [
+                'client_event_id' => (string) Str::uuid(),
+                'event_type' => 'check_in',
+                'recorded_at' => now()->setTime(8, 3)->toDateTimeString(),
+                'location' => ['lat' => -25.28, 'lng' => -57.64],
+            ],
+            [
+                'client_event_id' => (string) Str::uuid(),
+                'event_type' => 'break_start',
+                'recorded_at' => now()->setTime(12, 1)->toDateTimeString(),
+                'location' => ['lat' => -25.28, 'lng' => -57.64],
+            ],
+        ],
+    ])->assertOk();
+
+    $response = $this->getJson('/api/v1/mobile/status');
+
+    $response->assertOk();
+    expect($response->json('today_events'))->toHaveCount(2)
+        ->and($response->json('today_events.0'))->toBe([
+            'event_type' => 'check_in',
+            'event_type_label' => 'Entrada jornada',
+            'time' => '08:03',
+        ])
+        ->and($response->json('today_events.1.event_type'))->toBe('break_start')
+        ->and($response->json('today_events.1.time'))->toBe('12:01');
 });
 
 it('events/sync crea el evento con origen mobile para el empleado autenticado', function () {

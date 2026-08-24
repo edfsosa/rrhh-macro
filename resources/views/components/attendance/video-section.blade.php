@@ -35,6 +35,22 @@
                 </svg>
                 <span>Toca para activar la cámara</span>
             </button>
+
+            {{-- Pausa manual de cámara (btnCameraPause en el header) — tocar el overlay
+            también reanuda, además del switch de arriba. --}}
+            <button id="cameraPausedOverlay" type="button" class="camera-paused-overlay hidden"
+                aria-label="Cámara en pausa — tocá para reanudar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M1 1l22 22"/>
+                    <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l.65.98"/>
+                    <path d="M23 8v11a2 2 0 0 1-1.11 1.79"/>
+                    <path d="M14.12 9.88a4 4 0 0 1 1.87 3.62"/>
+                    <path d="M9.88 14.12A4 4 0 0 1 9 12"/>
+                </svg>
+                <span class="camera-paused-title">Cámara en pausa</span>
+                <span class="camera-paused-hint">Tocá para reanudar la identificación</span>
+            </button>
         </div>
 
         <div class="status-bar" id="statusBar" role="status" aria-live="polite">

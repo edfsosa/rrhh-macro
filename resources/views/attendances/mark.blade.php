@@ -96,6 +96,21 @@
         <button type="button" id="btnSyncNow" class="sync-status-btn" aria-label="Sincronizar marcaciones pendientes">
             Sincronizar
         </button>
+        <button type="button" id="btnMyEvents" class="sync-status-btn" aria-label="Ver mis marcaciones de hoy">
+            Mis marcaciones
+        </button>
+        {{-- Pausa manual de la cámara — apaga la detección facial para que el empleado pueda
+        usar Sincronizar/Mis marcaciones/Desvincular sin riesgo de que el dwell lo identifique
+        de encima mientras tanto. Ver cameraPausedOverlay en video-section.blade.php. --}}
+        <button type="button" id="btnCameraPause" class="sync-status-btn sync-status-btn--camera-pause"
+            aria-pressed="false" aria-label="Pausar identificación por cámara">
+            <svg class="camera-pause-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span id="btnCameraPauseLabel">Pausar cámara</span>
+        </button>
         <button type="button" id="btnUnlinkDevice" class="sync-status-btn sync-status-btn--unlink" aria-label="Desvincular este dispositivo">
             Desvincular dispositivo
         </button>
@@ -115,6 +130,30 @@
         description="Su marcación se ha registrado correctamente."
         buttonText="Listo"
     />
+
+    {{-- Mis marcaciones de hoy — no requiere pasar por la cámara: el dispositivo ya
+    sabe de quién es (vinculación 1:1), así que se consulta directo al abrir. --}}
+    <div id="myEventsModal" class="modal hidden" role="dialog" aria-modal="true"
+        aria-labelledby="myEventsModalTitle">
+        <div class="modal-content modal-info">
+            <div class="modal-icon modal-icon--info" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+            <h2 id="myEventsModalTitle">Mis marcaciones de hoy</h2>
+
+            <ul id="myEventsList" class="my-events-list" aria-live="polite"></ul>
+            <p id="myEventsEmpty" class="my-events-status hidden">Todavía no tenés marcaciones registradas hoy.</p>
+            <p id="myEventsOffline" class="my-events-status hidden">No se pudo consultar sin conexión — probá de nuevo cuando tengas internet.</p>
+            <p id="myEventsLoading" class="my-events-status hidden">Consultando...</p>
+
+            <div class="modal-actions">
+                <button id="closeMyEventsModal" type="button" class="btn-modal-dismiss">Cerrar</button>
+            </div>
+        </div>
+    </div>
 
     <div id="errorModal" class="modal hidden" role="dialog" aria-modal="true"
         aria-labelledby="errorModalTitle" aria-describedby="errorModalDesc">
