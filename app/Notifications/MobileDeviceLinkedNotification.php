@@ -8,7 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notificación a los admins cuando un empleado vincula su celular por
+ * Notificación a los admins cuando un empleado vincula su dispositivo por
  * primera vez (sin dispositivo previo) para marcación offline. A diferencia
  * de `MobileDeviceRelinkedNotification` (tono de advertencia, posible
  * incidente de seguridad), esta es puramente informativa.
@@ -35,14 +35,14 @@ class MobileDeviceLinkedNotification extends Notification
      */
     public function toDatabase(object $notifiable): array
     {
-        $body = "{$this->employee->full_name} (CI: {$this->employee->ci}) vinculó su celular para marcar asistencia offline.";
+        $body = "{$this->employee->full_name} (CI: {$this->employee->ci}) vinculó su dispositivo para marcar asistencia offline.";
 
         if (filled($this->userAgent)) {
             $body .= " Dispositivo: {$this->userAgent}";
         }
 
         return [
-            'title' => 'Celular vinculado',
+            'title' => 'Dispositivo vinculado',
             'body' => $body,
             'icon' => 'heroicon-o-device-phone-mobile',
             'color' => 'success',

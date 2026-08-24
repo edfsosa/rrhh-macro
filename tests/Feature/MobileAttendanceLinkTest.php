@@ -59,12 +59,12 @@ function makeLinkableEmployee(array $overrides = []): Employee
     return $employee->fresh();
 }
 
-// ─── Vinculación (/vincular-celular) ───────────────────────────────────────
+// ─── Vinculación (/vincular-dispositivo) ───────────────────────────────────────
 
-it('vincula el celular con CI y fecha de nacimiento correctos y emite un token', function () {
+it('vincula el dispositivo con CI y fecha de nacimiento correctos y emite un token', function () {
     $employee = makeLinkableEmployee();
 
-    $response = $this->postJson('/vincular-celular', [
+    $response = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ]);
@@ -80,7 +80,7 @@ it('vincula el celular con CI y fecha de nacimiento correctos y emite un token',
 it('rechaza CI o fecha de nacimiento incorrectos con un mensaje genérico', function () {
     $employee = makeLinkableEmployee();
 
-    $response = $this->postJson('/vincular-celular', [
+    $response = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '2000-01-01',
     ]);
@@ -92,7 +92,7 @@ it('rechaza CI o fecha de nacimiento incorrectos con un mensaje genérico', func
 it('rechaza la vinculación de un empleado inactivo', function () {
     $employee = makeLinkableEmployee(['status' => 'inactive']);
 
-    $response = $this->postJson('/vincular-celular', [
+    $response = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ]);
@@ -103,7 +103,7 @@ it('rechaza la vinculación de un empleado inactivo', function () {
 it('rechaza la vinculación de un empleado sin descriptor facial', function () {
     $employee = makeLinkableEmployee(['face_descriptor' => null]);
 
-    $response = $this->postJson('/vincular-celular', [
+    $response = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ]);
@@ -111,15 +111,15 @@ it('rechaza la vinculación de un empleado sin descriptor facial', function () {
     $response->assertStatus(422);
 });
 
-it('vincular un celular nuevo revoca el token anterior — un solo dispositivo a la vez', function () {
+it('vincular un dispositivo nuevo revoca el token anterior — un solo dispositivo a la vez', function () {
     $employee = makeLinkableEmployee();
 
-    $first = $this->postJson('/vincular-celular', [
+    $first = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ])->json('token');
 
-    $second = $this->postJson('/vincular-celular', [
+    $second = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ])->json('token');
@@ -236,12 +236,12 @@ it('unlink revoca el token propio del empleado — auto-servicio, sin admin', fu
         ->and($employee->tokens()->count())->toBe(0);
 });
 
-it('unlink deja al empleado listo para vincular un celular nuevo', function () {
+it('unlink deja al empleado listo para vincular un dispositivo nuevo', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
     $this->postJson('/api/v1/mobile/unlink')->assertOk();
 
-    $response = $this->postJson('/vincular-celular', [
+    $response = $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ]);
@@ -267,7 +267,7 @@ it('notifica a los admins (sin advertencia) en la primera vinculación', functio
 
     $employee = makeLinkableEmployee();
 
-    $this->postJson('/vincular-celular', [
+    $this->postJson('/vincular-dispositivo', [
         'ci' => $employee->ci,
         'birth_date' => '1990-05-15',
     ])->assertOk();
@@ -280,18 +280,18 @@ it('notifica a los admins (sin advertencia) en la primera vinculación', functio
     Notification::assertNotSentTo($admin, MobileDeviceRelinkedNotification::class);
 });
 
-it('notifica a todos los admins cuando un celular ya vinculado se re-vincula', function () {
+it('notifica a todos los admins cuando un dispositivo ya vinculado se re-vincula', function () {
     $employee = makeLinkableEmployee();
     $admin1 = User::create(['name' => 'Admin 1', 'email' => 'admin-relink1@test.com', 'password' => bcrypt('secret')]);
     $admin2 = User::create(['name' => 'Admin 2', 'email' => 'admin-relink2@test.com', 'password' => bcrypt('secret')]);
 
     // Primera vinculación — sin notificación (no hay nada previo que "reemplazar").
-    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
+    $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
 
     Notification::fake();
 
     // Segunda vinculación del mismo empleado — el dispositivo anterior existía.
-    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
+    $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '1990-05-15'])->assertOk();
 
     Notification::assertSentTo(
         [$admin1, $admin2],
@@ -311,7 +311,7 @@ it('el heartbeat actualiza mobile_last_heartbeat_at', function () {
     expect($employee->fresh()->mobile_last_heartbeat_at)->not->toBeNull();
 });
 
-it('revocar el celular limpia mobile_last_heartbeat_at además de mobile_linked_at', function () {
+it('revocar el dispositivo limpia mobile_last_heartbeat_at además de mobile_linked_at', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
     $this->postJson('/api/v1/mobile/heartbeat')->assertOk();
@@ -324,17 +324,17 @@ it('revocar el celular limpia mobile_last_heartbeat_at además de mobile_linked_
         ->and($fresh->mobile_last_heartbeat_at)->toBeNull();
 });
 
-it('el POST de vincular-celular tiene throttling más estricto que el GET', function () {
+it('el POST de vincular-dispositivo tiene throttling más estricto que el GET', function () {
     $employee = makeLinkableEmployee();
 
     // 5 intentos permitidos por minuto (credenciales incorrectas a propósito, no importa el resultado).
     for ($i = 0; $i < 5; $i++) {
-        $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
+        $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
             ->assertStatus(422);
     }
 
     // El 6º intento en la misma ventana debe ser rechazado por el rate limiter.
-    $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
+    $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])
         ->assertStatus(429);
 });
 
@@ -346,10 +346,10 @@ it('el 429 por límite de minuto tiene un mensaje en español con el tiempo de e
     $employee = makeLinkableEmployee();
 
     for ($i = 0; $i < 5; $i++) {
-        $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])->assertStatus(422);
+        $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '2000-01-01'])->assertStatus(422);
     }
 
-    $response = $this->postJson('/vincular-celular', ['ci' => $employee->ci, 'birth_date' => '2000-01-01']);
+    $response = $this->postJson('/vincular-dispositivo', ['ci' => $employee->ci, 'birth_date' => '2000-01-01']);
 
     $response->assertStatus(429)->assertJson(['ok' => false]);
     expect($response->json('message'))->toContain('Demasiados intentos')
@@ -359,9 +359,9 @@ it('el 429 por límite de minuto tiene un mensaje en español con el tiempo de e
 /**
  * Regresión: otras rutas públicas con throttling (terminal/setup,
  * registro-facial) no deben verse afectadas por el render() scopeado a
- * mobile-link.claim en bootstrap/app.php — deben mantener el 429 default.
+ * device-link.claim en bootstrap/app.php — deben mantener el 429 default.
  */
-it('el 429 de otras rutas throttled no se ve afectado por el mensaje de vincular-celular', function () {
+it('el 429 de otras rutas throttled no se ve afectado por el mensaje de vincular-dispositivo', function () {
     // terminal/{code}/setup/{setupToken} usa throttle:10,1 (sin scopear en bootstrap/app.php).
     for ($i = 0; $i < 10; $i++) {
         $this->getJson('/terminal/BOGUS/setup/faketoken');
@@ -384,7 +384,7 @@ it('el límite diario notifica a los admins con la IP y el CI intentado, una sol
     Notification::fake();
     User::factory()->create();
 
-    $request = Request::create('/vincular-celular', 'POST', ['ci' => '4445556']);
+    $request = Request::create('/vincular-dispositivo', 'POST', ['ci' => '4445556']);
     $request->server->set('REMOTE_ADDR', '203.0.113.20');
 
     $exception = new ThrottleRequestsException('Too Many Attempts.', null, [
@@ -414,7 +414,7 @@ it('el límite por minuto (distinto de 15) no notifica a los admins', function (
     Notification::fake();
     User::factory()->create();
 
-    $request = Request::create('/vincular-celular', 'POST', ['ci' => '1112223']);
+    $request = Request::create('/vincular-dispositivo', 'POST', ['ci' => '1112223']);
     $request->server->set('REMOTE_ADDR', '203.0.113.10');
 
     $exception = new ThrottleRequestsException('Too Many Attempts.', null, [

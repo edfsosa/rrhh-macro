@@ -8,15 +8,15 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notificación a los admins cuando el celular vinculado de un empleado se
+ * Notificación a los admins cuando el dispositivo vinculado de un empleado se
  * re-vincula (había un dispositivo ya vinculado y se reemplazó por otro).
  *
  * CI + fecha de nacimiento es una credencial débil (baja entropía) — alguien
- * con esos datos de otro empleado podría re-vincular su propio celular y así
+ * con esos datos de otro empleado podría re-vincular su propio dispositivo y así
  * revocar silenciosamente el dispositivo legítimo (denegación de servicio
  * dirigida). Esta notificación no previene el ataque, pero da visibilidad
  * para que un admin investigue una re-vinculación que el empleado no
- * reconoce (ver runbook de vinculación/revocación de celulares).
+ * reconoce (ver runbook de vinculación/revocación de dispositivos).
  */
 class MobileDeviceRelinkedNotification extends Notification
 {
@@ -40,14 +40,14 @@ class MobileDeviceRelinkedNotification extends Notification
      */
     public function toDatabase(object $notifiable): array
     {
-        $body = "El celular vinculado de {$this->employee->full_name} (CI: {$this->employee->ci}) fue reemplazado por uno nuevo. Si el empleado no reconoce este cambio, revocá el acceso desde su ficha.";
+        $body = "El dispositivo vinculado de {$this->employee->full_name} (CI: {$this->employee->ci}) fue reemplazado por uno nuevo. Si el empleado no reconoce este cambio, revocá el acceso desde su ficha.";
 
         if (filled($this->userAgent)) {
             $body .= " Dispositivo nuevo: {$this->userAgent}";
         }
 
         return [
-            'title' => 'Celular re-vinculado',
+            'title' => 'Dispositivo re-vinculado',
             'body' => $body,
             'icon' => 'heroicon-o-device-phone-mobile',
             'color' => 'warning',

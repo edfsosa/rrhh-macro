@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes — Sincronización offline vía PWA (kiosko y celular personal)
+| API Routes — Sincronización offline vía PWA (kiosko y dispositivo personal)
 |--------------------------------------------------------------------------
 |
 | Autenticadas con Laravel Sanctum. Sanctum resuelve el `tokenable` de forma
 | polimórfica (por `personal_access_tokens.tokenable_type`) — un mismo guard
 | `auth:sanctum` sirve tokens de `Terminal` (kiosko) y de `Employee`
-| (celular personal) sin necesidad de guards/providers separados en
+| (dispositivo personal) sin necesidad de guards/providers separados en
 | config/auth.php. Cada grupo abajo exige su propia ability.
 |
 */
@@ -42,7 +42,7 @@ Route::prefix('v1/terminal')->name('api.terminal.')->middleware(['auth:sanctum']
         ->name('heartbeat');
 });
 
-// Celular personal del empleado — bearer token emitido al vincular el
+// Dispositivo personal del empleado — bearer token emitido al vincular el
 // dispositivo (ver MobileLinkController). Ability requerida: 'mobile:sync'.
 // A diferencia del kiosko (N empleados por terminal), acá el token identifica
 // a un único empleado (el propio dueño del token vía $request->user()), por

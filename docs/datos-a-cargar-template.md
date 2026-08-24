@@ -72,7 +72,7 @@
 **Dónde:** Empleados → cada empleado → Enrolamiento facial
 
 - [ ] Enrolar la cara de cada empleado (necesario antes de que puedan marcar asistencia)
-- [ ] Probar marcación desde celular (modo kiosk) en [URL_DEL_SISTEMA]/marcar
+- [ ] Probar marcación desde dispositivo personal en [URL_DEL_SISTEMA]/marcar
 - [ ] Probar marcación desde terminal fija, si [NOMBRE_EMPRESA] va a usar una
 
 ---

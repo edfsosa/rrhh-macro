@@ -1,6 +1,6 @@
-# Arquitectura: marcación de asistencia offline (kiosko y celular)
+# Arquitectura: marcación de asistencia offline (kiosko y dispositivo)
 
-Documento de referencia de la arquitectura de marcación de asistencia por reconocimiento facial con soporte offline, cubriendo tanto el kiosko/terminal de sucursal como el celular personal del empleado. Consolida el trabajo de tres iniciativas relacionadas: ajuste de reconocimiento facial, marcación offline vía PWA en el kiosko, y marcación offline vía PWA en el celular personal.
+Documento de referencia de la arquitectura de marcación de asistencia por reconocimiento facial con soporte offline, cubriendo tanto el kiosko/terminal de sucursal como el dispositivo personal del empleado. Consolida el trabajo de tres iniciativas relacionadas: ajuste de reconocimiento facial, marcación offline vía PWA en el kiosko, y marcación offline vía PWA en el dispositivo personal.
 
 Para el resumen corto orientado a desarrollo día a día, ver la sección "Módulo de Asistencia — Marcación Offline" en `CLAUDE.md`. Este documento tiene el detalle completo de arquitectura y decisiones.
 
@@ -12,7 +12,7 @@ El reconocimiento facial corre 100% en el navegador (face-api.js, descriptores d
 
 Hay dos dispositivos distintos que marcan asistencia, con modelos de confianza y caché muy diferentes:
 
-| | Kiosko/terminal | Celular personal |
+| | Kiosko/terminal | Dispositivo personal |
 |---|---|---|
 | Propiedad | De la empresa, en la sucursal | Del empleado |
 | Uso | Compartido, N empleados | Individual, 1 empleado |
@@ -29,7 +29,7 @@ Ambos flujos usan **Laravel Sanctum**, con un único guard `auth:sanctum` sirvie
 - `Terminal::claimSanctumToken()` — ability `terminal:sync`.
 - `Employee::claimMobileToken()` — ability `mobile:sync`.
 
-Ambos siguen el mismo patrón de provisión: nunca se expone un token de larga vida en una URL. El terminal usa un enlace de configuración de un solo uso generado por un admin; el celular usa una credencial self-service (ver abajo). Los dos revocan cualquier token previo de ese tipo antes de emitir uno nuevo — un dispositivo activo a la vez.
+Ambos siguen el mismo patrón de provisión: nunca se expone un token de larga vida en una URL. El terminal usa un enlace de configuración de un solo uso generado por un admin; el dispositivo usa una credencial self-service (ver abajo). Los dos revocan cualquier token previo de ese tipo antes de emitir uno nuevo — un dispositivo activo a la vez.
 
 ---
 
@@ -79,19 +79,19 @@ Si el kiosko sincroniza un evento offline cuya secuencia ya no es válida en el 
 
 ---
 
-## Parte C — Celular personal offline
+## Parte C — Dispositivo personal offline
 
-### Vinculación (`/vincular-celular`)
+### Vinculación (`/vincular-dispositivo`)
 
 El empleado se identifica una vez, online, con **CI + fecha de nacimiento** — ambos datos ya existen en `Employee`, sin necesitar un PIN nuevo que administrar ni una integración de SMS/magic-link. Es deliberadamente **no** un factor de autenticación completo: funciona como credencial para "reclamar" el dispositivo, mientras que la marcación en sí sigue exigiendo un match facial exitoso contra el descriptor cacheado (el segundo factor real). Mensaje de error genérico (no distingue CI inexistente de fecha incorrecta), throttling agresivo (`throttle:5,1` + `throttle:15,1440`, con prefijos explícitos por clave — ver nota de bug abajo).
 
 Al validar, `Employee::claimMobileToken()` revoca cualquier token `mobile:%` previo y cachea únicamente el descriptor facial del propio empleado.
 
-**Bug real encontrado en el throttling**: apilar dos middlewares `throttle:X,Y` sin prefijo explícito hace que ambos compartan la misma clave de rate limit (`ThrottleRequests::resolveRequestSignature()` solo usa dominio+IP, no los parámetros del middleware) — el límite más agresivo se agotaba antes de lo esperado. Se corrigió agregando prefijos explícitos (`throttle:5,1,mobile-link-minute`, etc.).
+**Bug real encontrado en el throttling**: apilar dos middlewares `throttle:X,Y` sin prefijo explícito hace que ambos compartan la misma clave de rate limit (`ThrottleRequests::resolveRequestSignature()` solo usa dominio+IP, no los parámetros del middleware) — el límite más agresivo se agotaba antes de lo esperado. Se corrigió agregando prefijos explícitos (`throttle:5,1,device-link-minute`, etc.).
 
 ### API (`routes/api.php`, prefijo `v1/mobile`)
 
-- `POST /heartbeat` — config vigente + descriptor facial propio actualizado (no existe "sync de empleados" separado: el celular solo cachea su propio descriptor, y una re-inscripción facial se propaga automáticamente en el próximo heartbeat).
+- `POST /heartbeat` — config vigente + descriptor facial propio actualizado (no existe "sync de empleados" separado: el dispositivo solo cachea su propio descriptor, y una re-inscripción facial se propaga automáticamente en el próximo heartbeat).
 - `GET /status` — último evento / eventos permitidos del propio empleado (implícito vía `$request->user()`, sin parámetro de ruta).
 - `POST /events/sync` — mismo contrato que el del terminal pero sin `employee_id` por evento (el empleado es el dueño del token).
 
@@ -105,11 +105,11 @@ Reusa `db.js`/`matcher.js`/`queue.js` del kiosko con cambios mínimos (nombre de
 
 ### Integración con `mark.js`
 
-`mark.js` (2171 líneas, UI de wizard con splash/mini-mapa GPS Leaflet/animaciones, sin modularizar) se editó **en el lugar** — mismo criterio que ya había funcionado con `terminal.js` — en dos puntos acotados: identificación (antes `POST /marcar/identificar` con el descriptor crudo al servidor; ahora matching local contra el único descriptor cacheado) y registro de marcación (antes `POST /marcar` síncrono con CSRF de sesión; ahora `enqueueMark()` + intento de `flushQueue()`, convergiendo a Sanctum). Se agregó la pantalla de "vincular este celular" para cuando no hay token.
+`mark.js` (2171 líneas, UI de wizard con splash/mini-mapa GPS Leaflet/animaciones, sin modularizar) se editó **en el lugar** — mismo criterio que ya había funcionado con `terminal.js` — en dos puntos acotados: identificación (antes `POST /marcar/identificar` con el descriptor crudo al servidor; ahora matching local contra el único descriptor cacheado) y registro de marcación (antes `POST /marcar` síncrono con CSRF de sesión; ahora `enqueueMark()` + intento de `flushQueue()`, convergiendo a Sanctum). Se agregó la pantalla de "vincular este dispositivo" para cuando no hay token.
 
 ### Hardening
 
-Notificación a admins (`MobileDeviceRelinkedNotification`) cuando un empleado que ya tenía celular vinculado vincula uno nuevo — mitiga el riesgo de que alguien con el CI+fecha de otro empleado revoque silenciosamente su dispositivo legítimo (denegación de servicio dirigida). Columna `mobile_last_heartbeat_at` en `EmployeeResource` para saber si el celular vinculado sigue sincronizando.
+Notificación a admins (`MobileDeviceRelinkedNotification`) cuando un empleado que ya tenía dispositivo vinculado vincula uno nuevo — mitiga el riesgo de que alguien con el CI+fecha de otro empleado revoque silenciosamente su dispositivo legítimo (denegación de servicio dirigida). Columna `mobile_last_heartbeat_at` en `EmployeeResource` para saber si el dispositivo vinculado sigue sincronizando.
 
 ---
 
@@ -119,13 +119,13 @@ Notificación a admins (`MobileDeviceRelinkedNotification`) cuando un empleado q
 - **Borrado remoto de un dispositivo perdido no es posible** — revocar el token evita que siga *sincronizando*, pero no borra lo que ya tenía cacheado localmente. Ver los runbooks.
 - **CI + fecha de nacimiento como credencial de vinculación** es de baja entropía — mitigado con throttling agresivo y notificación de re-vinculación, no con un segundo factor real (ese rol lo cumple el match facial).
 - **Background Sync API no soportada en Safari/WebKit** — el fallback es que la sincronización ocurre mientras la pestaña/PWA sigue abierta.
-- **Heartbeat/staleness del celular tiene menor prioridad que el del kiosko** — son N:1 por empleado, no un activo físico de la empresa a monitorear activamente; hoy solo hay un timestamp visible en `EmployeeResource`, sin badge de "desconectado" ni alertas.
+- **Heartbeat/staleness del dispositivo tiene menor prioridad que el del kiosko** — son N:1 por empleado, no un activo físico de la empresa a monitorear activamente; hoy solo hay un timestamp visible en `EmployeeResource`, sin badge de "desconectado" ni alertas.
 - **`Employee::getAdvanceReferenceSalary()`** y otras áreas no relacionadas con asistencia no se tocaron en esta iniciativa.
 
 ## Runbooks relacionados
 
 - `docs/runbook-terminal-revocacion-reprovision.md` — pérdida/robo/reemplazo de un kiosko.
-- `docs/runbook-celular-vinculacion-revocacion.md` — pérdida/robo/reemplazo del celular de un empleado, o revocación manual desde Filament.
+- `docs/runbook-dispositivo-vinculacion-revocacion.md` — pérdida/robo/reemplazo del dispositivo de un empleado, o revocación manual desde Filament.
 
 ## Archivos clave
 
@@ -133,6 +133,6 @@ Notificación a admins (`MobileDeviceRelinkedNotification`) cuando un empleado q
 
 **Kiosko:** `app/Models/Terminal.php`, `app/Http/Controllers/Api/Terminal{EmployeeSync,EventSync,Heartbeat}Controller.php`, `app/Services/{EmployeeDescriptorSyncService,AttendanceEventSyncService}.php`, `app/Filament/Resources/TerminalResource.php`, `resources/js/attendances/{terminal,terminal-offline/*}.js`, `public/sw.js`.
 
-**Celular:** `app/Models/Employee.php` (sección "Marcación offline por celular"), `app/Http/Controllers/MobileLinkController.php`, `app/Http/Controllers/Api/Mobile{Heartbeat,Status,EventSync}Controller.php`, `app/Services/MobileEventSyncService.php`, `resources/js/attendances/{mark,mobile-offline/*}.js`, `resources/views/attendances/mobile-link.blade.php`.
+**Dispositivo:** `app/Models/Employee.php` (sección "Marcación offline por dispositivo"), `app/Http/Controllers/MobileLinkController.php`, `app/Http/Controllers/Api/Mobile{Heartbeat,Status,EventSync}Controller.php`, `app/Services/MobileEventSyncService.php`, `resources/js/attendances/{mark,mobile-offline/*}.js`, `resources/views/attendances/device-link.blade.php`.
 
 **Configuración:** `app/Settings/GeneralSettings.php` (`face_threshold`, `face_min_confidence_gap`, `terminal_stale_threshold_hours`), `config/attendance.php`.

@@ -5,11 +5,11 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Marcación offline desde el celular personal del empleado (Parte C, Fase 4):
- * `mobile_last_heartbeat_at` registra el último heartbeat exitoso del celular
+ * Marcación offline desde el dispositivo personal del empleado (Parte C, Fase 4):
+ * `mobile_last_heartbeat_at` registra el último heartbeat exitoso del dispositivo
  * vinculado — a diferencia de `mobile_linked_at` (fecha de vinculación, no
  * cambia mientras el dispositivo siga siendo el mismo), este campo permite
- * ver en `EmployeeResource` si el celular sigue sincronizando con normalidad.
+ * ver en `EmployeeResource` si el dispositivo sigue sincronizando con normalidad.
  * Menor prioridad que el heartbeat/staleness del kiosko (Terminal): acá es
  * un dispositivo personal, no un activo físico de la empresa a monitorear
  * activamente, así que no se agrega un sistema de umbral configurable como

@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Recepción en lote de eventos de marcación del celular personal de un
+ * Recepción en lote de eventos de marcación del dispositivo personal de un
  * empleado — usado tanto en línea (lote de 1) como para volcar la cola
  * acumulada tras un período offline. A diferencia del equivalente de
  * terminal, no recibe `employee_id` por evento (el empleado es implícito:
@@ -50,7 +50,7 @@ class MobileEventSyncController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Tu acceso a la marcación por celular fue desactivado. Consultá con RRHH.',
+                'message' => 'Tu acceso a la marcación por dispositivo fue desactivado. Consultá con RRHH.',
             ], 403);
         }
 

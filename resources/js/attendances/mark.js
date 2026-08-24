@@ -399,7 +399,7 @@ const statusBar           = document.getElementById("statusBar");
     // ESTADO DE SINCRONIZACIÓN OFFLINE — paridad con refreshIdleSyncStatus()
     // de terminal.js (kiosko): mismo texto/prioridad (conflictos > pendientes >
     // sincronizado), pero acá además hay un aviso separado (conflictBanner)
-    // porque un conflicto en el celular es del propio empleado, no de un
+    // porque un conflicto en el dispositivo es del propio empleado, no de un
     // tercero — amerita más que una línea de texto discreta.
     // --------------------------------------------------------------------------
     function updateSyncStatus(text) {
@@ -454,7 +454,7 @@ const statusBar           = document.getElementById("statusBar");
                 await refreshSyncStatus();
             } catch (error) {
                 if (error instanceof MobileAuthError) {
-                    window.location.href = "/vincular-celular";
+                    window.location.href = "/vincular-dispositivo";
                     return;
                 }
                 logWarn("Sincronización manual falló:", error.message);
@@ -465,7 +465,7 @@ const statusBar           = document.getElementById("statusBar");
         });
     }
 
-    // Botón "Desvincular celular" — auto-servicio del empleado (ej. antes de
+    // Botón "Desvincular dispositivo" — auto-servicio del empleado (ej. antes de
     // vender o prestar el dispositivo), a diferencia de "Revocar sesión móvil"
     // en EmployeeResource (accionada por un admin). Intenta sincronizar lo
     // pendiente primero para no perder marcaciones sin necesidad; si igual
@@ -488,19 +488,19 @@ const statusBar           = document.getElementById("statusBar");
                     ? `Tenés ${pending} marcación(es) sin sincronizar — se van a perder. `
                     : "";
                 const confirmed = window.confirm(
-                    `${warning}¿Seguro que querés desvincular este celular? Vas a necesitar tu CI y fecha de nacimiento para volver a vincularlo.`
+                    `${warning}¿Seguro que querés desvincular este dispositivo? Vas a necesitar tu CI y fecha de nacimiento para volver a vincularlo.`
                 );
                 if (!confirmed) return;
 
                 await unlinkDevice();
                 await resetDb();
-                window.location.href = "/vincular-celular";
+                window.location.href = "/vincular-dispositivo";
             } catch (error) {
                 if (error instanceof MobileAuthError) {
                     // El token ya no era válido — el dispositivo ya está desvinculado
                     // del lado del servidor, solo falta limpiar la copia local.
                     await resetDb();
-                    window.location.href = "/vincular-celular";
+                    window.location.href = "/vincular-dispositivo";
                     return;
                 }
                 window.alert(error.message || "No se pudo desvincular el dispositivo. Intentá de nuevo.");
@@ -921,10 +921,10 @@ const statusBar           = document.getElementById("statusBar");
     }
 
     /**
-     * Confirma que el celular ya fue vinculado (CI + fecha de nacimiento en
-     * /vincular-celular, ver MobileLinkController) antes de arrancar la
+     * Confirma que el dispositivo ya fue vinculado (CI + fecha de nacimiento en
+     * /vincular-dispositivo, ver MobileLinkController) antes de arrancar la
      * cámara — sin token no hay nada que identificar localmente. Migra
-     * primero el token que mobile-link.blade.php deja en localStorage tras
+     * primero el token que device-link.blade.php deja en localStorage tras
      * una vinculación exitosa (mismo patrón que terminal.js con el kiosko).
      * @returns {Promise<boolean>}
      */
@@ -932,7 +932,7 @@ const statusBar           = document.getElementById("statusBar");
         await migrateTokenFromLocalStorage();
         const token = await getMeta("api_token");
         if (!token) {
-            window.location.href = "/vincular-celular";
+            window.location.href = "/vincular-dispositivo";
             return false;
         }
         return true;
@@ -954,7 +954,7 @@ const statusBar           = document.getElementById("statusBar");
             await flushQueue();
         } catch (error) {
             if (error instanceof MobileAuthError) {
-                window.location.href = "/vincular-celular";
+                window.location.href = "/vincular-dispositivo";
                 return;
             }
             logWarn("No se pudo sincronizar con el servidor (heartbeat):", error.message);
@@ -988,7 +988,7 @@ const statusBar           = document.getElementById("statusBar");
         });
     }
 
-    // Iniciar el sistema con pantalla de carga — solo si el celular ya está vinculado.
+    // Iniciar el sistema con pantalla de carga — solo si el dispositivo ya está vinculado.
     (async () => {
         if (!(await ensureLinkedDevice())) return;
         await initializeOfflineSync();
@@ -1443,7 +1443,7 @@ const statusBar           = document.getElementById("statusBar");
             setStatusBar("Identificando empleado...", "found");
 
             // Matching 100% local contra el único descriptor cacheado (el propio, sincronizado
-            // vía heartbeat) — sin esto no hay red de contingencia: el celular solo conoce a su dueño.
+            // vía heartbeat) — sin esto no hay red de contingencia: el dispositivo solo conoce a su dueño.
             const { threshold, minGap } = await getFaceConfig();
             const ownEmployee = await getOwnEmployee();
 
@@ -1469,7 +1469,7 @@ const statusBar           = document.getElementById("statusBar");
             };
 
             // Estado del día: intenta consulta en línea (y la cachea); si no hay red, cae a lo
-            // que el propio celular ya sabe (ver mobile-offline/queue.js).
+            // que el propio dispositivo ya sabe (ver mobile-offline/queue.js).
             const status = await getOwnStatus();
 
             state.employee = employee;
@@ -1522,9 +1522,9 @@ const statusBar           = document.getElementById("statusBar");
                 await finishCaptureProgress("error");
                 playBeep("error");
                 showErrorModal(
-                    "Celular desvinculado",
-                    "Este celular ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
-                    () => { window.location.href = "/vincular-celular"; }
+                    "Dispositivo desvinculado",
+                    "Este dispositivo ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
+                    () => { window.location.href = "/vincular-dispositivo"; }
                 );
                 return;
             }
@@ -2210,9 +2210,9 @@ const statusBar           = document.getElementById("statusBar");
                 if (e instanceof MobileAuthError) {
                     playBeep("error");
                     showErrorModal(
-                        "Celular desvinculado",
-                        "Este celular ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
-                        () => { window.location.href = "/vincular-celular"; }
+                        "Dispositivo desvinculado",
+                        "Este dispositivo ya no está vinculado a tu cuenta. Volvé a identificarte con tu CI y fecha de nacimiento.",
+                        () => { window.location.href = "/vincular-dispositivo"; }
                     );
                     return;
                 }

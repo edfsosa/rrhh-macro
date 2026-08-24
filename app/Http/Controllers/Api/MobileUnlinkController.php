@@ -8,7 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Auto-desvinculación del celular personal — a diferencia de "Revocar sesión
+ * Auto-desvinculación del dispositivo personal — a diferencia de "Revocar sesión
  * móvil" en EmployeeResource (accionada por un admin desde Filament), acá es
  * el propio empleado quien decide desvincular su dispositivo (ej. antes de
  * venderlo o prestarlo) desde /marcar. Autenticado vía Sanctum (ability

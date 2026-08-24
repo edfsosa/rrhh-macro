@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
  * (a diferencia de `TerminalEmployeeSyncController::status()`, que recibe el
  * `employee_id` por ruta porque un terminal consulta por cualquiera de sus
  * empleados — acá el empleado es implícito, siempre `$request->user()`).
- * El celular prefiere esta consulta en línea; si falla, cae a una
+ * El dispositivo prefiere esta consulta en línea; si falla, cae a una
  * resolución local equivalente (ver mobile-offline/queue.js, igual que
  * hace el kiosko desde la Fase 4).
  */

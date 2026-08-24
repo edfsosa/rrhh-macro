@@ -1,16 +1,16 @@
 /**
  * =============================================================================
- * INDEXEDDB — CACHÉ LOCAL DEL CELULAR PERSONAL
+ * INDEXEDDB — CACHÉ LOCAL DEL DISPOSITIVO PERSONAL
  * =============================================================================
  *
- * @fileoverview Wrapper delgado sobre `idb` para la base local del celular.
+ * @fileoverview Wrapper delgado sobre `idb` para la base local del dispositivo.
  *               Base de datos separada de `terminal-offline/db.js`
  *               (`nominapp-mobile` vs `nominapp-terminal`) para que ambos
  *               flujos puedan coexistir sin chocar si algún dispositivo
  *               llegara a usarse en los dos modos.
  *
  * Diferencia clave con el kiosko: acá NO existe un store de `employees_cache`
- * — el celular vinculado cachea el descriptor facial de un único empleado (el
+ * — el dispositivo vinculado cachea el descriptor facial de un único empleado (el
  * dueño del dispositivo), guardado directamente en `mobile_meta` bajo la key
  * `own_employee`. Todo lo demás (cola de eventos, caché de estado, log de
  * sync) sigue el mismo diseño que `terminal-offline/db.js`.
@@ -84,7 +84,7 @@ export async function setMeta(key, value) {
 
 /**
  * Migración única del token guardado en localStorage por la pantalla de
- * vinculación (mobile-link.blade.php) hacia IndexedDB. Se puede llamar en
+ * vinculación (device-link.blade.php) hacia IndexedDB. Se puede llamar en
  * cada carga: es un no-op si ya no queda nada en localStorage.
  * @returns {Promise<void>}
  */
@@ -121,7 +121,7 @@ export async function logSync(type, ok, detail = null) {
 }
 
 /**
- * Vacía por completo la caché local del celular — llamado tras una
+ * Vacía por completo la caché local del dispositivo — llamado tras una
  * auto-desvinculación exitosa (ver `unlinkDevice()` en `sync.js`). El
  * dispositivo queda como recién instalado: sin token, sin empleado
  * cacheado, sin cola de eventos ni estado. Cualquier marcación pendiente de

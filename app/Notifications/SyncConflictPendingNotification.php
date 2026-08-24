@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notification;
 /**
  * Notificación a los admins cuando se registra un conflicto de
  * sincronización offline (`AttendanceMarkFailure` con `failure_type:
- * sync_conflict`) — kiosko o celular sincronizó una marcación que ya no es
+ * sync_conflict`) — kiosko o dispositivo sincronizó una marcación que ya no es
  * válida contra el estado actual del servidor. Sin esto, el registro queda
  * en `AttendanceMarkFailureResource` sin que nadie se entere hasta que un
  * admin entra a mirar manualmente — justo el gap identificado al probar en

@@ -126,7 +126,7 @@ Cada vez que un empleado interactúa con el sistema de asistencia, se registra u
 | Origen | Descripción |
 |--------|-------------|
 | **Terminal (kiosco)** | Desde dispositivo compartido de la sucursal |
-| **Móvil** | Desde el celular del empleado |
+| **Móvil** | Desde el dispositivo personal del empleado |
 | **Manual (admin)** | Ingresado manualmente por el administrador |
 
 ---

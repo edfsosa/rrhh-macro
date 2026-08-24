@@ -75,7 +75,7 @@ it('sincroniza un evento nuevo y lo marca con origen mobile', function () {
 });
 
 /**
- * Regresión: el celular manda recorded_at en UTC (Date.toISOString(), ej.
+ * Regresión: el dispositivo manda recorded_at en UTC (Date.toISOString(), ej.
  * "...T22:30:00.000Z"). Antes del fix, ese valor se persistía tal cual (sin
  * convertir a la timezone de la app), guardando la hora UTC "cruda" — un
  * empleado que marcó a las 19:30 en Paraguay (UTC-3) quedaba con recorded_at
@@ -126,7 +126,7 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
     $service = app(MobileEventSyncService::class);
 
     // El check_in y el check_out ya llegaron al servidor (ej. registrados manualmente
-    // mientras el celular estaba offline) — un check_out sin check_in previo también
+    // mientras el dispositivo estaba offline) — un check_out sin check_in previo también
     // sería una secuencia inválida, por eso se establece el estado con ambos.
     $service->syncBatch($employee, [[
         'client_event_id' => (string) Str::uuid(),
@@ -139,7 +139,7 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
         'recorded_at' => '2026-08-19 17:00:00',
     ]]);
 
-    // El celular recién ahora sincroniza un break_start que había capturado offline, antes del check_out.
+    // El dispositivo recién ahora sincroniza un break_start que había capturado offline, antes del check_out.
     $conflictingClientEventId = (string) Str::uuid();
     $results = $service->syncBatch($employee, [[
         'client_event_id' => $conflictingClientEventId,
@@ -172,7 +172,7 @@ it('aprobar un conflicto mobile reconstruye el evento con source mobile', functi
         'recorded_at' => '2026-08-19 08:00:00',
     ]]);
 
-    // El celular sincroniza offline un segundo check_in (ej. capturado dos veces por
+    // El dispositivo sincroniza offline un segundo check_in (ej. capturado dos veces por
     // un reintento de red) — ya no es válido, el servidor lo rechaza como conflicto.
     $service->syncBatch($employee, [[
         'client_event_id' => (string) Str::uuid(),

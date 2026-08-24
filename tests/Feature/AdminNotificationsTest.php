@@ -159,9 +159,9 @@ it('la url de la notificación de conflicto apunta al detalle real del fallo', f
     expect($data['actions'][0]['url'])->toBe(AttendanceMarkFailureResource::getUrl('view', ['record' => $failure]));
 });
 
-// ─── Fix de URL en notificaciones de celular ───────────────────────────────
+// ─── Fix de URL en notificaciones de dispositivo ───────────────────────────
 
-it('las notificaciones de celular apuntan a la ficha real del empleado', function () {
+it('las notificaciones de dispositivo apuntan a la ficha real del empleado', function () {
     $employee = makeNotifiableEmployee();
 
     $linked = new MobileDeviceLinkedNotification($employee);
