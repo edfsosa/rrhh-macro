@@ -160,6 +160,17 @@ it('el heartbeat también devuelve photo_thumbnail para que el celular muestre l
     expect($response->json('employee.photo_thumbnail'))->toBe('data:image/jpeg;base64,FAKE_THUMBNAIL');
 });
 
+it('el heartbeat también devuelve sucursal y empresa para el header de /marcar', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/mobile/heartbeat');
+
+    $response->assertOk();
+    expect($response->json('employee.branch_name'))->toBe($employee->branch->name)
+        ->and($response->json('employee.company_name'))->toBe($employee->branch->company->name);
+});
+
 it('el heartbeat revoca el token y responde 403 si el empleado ya no está activo', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);

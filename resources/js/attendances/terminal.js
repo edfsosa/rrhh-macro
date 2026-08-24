@@ -87,6 +87,15 @@ document.addEventListener("DOMContentLoaded", () => {
         idleTerminalInfo.style.display = "";
     }
 
+    // Empresa — sucursal en el header persistente (a diferencia del bloque idle de
+    // arriba, este queda visible también durante la identificación activa).
+    const headerLocation = document.getElementById("terminalHeaderLocation");
+    if (terminalData && headerLocation && (terminalData.branch_name || terminalData.company_name)) {
+        headerLocation.textContent = [terminalData.branch_name, terminalData.company_name]
+            .filter(Boolean)
+            .join(" — ");
+    }
+
     // ============================================================================
     // ESTADO GLOBAL
     // ============================================================================

@@ -44,7 +44,7 @@ class AttendanceFaceMarkController extends Controller
      */
     public function terminalByCode(string $code): ViewContract
     {
-        $terminal = Terminal::with('branch')->where('code', $code)->first();
+        $terminal = Terminal::with('branch.company')->where('code', $code)->first();
 
         if (! $terminal) {
             abort(404);

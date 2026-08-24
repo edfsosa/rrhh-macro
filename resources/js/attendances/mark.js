@@ -204,12 +204,14 @@ const statusBar           = document.getElementById("statusBar");
     let lastDetectionTime = 0;
 
     /**
-     * Reasignada en el bloque del splash con la función real — permite que
-     * initializeOfflineSync() la vuelva a disparar tras el heartbeat inicial sin
-     * acoplar ambos bloques directamente. No-op si la página no tiene splash.
+     * Refresca el saludo/estado del splash y la sucursal — empresa del header
+     * persistente con el propio empleado cacheado. Reasignada en el bloque del
+     * splash con la función real — permite que initializeOfflineSync() la vuelva
+     * a disparar tras el heartbeat inicial sin acoplar ambos bloques
+     * directamente. No-op si la página no tiene splash.
      * @type {() => void}
      */
-    let refreshSplashPersonalization = () => {};
+    let refreshOwnEmployeeUi = () => {};
 
     /** Instancia del mapa Leaflet del mini-mapa de ubicación */
     let locationMap    = null;
@@ -1032,7 +1034,7 @@ const statusBar           = document.getElementById("statusBar");
         // Un dispositivo recién vinculado todavía no tenía own_employee cacheado la
         // primera vez que se llamó (ver bloque del splash) — ahora que el heartbeat
         // ya lo escribió en IndexedDB, reintentar para completar el saludo.
-        refreshSplashPersonalization();
+        refreshOwnEmployeeUi();
     }
 
     /**
@@ -2200,6 +2202,7 @@ const statusBar           = document.getElementById("statusBar");
         const splashTimeEl     = document.getElementById("splashTime");
         const splashDateEl     = document.getElementById("splashDate");
         const splashStatusEl   = document.getElementById("splashStatus");
+        const headerLocationEl = document.getElementById("headerLocation");
 
         // Nombre propio cacheado (mismo dato que ya usa Mis marcaciones) — normalmente
         // ya está en IndexedDB de una sesión anterior, así que suele completarse antes
@@ -2233,12 +2236,17 @@ const statusBar           = document.getElementById("statusBar");
         // nuevo desde initializeOfflineSync() tras el heartbeat inicial — un dispositivo
         // recién vinculado todavía no tiene own_employee cacheado en este primer intento,
         // solo lo consigue una vez que ese heartbeat termina de escribirlo.
-        refreshSplashPersonalization = () => {
+        refreshOwnEmployeeUi = () => {
             getOwnEmployee()
                 .then((employee) => {
                     if (employee?.first_name) {
                         ownFirstName = employee.first_name;
                         updateSplashClock();
+                    }
+                    if (headerLocationEl && (employee?.branch_name || employee?.company_name)) {
+                        headerLocationEl.textContent = [employee.branch_name, employee.company_name]
+                            .filter(Boolean)
+                            .join(" — ");
                     }
                 })
                 .catch(() => {}); // sin caché todavía — se queda con el saludo genérico
@@ -2253,7 +2261,7 @@ const statusBar           = document.getElementById("statusBar");
                 })
                 .catch(() => {}); // sin red y sin nada cacheado todavía — se deja oculto, no vale la pena mostrar un error acá
         };
-        refreshSplashPersonalization();
+        refreshOwnEmployeeUi();
 
         const handleSplashTap = () => {
             if (splashHandled) return;

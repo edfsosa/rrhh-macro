@@ -118,7 +118,17 @@ body.modal-open { overflow: hidden; }
     justify-content: space-between;
     box-shadow: var(--sh-sm);
 }
-.app-header-brand { display: flex; align-items: center; gap: var(--sp-3); }
+.app-header-brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+/* Sucursal — empresa del empleado, visible en todas las pantallas (splash, Paso 1, Paso 2) */
+.app-location-badge {
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--c-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
 
 /* ============================================================
    BANNER OFFLINE

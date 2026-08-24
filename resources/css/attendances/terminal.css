@@ -179,12 +179,13 @@ body {
     box-shadow: none;
 }
 .terminal-header--idle .terminal-mode-badge,
+.terminal-header--idle .terminal-location-badge,
 .terminal-header--idle .terminal-clock {
     opacity: 0;
     visibility: hidden;
     transition: opacity 400ms ease, visibility 400ms ease;
 }
-.terminal-header-brand { display: flex; align-items: center; gap: var(--sp-3); }
+.terminal-header-brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
 .terminal-mode-badge {
     background: var(--c-primary-bg);
     color: var(--c-primary);
@@ -195,6 +196,18 @@ body {
     padding: 3px var(--sp-2);
     border-radius: var(--r);
     border: 1px solid rgba(13,148,136,.25);
+    flex-shrink: 0;
+}
+/* Sucursal — empresa del terminal, visible también durante la identificación
+   activa (a diferencia del bloque idle-only en la pantalla de reposo). */
+.terminal-location-badge {
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--c-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 .theme-toggle {
     display: flex; align-items: center; justify-content: center;
