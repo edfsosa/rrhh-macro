@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Vincular dispositivo — Marcación de asistencia</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @vite('resources/js/attendances/device-link.js')
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -62,6 +63,32 @@
         .status--error { color: #f87171; }
         .status--success { color: #4ade80; }
         .hint { font-size: 0.8rem; color: #64748b; margin-top: 1.5rem; line-height: 1.5; }
+        .hidden { display: none !important; }
+
+        /* Aviso: este navegador ya tiene un dispositivo vinculado */
+        .already-linked-warning {
+            text-align: left;
+            background: #422006;
+            border: 1px solid #f59e0b;
+            border-radius: 0.75rem;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .already-linked-warning p { color: #fcd34d; font-size: 0.9rem; margin-bottom: 1rem; }
+        .already-linked-warning p:last-of-type { margin-bottom: 1.25rem; }
+        .already-linked-actions { display: flex; flex-direction: column; gap: 0.6rem; }
+        .btn-continue-anyway {
+            width: 100%; font: inherit; font-weight: 600; font-size: 0.9rem;
+            padding: 0.7rem 1.5rem; border-radius: 0.6rem; border: 1px solid #f59e0b;
+            background: transparent; color: #fcd34d; cursor: pointer;
+        }
+        .btn-continue-anyway:hover { background: rgba(245, 158, 11, 0.12); }
+        .btn-cancel-relink {
+            width: 100%; font: inherit; font-weight: 600; font-size: 0.9rem;
+            padding: 0.7rem 1.5rem; border-radius: 0.6rem; border: none;
+            background: #38bdf8; color: #0f172a; cursor: pointer;
+        }
+        .btn-cancel-relink:hover { background: #7dd3fc; }
     </style>
 </head>
 
@@ -74,6 +101,18 @@
         </div>
         <h1>Vincular este dispositivo</h1>
         <p>Ingresá tu CI y fecha de nacimiento para vincular este dispositivo. Vas a poder marcar tu asistencia aunque no tengas conexión a internet.</p>
+
+        {{-- Solo se muestra si device-link.js detecta un token ya vinculado en este
+        navegador (IndexedDB) — evita re-vinculaciones accidentales que disparan una
+        alerta de seguridad real (MobileDeviceRelinkedNotification) a los admins. --}}
+        <div id="alreadyLinkedWarning" class="already-linked-warning hidden">
+            <p><strong>Este dispositivo ya está vinculado</strong> a <span id="alreadyLinkedName"></span>.</p>
+            <p>Si continuás y vinculás uno nuevo, el dispositivo actual va a dejar de funcionar y se le va a avisar a RRHH.</p>
+            <div class="already-linked-actions">
+                <button type="button" id="btnCancelRelink" class="btn-cancel-relink">Ya tengo un dispositivo — volver a marcar</button>
+                <button type="button" id="btnContinueAnyway" class="btn-continue-anyway">Continuar y vincular este de todos modos</button>
+            </div>
+        </div>
 
         <form id="linkForm">
             <label for="ci">CI</label>
