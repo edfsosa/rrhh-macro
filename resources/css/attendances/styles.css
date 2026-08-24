@@ -184,7 +184,7 @@ body.modal-open { overflow: hidden; }
 .conflict-dismiss-btn:hover { background: var(--c-danger); color: #fff; }
 
 /* ============================================================
-   ESTADO DE SINCRONIZACIÓN OFFLINE (celular)
+   ESTADO DE SINCRONIZACIÓN OFFLINE (dispositivo)
    ============================================================ */
 .sync-status-row {
     display: flex;
@@ -212,7 +212,7 @@ body.modal-open { overflow: hidden; }
 }
 .sync-status-btn:hover:not(:disabled) { background: var(--c-surface); color: var(--c-text); }
 .sync-status-btn:disabled { opacity: .5; cursor: not-allowed; }
-/* Desvincular celular: acción rara y destructiva — discreta hasta el hover, no compite visualmente con "Sincronizar". */
+/* Desvincular dispositivo: acción rara y destructiva — discreta hasta el hover, no compite visualmente con "Sincronizar". */
 .sync-status-btn--unlink {
     border-color: transparent;
     margin-left: auto;

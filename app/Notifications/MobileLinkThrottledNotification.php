@@ -7,7 +7,7 @@ use Illuminate\Notifications\Notification;
 
 /**
  * Notificación a los admins cuando una IP agota el límite diario de intentos
- * de vinculación de celular (`/vincular-celular`, 15/día). Puede ser un
+ * de vinculación de dispositivo (`/vincular-dispositivo`, 15/día). Puede ser un
  * empleado real trabado (CI o fecha de nacimiento mal recordada) o un
  * intento de fuerza bruta contra una credencial de baja entropía — en
  * cualquiera de los dos casos, antes nadie se enteraba hasta que el
@@ -39,7 +39,7 @@ class MobileLinkThrottledNotification extends Notification
         $ciLabel = filled($this->lastCiAttempted) ? " (último CI intentado: {$this->lastCiAttempted})" : '';
 
         return [
-            'title' => 'Límite diario de vinculación de celular agotado',
+            'title' => 'Límite diario de vinculación de dispositivo agotado',
             'body' => "La IP {$this->ip} alcanzó el límite de 15 intentos de vinculación hoy{$ciLabel}. Puede ser un empleado con datos incorrectos o un intento de acceso indebido — revisar los logs si es necesario.",
             'icon' => 'heroicon-o-shield-exclamation',
             'color' => 'warning',

@@ -1,14 +1,14 @@
 /**
  * =============================================================================
- * COLA DE EVENTOS OFFLINE (celular personal)
+ * COLA DE EVENTOS OFFLINE (dispositivo personal)
  * =============================================================================
  *
  * @fileoverview Orquesta la resolución de estado y sincronización en segundo
- *               plano de las marcaciones del celular. Mismo diseño que
+ *               plano de las marcaciones del dispositivo. Mismo diseño que
  *               `terminal-offline/queue.js` — toda marcación se guarda primero
  *               en `outbound_events` (durable) y recién después se intenta
  *               sincronizar — pero acá no hace falta un `employeeId` explícito
- *               en cada función: el celular está vinculado a un único
+ *               en cada función: el dispositivo está vinculado a un único
  *               empleado, resuelto internamente desde `mobile_meta`.
  */
 
@@ -56,7 +56,7 @@ export function allowedNextEventTypes(lastEventType) {
 
 /**
  * Hora actual corregida con el offset de reloj del último heartbeat exitoso
- * (`server_clock_offset_ms`, ver sync.js) — un celular con el reloj desviado
+ * (`server_clock_offset_ms`, ver sync.js) — un dispositivo con el reloj desviado
  * (o con la hora del sistema manipulada) arrastraría el error a cada
  * marcación capturada offline. Sin heartbeat previo el offset es 0.
  * @returns {Promise<Date>}
@@ -78,7 +78,7 @@ function localDateString(date = new Date()) {
  * Resuelve el estado de marcación del propio empleado para hoy, combinando:
  * 1) el último estado que el servidor confirmó (cacheado en la última
  *    consulta online exitosa), con
- * 2) los eventos que este mismo celular ya encoló hoy pero el servidor
+ * 2) los eventos que este mismo dispositivo ya encoló hoy pero el servidor
  *    todavía no confirmó — para no repetir ni saltear pasos mientras está
  *    offline.
  * @returns {Promise<{last_event: string|null, last_event_time: string|null, allowed_events: string[]}>}
@@ -109,7 +109,7 @@ export async function resolveOwnStatus() {
 /**
  * Estado de marcación del propio empleado: intenta la consulta en línea (y
  * cachea el resultado para uso offline futuro); si falla por falta de red,
- * cae a resolveOwnStatus() con lo que el celular ya sabe.
+ * cae a resolveOwnStatus() con lo que el dispositivo ya sabe.
  * @returns {Promise<{last_event: string|null, last_event_time: string|null, allowed_events: string[]}>}
  */
 export async function getOwnStatus() {
@@ -136,7 +136,7 @@ export async function getOwnStatus() {
  * heartbeat exitoso (`server_clock_offset_ms`, ver sync.js). Sin heartbeat
  * previo el offset es 0 (no hay corrección posible).
  * @param {string} eventType
- * @param {{lat: number, lng: number}|null} [location] - GPS real del celular (a diferencia del kiosko, que solo tiene fallback a coordenadas de sucursal).
+ * @param {{lat: number, lng: number}|null} [location] - GPS real del dispositivo (a diferencia del kiosko, que solo tiene fallback a coordenadas de sucursal).
  * @returns {Promise<{client_event_id: string, recorded_at: string}>}
  */
 export async function enqueueMark(eventType, location = null) {
@@ -175,7 +175,7 @@ let flushInProgress = false;
 /**
  * Máximo de eventos por request de sincronización — debe coincidir con el
  * límite del servidor (`MobileEventSyncController`: `'events' => [...,
- * 'max:200']`). En la práctica un celular personal difícilmente acumule
+ * 'max:200']`). En la práctica un dispositivo personal difícilmente acumule
  * tantas marcaciones (a diferencia de un kiosko con muchos empleados), pero
  * se mantiene el mismo chunking por las dudas y por paridad con el kiosko.
  */

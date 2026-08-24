@@ -8,7 +8,7 @@ El sistema cubre el ciclo completo de gestión del personal:
 
 - **Organización:** estructura jerárquica de empresa, sucursales, departamentos y cargos
 - **Empleados:** registro completo con contratos y documentos
-- **Asistencias:** marcaciones por reconocimiento facial (terminal compartida o celular)
+- **Asistencias:** marcaciones por reconocimiento facial (terminal compartida o dispositivo personal)
 - **Nóminas:** liquidación mensual/quincenal/semanal con percepciones, deducciones y recibos en PDF
 - **Vacaciones y permisos:** solicitudes, aprobaciones y saldo de días por año
 - **Ausencias:** registro y justificación de inasistencias con descuento automático
@@ -40,7 +40,7 @@ El empleado pertenece a una **Sucursal**. Su salario, cargo y fecha de ingreso e
 5. Registrar los **empleados** y crear sus **contratos** iniciales
 6. Asignar un **horario** a cada empleado
 7. Cargar los **feriados** del año
-8. Habilitar las **marcaciones** (terminal o celular con reconocimiento facial)
+8. Habilitar las **marcaciones** (terminal o dispositivo personal con reconocimiento facial)
 9. Cada período: generar **nómina**, revisar y aprobar
 10. Gestionar **vacaciones**, **ausencias** y **préstamos** según necesidad
 11. Al cierre de año: calcular y emitir el **aguinaldo**

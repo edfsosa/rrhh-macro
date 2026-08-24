@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Sincroniza en lote los eventos de marcación capturados por el celular
+ * Sincroniza en lote los eventos de marcación capturados por el dispositivo
  * personal de UN empleado ya autenticado (a diferencia de
  * `AttendanceEventSyncService`, que sirve a un terminal con N empleados —
  * acá no hace falta `employee_id` por evento ni resolver "a quién
@@ -56,7 +56,7 @@ class MobileEventSyncService
         }
 
         try {
-            // El celular manda recorded_at en UTC (Date.toISOString()) — convertir a la
+            // El dispositivo manda recorded_at en UTC (Date.toISOString()) — convertir a la
             // timezone de la app ANTES de persistir, no solo para calcular $date. Sin esto
             // el evento queda guardado con la hora UTC "cruda" (ej. 3 horas adelantado en
             // America/Asuncion), porque el resto de la app asume que recorded_at ya está en
@@ -111,7 +111,7 @@ class MobileEventSyncService
         $allowed = AttendanceEvent::allowedNextEventTypes($last?->event_type);
 
         if (! in_array($eventData['event_type'], $allowed, true)) {
-            Log::warning("Sync de celular — evento '{$eventData['event_type']}' ya no es válido para el empleado {$employee->id} (último registrado: ".($last->event_type ?? 'ninguno').')', [
+            Log::warning("Sync de dispositivo — evento '{$eventData['event_type']}' ya no es válido para el empleado {$employee->id} (último registrado: ".($last->event_type ?? 'ninguno').')', [
                 'employee_id' => $employee->id,
                 'client_event_id' => $clientEventId,
                 'attempted_event' => $eventData['event_type'],
@@ -137,7 +137,7 @@ class MobileEventSyncService
                 'client_event_id' => $clientEventId,
                 'status' => 'conflict',
                 'conflict_reason' => 'invalid_sequence',
-                'message' => 'La secuencia de marcación ya no es válida en el servidor — probablemente otro origen registró un evento mientras el celular estaba offline.',
+                'message' => 'La secuencia de marcación ya no es válida en el servidor — probablemente otro origen registró un evento mientras el dispositivo estaba offline.',
             ];
         }
 
@@ -181,7 +181,7 @@ class MobileEventSyncService
                 'metadata' => $metadata,
             ]);
         } catch (Throwable $e) {
-            Log::error('No se pudo persistir el fallo de sincronización offline (celular)', [
+            Log::error('No se pudo persistir el fallo de sincronización offline (dispositivo)', [
                 'employee_id' => $employee->id,
                 'error' => $e->getMessage(),
             ]);

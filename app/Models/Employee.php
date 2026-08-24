@@ -19,7 +19,7 @@ use Laravel\Sanctum\HasApiTokens;
 /**
  * Implementa `Authenticatable` (no solo `HasApiTokens`) por el mismo motivo
  * que `Terminal`: el empleado es el "usuario" autenticado en la API de
- * marcación offline por celular (`routes/api.php`, prefijo `v1/mobile`) — sin
+ * marcación offline por dispositivo (`routes/api.php`, prefijo `v1/mobile`) — sin
  * esto, `$request->user()` funciona en producción igual, pero el helper de
  * test `Sanctum::actingAs()` exige el contrato con tipado estricto.
  */
@@ -1179,11 +1179,11 @@ class Employee extends Model implements AuthenticatableContract
     }
 
     // =========================================================================
-    // MARCACIÓN OFFLINE POR CELULAR — VINCULACIÓN Y TOKEN SANCTUM
+    // MARCACIÓN OFFLINE POR DISPOSITIVO — VINCULACIÓN Y TOKEN SANCTUM
     // =========================================================================
 
     /**
-     * Emite un token Sanctum (ability `mobile:sync`) para el celular personal
+     * Emite un token Sanctum (ability `mobile:sync`) para el dispositivo personal
      * del empleado, tras validarse con CI + fecha de nacimiento (ver
      * `MobileLinkController`). Revoca cualquier token móvil previo — un solo
      * dispositivo vinculado a la vez, igual que `Terminal::claimSanctumToken()`.
@@ -1218,7 +1218,7 @@ class Employee extends Model implements AuthenticatableContract
         $this->forceFill(['mobile_linked_at' => null, 'mobile_last_heartbeat_at' => null])->save();
     }
 
-    /** Indica si el empleado tiene un celular vinculado actualmente. */
+    /** Indica si el empleado tiene un dispositivo vinculado actualmente. */
     public function hasMobileLinked(): bool
     {
         return $this->mobile_linked_at !== null;

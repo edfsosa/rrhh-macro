@@ -9,11 +9,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Heartbeat del celular personal — a diferencia del heartbeat de terminal
+ * Heartbeat del dispositivo personal — a diferencia del heartbeat de terminal
  * (Terminal), acá el propio empleado es el `tokenable`, así que además de
  * la config vigente de reconocimiento facial también devuelve el
  * `face_descriptor` actualizado del empleado: no existe un endpoint
- * separado de "sync de empleados" porque el celular solo necesita cachear
+ * separado de "sync de empleados" porque el dispositivo solo necesita cachear
  * un único descriptor, el suyo. Esto además propaga automáticamente una
  * re-inscripción facial (nuevo enrollment) sin que el empleado tenga que
  * re-vincular el dispositivo.
@@ -32,7 +32,7 @@ class MobileHeartbeatController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Tu acceso a la marcación por celular fue desactivado. Consultá con RRHH.',
+                'message' => 'Tu acceso a la marcación por dispositivo fue desactivado. Consultá con RRHH.',
             ], 403);
         }
 

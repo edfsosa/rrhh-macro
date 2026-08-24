@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Vincular celular — Marcación de asistencia</title>
+    <title>Vincular dispositivo — Marcación de asistencia</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -72,7 +72,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75A2.25 2.25 0 0015.75 1.5H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
             </svg>
         </div>
-        <h1>Vincular este celular</h1>
+        <h1>Vincular este dispositivo</h1>
         <p>Ingresá tu CI y fecha de nacimiento para vincular este dispositivo. Vas a poder marcar tu asistencia aunque no tengas conexión a internet.</p>
 
         <form id="linkForm">
@@ -86,7 +86,7 @@
         </form>
         <div id="status" class="status" role="status" aria-live="polite"></div>
 
-        <p class="hint">Solo se puede vincular un dispositivo a la vez. Si vinculás un celular nuevo, el anterior deja de funcionar automáticamente.</p>
+        <p class="hint">Solo se puede vincular un dispositivo a la vez. Si vinculás uno nuevo, el anterior deja de funcionar automáticamente.</p>
     </div>
 
     <script>

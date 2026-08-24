@@ -40,7 +40,7 @@ function makeMobileLinkedEmployee(): Employee
 
 /**
  * El modal de "Revocar sesión móvil" debe mostrar cuándo se vinculó el
- * celular y cuándo sincronizó por última vez, para que el admin no revoque
+ * dispositivo y cuándo sincronizó por última vez, para que el admin no revoque
  * a ciegas — antes solo describía el efecto de la acción, sin contexto del
  * dispositivo en sí.
  */

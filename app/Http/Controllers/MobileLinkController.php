@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 /**
- * Vinculación del celular personal del empleado para la marcación offline
+ * Vinculación del dispositivo personal del empleado para la marcación offline
  * vía PWA. A diferencia de `TerminalSetupController` (enlace de un solo uso
  * generado por un admin), acá el propio empleado se identifica con CI +
  * fecha de nacimiento — ese par de datos funciona como credencial para
@@ -21,7 +21,7 @@ use Illuminate\View\View;
  * marcación en sí sigue requiriendo un match facial exitoso contra el
  * descriptor cacheado (segundo factor real).
  *
- * Vincular un celular nuevo revoca automáticamente el anterior — un solo
+ * Vincular un dispositivo nuevo revoca automáticamente el anterior — un solo
  * dispositivo vinculado a la vez por empleado (`Employee::claimMobileToken()`).
  */
 class MobileLinkController extends Controller
@@ -29,7 +29,7 @@ class MobileLinkController extends Controller
     /** Muestra el formulario de vinculación (CI + fecha de nacimiento). */
     public function show(): View
     {
-        return view('attendances.mobile-link');
+        return view('attendances.device-link');
     }
 
     /**
@@ -57,20 +57,20 @@ class MobileLinkController extends Controller
         if (! $employee) {
             // Se loguea el CI intentado (no la fecha) para poder correlacionar en logs
             // si un mismo CI está siendo atacado desde distintas IPs, o viceversa.
-            Log::warning('Intento de vinculación de celular con datos inválidos', [
+            Log::warning('Intento de vinculación de dispositivo con datos inválidos', [
                 'ip' => $request->ip(),
                 'ci' => $data['ci'],
             ]);
 
             return response()->json([
                 'ok' => false,
-                'message' => 'CI o fecha de nacimiento incorrectos, o el empleado no está habilitado para marcar por celular.',
+                'message' => 'CI o fecha de nacimiento incorrectos, o el empleado no está habilitado para marcar desde su dispositivo.',
             ], 422);
         }
 
         $plainTextToken = $employee->claimMobileToken($request->userAgent());
 
-        Log::info("Celular vinculado para el empleado #{$employee->id} ({$employee->first_name} {$employee->last_name})", [
+        Log::info("Dispositivo vinculado para el empleado #{$employee->id} ({$employee->first_name} {$employee->last_name})", [
             'employee_id' => $employee->id,
             'ip' => $request->ip(),
         ]);
@@ -91,8 +91,8 @@ class MobileLinkController extends Controller
     /**
      * Traduce el 429 genérico de Laravel ("Too Many Attempts.") a un mensaje
      * en español con el tiempo de espera real, para la ruta de vinculación
-     * de celular (`throttle:5,1,mobile-link-minute` +
-     * `throttle:15,1440,mobile-link-day` en routes/web.php). Registrado
+     * de dispositivo (`throttle:5,1,device-link-minute` +
+     * `throttle:15,1440,device-link-day` en routes/web.php). Registrado
      * desde `bootstrap/app.php`, scopeado a esta única ruta — el resto de
      * los enlaces públicos del proyecto (registro-facial, terminal/setup)
      * quedan con el comportamiento por defecto, fuera de alcance acá.
@@ -134,7 +134,7 @@ class MobileLinkController extends Controller
      */
     private static function notifyAdminsOfDailyLimitOnce(string $ip, ?string $lastCiAttempted): void
     {
-        $notifiedKey = 'mobile-link-day-notified:'.$ip.':'.now()->format('Y-m-d');
+        $notifiedKey = 'device-link-day-notified:'.$ip.':'.now()->format('Y-m-d');
 
         if (Cache::has($notifiedKey)) {
             return;

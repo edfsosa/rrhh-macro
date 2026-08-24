@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Marcación offline desde el celular personal del empleado (Parte C, Fase 1):
+ * Marcación offline desde el dispositivo personal del empleado (Parte C, Fase 1):
  * `mobile_linked_at` registra cuándo el empleado vinculó su dispositivo
  * (`Employee::claimMobileToken()`) — se usa en `EmployeeResource` para
  * mostrar el estado sin necesidad de consultar `->tokens()->exists()` por

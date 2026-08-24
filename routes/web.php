@@ -58,22 +58,22 @@ Route::prefix('terminal/{code}/setup/{setupToken}')->name('terminal.setup.')->mi
     Route::post('/claim', [TerminalSetupController::class, 'claim'])->name('claim');
 });
 
-// Vinculación del celular personal para marcación offline — el propio empleado se
+// Vinculación del dispositivo personal para marcación offline — el propio empleado se
 // identifica con CI + fecha de nacimiento (sin enlace de un solo uso generado por
 // un admin, a diferencia del terminal: acá el dato personal ES la credencial).
-// Emite el token Sanctum que el celular usará contra la API de sincronización
+// Emite el token Sanctum que el dispositivo usará contra la API de sincronización
 // (routes/api.php, prefijo v1/mobile). El POST (intento de credencial) tiene
 // throttling más estricto que el GET (solo carga la página) — CI+fecha de
 // nacimiento es una credencial de baja entropía, más fácil de fuerza bruta
 // que el token random de 64 caracteres del setup de terminales.
-Route::prefix('vincular-celular')->name('mobile-link.')->group(function () {
-    Route::get('/', [MobileLinkController::class, 'show'])->name('show')->middleware('throttle:20,1,mobile-link-show');
+Route::prefix('vincular-dispositivo')->name('device-link.')->group(function () {
+    Route::get('/', [MobileLinkController::class, 'show'])->name('show')->middleware('throttle:20,1,device-link-show');
     // Prefijos distintos en cada throttle: sin esto, ambos comparten la misma clave de
     // rate limit (dominio+IP — Laravel no distingue por maxAttempts/decayMinutes ni por
     // ruta), y cada request cuenta doble contra un único bucket compartido.
     Route::post('/', [MobileLinkController::class, 'claim'])->name('claim')->middleware([
-        'throttle:5,1,mobile-link-minute',
-        'throttle:15,1440,mobile-link-day',
+        'throttle:5,1,device-link-minute',
+        'throttle:15,1440,device-link-day',
     ]);
 });
 

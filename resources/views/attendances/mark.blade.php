@@ -96,8 +96,8 @@
         <button type="button" id="btnSyncNow" class="sync-status-btn" aria-label="Sincronizar marcaciones pendientes">
             Sincronizar
         </button>
-        <button type="button" id="btnUnlinkDevice" class="sync-status-btn sync-status-btn--unlink" aria-label="Desvincular este celular">
-            Desvincular celular
+        <button type="button" id="btnUnlinkDevice" class="sync-status-btn sync-status-btn--unlink" aria-label="Desvincular este dispositivo">
+            Desvincular dispositivo
         </button>
     </div>
 
@@ -141,7 +141,7 @@
     <script defer src="{{ asset('js/face-api.min.js') }}"></script>
 
     {{-- Service worker offline — scope acotado a /marcar (sin barra final: la ruta
-    real no la tiene), no afecta /vincular-celular ni el resto de la app. --}}
+    real no la tiene), no afecta /vincular-dispositivo ni el resto de la app. --}}
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js', { scope: '/marcar' })

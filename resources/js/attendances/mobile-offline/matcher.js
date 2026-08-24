@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * MATCHING FACIAL CLIENT-SIDE (celular personal offline)
+ * MATCHING FACIAL CLIENT-SIDE (dispositivo personal offline)
  * =============================================================================
  *
  * @fileoverview Idéntico a `terminal-offline/matcher.js` — mismo algoritmo de
@@ -31,11 +31,11 @@ export function euclideanDistance(a, b) {
 
 /**
  * Identifica al candidato más cercano a un descriptor "en vivo" dentro de la
- * caché local (normalmente un único empleado — el dueño del celular),
+ * caché local (normalmente un único empleado — el dueño del dispositivo),
  * aplicando el mismo criterio de umbral + gap de confianza que el backend.
  *
  * @param {number[]} liveDescriptor - Descriptor capturado en el momento.
- * @param {Array<{id: number, first_name: string, last_name: string, ci: string|null, face_descriptor: number[]}>} candidates - Normalmente un solo empleado (el propio dueño del celular).
+ * @param {Array<{id: number, first_name: string, last_name: string, ci: string|null, face_descriptor: number[]}>} candidates - Normalmente un solo empleado (el propio dueño del dispositivo).
  * @param {number} threshold - Distancia máxima para aceptar un match (face_threshold).
  * @param {number} minGap - Diferencia mínima requerida con el segundo candidato (face_min_confidence_gap).
  * @returns {{employee: object|null, distance: number, reason: 'no_match'|'ambiguous'|'no_candidates'|null}}

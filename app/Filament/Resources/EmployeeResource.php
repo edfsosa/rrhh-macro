@@ -831,7 +831,7 @@ class EmployeeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('mobile_linked_at')
-                    ->label('Celular vinculado')
+                    ->label('Dispositivo vinculado')
                     ->formatStateUsing(fn ($state) => $state ? 'Vinculado' : 'No vinculado')
                     ->badge()
                     ->color(fn ($state) => $state ? 'success' : 'gray')
@@ -839,7 +839,7 @@ class EmployeeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('mobile_last_heartbeat_at')
-                    ->label('Último sync celular')
+                    ->label('Último sync dispositivo')
                     ->since()
                     ->placeholder('Sin sincronizar')
                     ->tooltip(fn (Employee $record) => $record->mobile_last_heartbeat_at?->format('d/m/Y H:i'))
@@ -1063,12 +1063,12 @@ class EmployeeResource extends Resource
                         ->label('Revocar sesión móvil')
                         ->icon('heroicon-o-device-phone-mobile')
                         ->color('danger')
-                        ->tooltip('Desvincula el celular vinculado a este empleado para marcación offline — requerirá vincularse de nuevo desde /vincular-celular')
+                        ->tooltip('Desvincula el dispositivo vinculado a este empleado para marcación offline — requerirá vincularse de nuevo desde /vincular-dispositivo')
                         ->visible(fn (Employee $record): bool => $record->hasMobileLinked())
                         ->requiresConfirmation()
                         ->modalHeading('Revocar sesión móvil')
                         ->modalDescription(function (Employee $record): string {
-                            $base = "El celular vinculado de {$record->first_name} {$record->last_name} perderá acceso a la marcación offline de inmediato. Deberá vincularse de nuevo con CI + fecha de nacimiento.";
+                            $base = "El dispositivo vinculado de {$record->first_name} {$record->last_name} perderá acceso a la marcación offline de inmediato. Deberá vincularse de nuevo con CI + fecha de nacimiento.";
 
                             $linkedAt = $record->mobile_linked_at?->format('d/m/Y H:i');
                             $lastSync = $record->mobile_last_heartbeat_at?->diffForHumans() ?? 'nunca sincronizó';
@@ -1082,7 +1082,7 @@ class EmployeeResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('Sesión móvil revocada')
-                                ->body('El empleado deberá vincular su celular de nuevo para volver a marcar offline.')
+                                ->body('El empleado deberá vincular su dispositivo de nuevo para volver a marcar offline.')
                                 ->send();
                         }),
                 ]),

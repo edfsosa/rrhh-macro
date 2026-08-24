@@ -6,9 +6,9 @@
  * @fileoverview Cliente delgado para /api/v1/mobile/* — heartbeat (que además
  *               devuelve el descriptor facial propio, no hay endpoint de
  *               "sync de empleados" separado como en el kiosko), estado del
- *               propio empleado, y envío de eventos. Requiere que el celular
+ *               propio empleado, y envío de eventos. Requiere que el dispositivo
  *               ya haya sido vinculado (token en mobile_meta.api_token, ver
- *               MobileLinkController / mobile-link.blade.php).
+ *               MobileLinkController / device-link.blade.php).
  */
 
 import { getMeta, setMeta, setOwnEmployee, logSync } from './db.js';
@@ -19,7 +19,7 @@ const API_BASE = '/api/v1/mobile';
 export class MobileAuthError extends Error {}
 
 /**
- * fetch autenticado con el token Sanctum del celular.
+ * fetch autenticado con el token Sanctum del dispositivo.
  * @param {string} path - Path relativo a /api/v1/mobile (ej. '/heartbeat').
  * @param {RequestInit} [options]
  * @returns {Promise<any>} Cuerpo JSON de la respuesta.
@@ -27,7 +27,7 @@ export class MobileAuthError extends Error {}
 export async function apiFetch(path, options = {}) {
     const token = await getMeta('api_token');
     if (!token) {
-        throw new MobileAuthError('Este celular no está vinculado — falta identificarse en /vincular-celular.');
+        throw new MobileAuthError('Este dispositivo no está vinculado — falta identificarse en /vincular-dispositivo.');
     }
 
     const response = await fetch(`${API_BASE}${path}`, {
@@ -41,7 +41,7 @@ export async function apiFetch(path, options = {}) {
     });
 
     if (response.status === 401 || response.status === 403) {
-        throw new MobileAuthError('El token de este celular fue revocado o expiró — necesita vincularse de nuevo.');
+        throw new MobileAuthError('El token de este dispositivo fue revocado o expiró — necesita vincularse de nuevo.');
     }
 
     return response.json();
@@ -52,7 +52,7 @@ export async function apiFetch(path, options = {}) {
  * y el descriptor facial propio (propaga automáticamente una re-inscripción
  * sin que el empleado tenga que re-vincular el dispositivo) — no existe un
  * endpoint separado de "sync de empleados" como en el kiosko, porque acá solo
- * hace falta cachear un único descriptor: el del dueño del celular.
+ * hace falta cachear un único descriptor: el del dueño del dispositivo.
  * @returns {Promise<void>}
  */
 export async function heartbeat() {
@@ -97,7 +97,7 @@ export async function fetchStatus() {
 }
 
 /**
- * Auto-desvinculación: el propio empleado decide desvincular este celular
+ * Auto-desvinculación: el propio empleado decide desvincular este dispositivo
  * (ej. antes de venderlo o prestarlo) desde /marcar — a diferencia de
  * "Revocar sesión móvil" en EmployeeResource (accionada por un admin). El
  * caller es responsable de vaciar la caché local (ver `resetDb()` en

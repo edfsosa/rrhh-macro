@@ -88,7 +88,7 @@
                         {{-- Cuándo usarlo --}}
                         <div class="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-800 dark:text-green-300">
                             <strong>Cuándo usarlo:</strong> empleados remotos o en campo que marcan
-                            desde su propio celular. La ubicación GPS se registra automáticamente.
+                            desde su propio dispositivo. La ubicación GPS se registra automáticamente.
                         </div>
 
                     </div>
