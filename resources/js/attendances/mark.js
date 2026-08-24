@@ -1466,6 +1466,7 @@ const statusBar           = document.getElementById("statusBar");
                 first_name: matched.first_name,
                 last_name: matched.last_name,
                 ci: matched.ci,
+                photo_url: matched.photo_thumbnail || null,
             };
 
             // Estado del día: intenta consulta en línea (y la cachea); si no hay red, cae a lo

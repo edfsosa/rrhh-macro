@@ -35,7 +35,7 @@ export function euclideanDistance(a, b) {
  * aplicando el mismo criterio de umbral + gap de confianza que el backend.
  *
  * @param {number[]} liveDescriptor - Descriptor capturado en el momento.
- * @param {Array<{id: number, first_name: string, last_name: string, ci: string|null, face_descriptor: number[]}>} candidates - Normalmente un solo empleado (el propio dueño del dispositivo).
+ * @param {Array<{id: number, first_name: string, last_name: string, ci: string|null, face_descriptor: number[], photo_thumbnail?: string|null}>} candidates - Normalmente un solo empleado (el propio dueño del dispositivo).
  * @param {number} threshold - Distancia máxima para aceptar un match (face_threshold).
  * @param {number} minGap - Diferencia mínima requerida con el segundo candidato (face_min_confidence_gap).
  * @returns {{employee: object|null, distance: number, reason: 'no_match'|'ambiguous'|'no_candidates'|null}}
