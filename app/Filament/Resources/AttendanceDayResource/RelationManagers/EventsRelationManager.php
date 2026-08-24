@@ -197,7 +197,10 @@ class EventsRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->mutateRecordDataUsing(function (array $data) {
-                        $dt = Carbon::parse($data['recorded_at']);
+                        // $record->attributesToArray() serializa recorded_at en UTC
+                        // (Carbon::toJSON()), no en la timezone de la app — sin la
+                        // conversión acá, la fecha (y hora) mostradas quedan corridas.
+                        $dt = Carbon::parse($data['recorded_at'])->timezone(config('app.timezone'));
 
                         return array_merge($data, [
                             'time' => $dt->format('H:i'),
