@@ -17,6 +17,10 @@ use Illuminate\Http\Request;
  * El dispositivo prefiere esta consulta en línea; si falla, cae a una
  * resolución local equivalente (ver mobile-offline/queue.js, igual que
  * hace el kiosko desde la Fase 4).
+ *
+ * `today_events` (lista completa del día, no solo el último) alimenta la
+ * pantalla "Mis marcaciones" en /marcar — a diferencia del resto de esta
+ * respuesta, no tiene resolución local offline equivalente.
  */
 class MobileStatusController extends Controller
 {
@@ -28,15 +32,21 @@ class MobileStatusController extends Controller
         $today = now(config('app.timezone'))->toDateString();
 
         $day = AttendanceDay::where('employee_id', $employee->id)->where('date', $today)->first();
-        $last = $day
-            ? AttendanceEvent::where('attendance_day_id', $day->id)->latest('recorded_at')->first()
-            : null;
+        $events = $day
+            ? AttendanceEvent::where('attendance_day_id', $day->id)->orderBy('recorded_at')->get(['event_type', 'recorded_at'])
+            : collect();
+        $last = $events->last();
 
         return response()->json([
             'ok' => true,
             'last_event' => $last?->event_type,
             'last_event_time' => $last?->recorded_at?->format('H:i'),
             'allowed_events' => AttendanceEvent::allowedNextEventTypes($last?->event_type),
+            'today_events' => $events->map(fn (AttendanceEvent $event): array => [
+                'event_type' => $event->event_type,
+                'event_type_label' => AttendanceEvent::getEventTypeLabel($event->event_type),
+                'time' => $event->recorded_at->format('H:i'),
+            ])->values(),
         ]);
     }
 }

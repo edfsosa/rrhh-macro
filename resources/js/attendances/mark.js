@@ -109,6 +109,10 @@ const statusBar           = document.getElementById("statusBar");
     const btnUnlinkDevice     = document.getElementById("btnUnlinkDevice");
     const conflictBanner      = document.getElementById("conflictBanner");
     const btnDismissConflict  = document.getElementById("btnDismissConflict");
+    const btnMyEvents         = document.getElementById("btnMyEvents");
+    const btnCameraPause      = document.getElementById("btnCameraPause");
+    const btnCameraPauseLabel = document.getElementById("btnCameraPauseLabel");
+    const cameraPausedOverlay = document.getElementById("cameraPausedOverlay");
 
     // ==========================================================================
     // CONFIGURACIÓN Y CONSTANTES
@@ -155,6 +159,25 @@ const statusBar           = document.getElementById("statusBar");
      * @type {MediaStream|null}
      */
     let stream = null;
+
+    /**
+     * Pausa manual de cámara (btnCameraPause) — el empleado la activa para usar
+     * Sincronizar/Mis marcaciones/Desvincular sin riesgo de que el dwell lo
+     * identifique de encima. Independiente de `stream`: se consulta al volver
+     * a Paso 1 (transitionToStep1) para no reactivar la cámara sola.
+     * @type {boolean}
+     */
+    let cameraPaused = false;
+
+    /**
+     * Auto-reanudado de seguridad — evita que una pausa olvidada bloquee la
+     * marcación indefinidamente sin que el empleado lo note.
+     * @type {number|null}
+     */
+    let cameraPauseResumeTimer = null;
+
+    /** Milisegundos de pausa antes del auto-reanudado de seguridad */
+    const CAMERA_PAUSE_AUTO_RESUME_MS = 120_000;
 
     /**
      * Indica si los modelos de face-api.js están cargados
@@ -509,6 +532,44 @@ const statusBar           = document.getElementById("statusBar");
             }
         });
     }
+
+    // Switch "Pausar cámara" — apaga el stream para que el empleado pueda usar
+    // Sincronizar/Mis marcaciones/Desvincular sin riesgo de que el dwell lo
+    // identifique de encima (ver pauseCamera()/resumeCamera() más abajo).
+    if (btnCameraPause) {
+        btnCameraPause.addEventListener("click", () => {
+            if (cameraPaused) {
+                resumeCamera();
+            } else {
+                pauseCamera();
+            }
+        });
+    }
+    if (cameraPausedOverlay) {
+        cameraPausedOverlay.addEventListener("click", () => { resumeCamera(); });
+    }
+
+    // Botón "Mis marcaciones" — no requiere pasar por la cámara, el dispositivo
+    // ya sabe de quién es (vinculación 1:1). Reusa getOwnStatus() (mismo
+    // camino que la identificación) para no duplicar el manejo de auth/red.
+    if (btnMyEvents) {
+        btnMyEvents.addEventListener("click", () => { openMyEventsModal(); });
+    }
+    const closeMyEventsBtn = document.getElementById("closeMyEventsModal");
+    if (closeMyEventsBtn) {
+        closeMyEventsBtn.addEventListener("click", () => { closeMyEventsModal(); });
+    }
+    const myEventsModalEl = document.getElementById("myEventsModal");
+    if (myEventsModalEl) {
+        myEventsModalEl.addEventListener("click", (e) => {
+            if (e.target === myEventsModalEl) closeMyEventsModal();
+        });
+    }
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && myEventsModalEl && !myEventsModalEl.classList.contains("hidden")) {
+            closeMyEventsModal();
+        }
+    });
 
     // --------------------------------------------------------------------------
     // RELOJ EN TIEMPO REAL
@@ -1107,6 +1168,65 @@ const statusBar           = document.getElementById("statusBar");
                 setStatusBar("Iniciando cámara...", "detecting");
                 await startCamera();
             });
+        }
+    }
+
+    /** Refleja `cameraPaused` en el switch, el overlay del video y el status bar. */
+    function setCameraPausedUi(paused) {
+        if (btnCameraPause) {
+            btnCameraPause.setAttribute("aria-pressed", String(paused));
+        }
+        if (btnCameraPauseLabel) {
+            btnCameraPauseLabel.textContent = paused ? "Reanudar cámara" : "Pausar cámara";
+        }
+        if (cameraPausedOverlay) {
+            cameraPausedOverlay.classList.toggle("hidden", !paused);
+        }
+    }
+
+    /**
+     * Pausa manual de la cámara — apaga el stream por completo (no solo el
+     * dwell) para que el indicador de cámara del navegador se apague también.
+     * Rearma un auto-reanudado de seguridad para que una pausa olvidada no
+     * bloquee la marcación indefinidamente.
+     * @returns {void}
+     */
+    function pauseCamera() {
+        if (cameraPaused || !stream) return;
+
+        cancelAutoIdentifyDwell();
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        drawLoopActive = false;
+        faceInFrameState = null;
+        if (video) video.srcObject = null;
+
+        cameraPaused = true;
+        setCameraPausedUi(true);
+        setStatusBar("Cámara en pausa", null);
+        logStatus("Cámara pausada manualmente");
+
+        clearTimeout(cameraPauseResumeTimer);
+        cameraPauseResumeTimer = setTimeout(() => { resumeCamera(); }, CAMERA_PAUSE_AUTO_RESUME_MS);
+    }
+
+    /**
+     * Reanuda la cámara tras una pausa manual. Si el empleado ya avanzó a
+     * Paso 2 mientras estaba pausada, solo limpia el estado — Paso 2 maneja
+     * su propio apagado/reinicio de cámara al volver a Paso 1.
+     * @returns {Promise<void>}
+     */
+    async function resumeCamera() {
+        if (!cameraPaused) return;
+
+        clearTimeout(cameraPauseResumeTimer);
+        cameraPauseResumeTimer = null;
+        cameraPaused = false;
+        setCameraPausedUi(false);
+
+        const onStep1 = step1Section && !step1Section.classList.contains("hidden");
+        if (onStep1) {
+            await startCamera();
         }
     }
 
@@ -1723,8 +1843,14 @@ const statusBar           = document.getElementById("statusBar");
             locationMarker = null;
         }
 
-        // Reiniciar cámara en paralelo con la animación
+        // Reiniciar cámara en paralelo con la animación — salvo que el empleado la
+        // haya pausado manualmente (btnCameraPause): en ese caso queda pausada y se
+        // vuelve a mostrar el overlay correspondiente en vez de reactivar el stream.
         faceInFrameState = null;
+        if (cameraPaused) {
+            setCameraPausedUi(true);
+            return;
+        }
         try {
             await startCamera();
         } catch (error) {
@@ -1886,6 +2012,90 @@ const statusBar           = document.getElementById("statusBar");
     function closeErrorModalHandler() {
         errorModalVisible = false;
         setTimeout(() => window.location.reload(), 250);
+    }
+
+    /**
+     * Abre el modal "Mis marcaciones de hoy" y consulta la lista completa de
+     * eventos del día vía getOwnStatus() (mismo camino que la identificación,
+     * con su misma resiliencia offline) — a diferencia del resto de esa
+     * respuesta, `today_events` no tiene resolución local equivalente: sin
+     * red, se avisa en vez de mostrar una lista parcial/desactualizada.
+     * @returns {Promise<void>}
+     */
+    async function openMyEventsModal() {
+        const modal      = document.getElementById("myEventsModal");
+        const listEl      = document.getElementById("myEventsList");
+        const emptyEl     = document.getElementById("myEventsEmpty");
+        const offlineEl   = document.getElementById("myEventsOffline");
+        const loadingEl   = document.getElementById("myEventsLoading");
+        const closeBtn    = document.getElementById("closeMyEventsModal");
+        if (!modal || !listEl) return;
+
+        listEl.innerHTML = "";
+        emptyEl?.classList.add("hidden");
+        offlineEl?.classList.add("hidden");
+        loadingEl?.classList.remove("hidden");
+
+        modal.setAttribute("aria-hidden", "false");
+        modal.classList.remove("hidden");
+        void modal.offsetWidth;
+        requestAnimationFrame(() => { modal.classList.add("show"); });
+        document.body.classList.add("modal-open");
+        setTimeout(() => { closeBtn?.focus(); }, 100);
+
+        try {
+            const status = await getOwnStatus();
+            loadingEl?.classList.add("hidden");
+
+            const events = status.today_events;
+            if (!Array.isArray(events)) {
+                // getOwnStatus() cayó al fallback offline — ese fallback no reconstruye
+                // la lista completa, solo el último evento (ver resolveOwnStatus()).
+                offlineEl?.classList.remove("hidden");
+                return;
+            }
+            if (events.length === 0) {
+                emptyEl?.classList.remove("hidden");
+                return;
+            }
+            for (const event of events) {
+                const li = document.createElement("li");
+                li.className = "my-events-item";
+
+                const typeSpan = document.createElement("span");
+                typeSpan.className = "my-events-item-type";
+                typeSpan.textContent = event.event_type_label || translateEventType(event.event_type);
+
+                const timeSpan = document.createElement("span");
+                timeSpan.className = "my-events-item-time";
+                timeSpan.textContent = event.time || "";
+
+                li.append(typeSpan, timeSpan);
+                listEl.appendChild(li);
+            }
+        } catch (error) {
+            loadingEl?.classList.add("hidden");
+            if (error instanceof MobileAuthError) {
+                closeMyEventsModal();
+                window.location.href = "/vincular-dispositivo";
+                return;
+            }
+            logWarn("No se pudo consultar mis marcaciones:", error.message);
+            offlineEl?.classList.remove("hidden");
+        }
+    }
+
+    /** Cierra el modal "Mis marcaciones de hoy" con animación. */
+    function closeMyEventsModal() {
+        const modal = document.getElementById("myEventsModal");
+        if (!modal) return;
+
+        modal.setAttribute("aria-hidden", "true");
+        modal.classList.remove("show");
+        setTimeout(() => {
+            modal.classList.add("hidden");
+            document.body.classList.remove("modal-open");
+        }, 250);
     }
 
     // ==========================================================================
