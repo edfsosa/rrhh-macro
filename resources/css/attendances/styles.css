@@ -163,7 +163,11 @@ body.modal-open { overflow: hidden; }
     transition: max-height 400ms ease, opacity 400ms ease, padding 400ms ease;
 }
 .conflict-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
-.conflict-banner.is-visible { max-height: 64px; opacity: 1; padding: var(--sp-2) var(--sp-4); }
+/* 64px alcanza en una línea, pero el mensaje envuelve a 2 líneas en pantallas
+   angostas y el botón "Entendido" pasa a una tercera fila (flex-wrap) — sin
+   margen extra queda recortado por overflow:hidden, invisible pero presente
+   en el DOM. */
+.conflict-banner.is-visible { max-height: 140px; opacity: 1; padding: var(--sp-2) var(--sp-4); }
 .conflict-dismiss-btn {
     background: transparent;
     border: 1px solid var(--c-danger);
