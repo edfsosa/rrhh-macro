@@ -375,6 +375,26 @@ it('el 429 de otras rutas throttled no se ve afectado por el mensaje de vincular
 });
 
 /**
+ * Regresión: 'terminal.setup' y 'face-enrollment' usaban ambos 'throttle:10,1'
+ * sin prefijo — ThrottleRequests::resolveRequestSignature() genera la clave
+ * del rate limit solo con dominio+IP (sin distinguir ruta), así que ambos
+ * grupos compartían el mismo bucket por IP. Agotar el límite de una ruta
+ * bloqueaba también a la otra, aunque cada una tenga su propio límite
+ * nominal de 10/min. Ahora cada grupo tiene su propio prefijo
+ * ('terminal-setup' / 'face-enrollment').
+ */
+it('el throttle de terminal.setup y el de face-enrollment ya no comparten bucket', function () {
+    for ($i = 0; $i < 10; $i++) {
+        $this->getJson('/terminal/BOGUS/setup/faketoken');
+    }
+    $this->getJson('/terminal/BOGUS/setup/faketoken')->assertStatus(429);
+
+    // Antes del fix, esta request ya venía bloqueada por el bucket compartido
+    // aunque 'registro-facial' nunca haya sido golpeada.
+    $this->getJson('/registro-facial/faketoken')->assertStatus(404);
+});
+
+/**
  * MobileLinkController::throttledResponse() es la lógica que arma el mensaje
  * y decide si notificar a los admins — se prueba directamente (sin esperar
  * 15 requests reales limitadas a 5/minuto) construyendo la excepción con los

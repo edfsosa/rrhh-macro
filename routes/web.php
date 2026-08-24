@@ -53,7 +53,11 @@ Route::get('/terminal/{code}', [AttendanceFaceMarkController::class, 'terminalBy
 
 // Provisión del terminal como PWA offline — enlace de un solo uso generado desde TerminalResource,
 // emite el token Sanctum que el kiosko usará contra la API de sincronización (routes/api.php).
-Route::prefix('terminal/{code}/setup/{setupToken}')->name('terminal.setup.')->middleware('throttle:10,1')->group(function () {
+// Prefijo explícito en el throttle: sin él, comparte bucket de rate limit (por
+// IP, sin distinguir ruta — ver ThrottleRequests::resolveRequestSignature())
+// con cualquier otra ruta pública que use 'throttle:X,Y' sin prefijo, como
+// 'registro-facial' más abajo.
+Route::prefix('terminal/{code}/setup/{setupToken}')->name('terminal.setup.')->middleware('throttle:10,1,terminal-setup')->group(function () {
     Route::get('/', [TerminalSetupController::class, 'show'])->name('show');
     Route::post('/claim', [TerminalSetupController::class, 'claim'])->name('claim');
 });
@@ -87,7 +91,8 @@ Route::prefix('vincular-dispositivo')->name('device-link.')->group(function () {
 |
 */
 
-Route::prefix('registro-facial')->name('face-enrollment.')->middleware('throttle:10,1')->group(function () {
+// Prefijo explícito por el mismo motivo que 'terminal.setup' arriba.
+Route::prefix('registro-facial')->name('face-enrollment.')->middleware('throttle:10,1,face-enrollment')->group(function () {
     Route::get('/{token}', [FaceEnrollmentController::class, 'show'])->name('show');
     Route::post('/{token}', [FaceEnrollmentController::class, 'store'])->name('store');
 });
