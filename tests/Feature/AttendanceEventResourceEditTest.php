@@ -13,13 +13,23 @@ use App\Models\Employee;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function makeEditableAttendanceEvent(string $recordedAt): AttendanceEvent
+/**
+ * Crea un AttendanceEvent marcado "hoy" a las 21:32:39 — hora elegida a
+ * propósito porque +3h de offset (America/Asuncion → UTC) cruza la
+ * medianoche, ejerciendo el escenario exacto de la regresión. Se usa la
+ * fecha real de "hoy" (no un valor fijo) porque ManageAttendanceEvents
+ * arranca con el tab "Hoy" activo (whereDate('recorded_at', now())) — un
+ * evento con fecha fija quedaría filtrado fuera de la tabla en CI y
+ * mountTableAction() no lo encontraría.
+ */
+function makeEditableAttendanceEvent(): AttendanceEvent
 {
     static $ci = 8700000;
     $n = $ci++;
@@ -39,7 +49,8 @@ function makeEditableAttendanceEvent(string $recordedAt): AttendanceEvent
         'department_id' => $department->id, 'status' => 'active',
     ]);
 
-    $day = AttendanceDay::create(['employee_id' => $employee->id, 'date' => date('Y-m-d', strtotime($recordedAt)), 'status' => 'present']);
+    $recordedAt = Carbon::today()->setTime(21, 32, 39);
+    $day = AttendanceDay::create(['employee_id' => $employee->id, 'date' => $recordedAt->toDateString(), 'status' => 'present']);
 
     return AttendanceEvent::create([
         'attendance_day_id' => $day->id,
@@ -60,7 +71,8 @@ function makeEditableAttendanceEvent(string $recordedAt): AttendanceEvent
  */
 it('el modal de editar marcación prellena la fecha y hora correctas en la timezone de la app', function () {
     $this->actingAs(User::factory()->create());
-    $event = makeEditableAttendanceEvent('2026-08-23 21:32:39');
+    $event = makeEditableAttendanceEvent();
+    $expectedDate = $event->recorded_at->toDateString();
 
     $test = Livewire::test(ManageAttendanceEvents::class)
         ->mountTableAction('edit', $event);
@@ -73,19 +85,20 @@ it('el modal de editar marcación prellena la fecha y hora correctas en la timez
     // fecha de "hoy" a su estado interno, descartada al guardar — ver el
     // siguiente test para la verificación funcional real), por eso se
     // valida por contenido en vez de por igualdad exacta.
-    expect($data['_date'])->toBe('2026-08-23')
+    expect($data['_date'])->toBe($expectedDate)
         ->and($data['time'])->toContain('21:32');
 });
 
 it('guardar el modal de editar marcación sin cambios no corre la fecha ni la hora', function () {
     $this->actingAs(User::factory()->create());
-    $event = makeEditableAttendanceEvent('2026-08-23 21:32:39');
+    $event = makeEditableAttendanceEvent();
+    $expected = $event->recorded_at->format('Y-m-d H:i');
 
     Livewire::test(ManageAttendanceEvents::class)
         ->mountTableAction('edit', $event)
         ->callMountedTableAction();
 
-    expect($event->fresh()->recorded_at->format('Y-m-d H:i'))->toBe('2026-08-23 21:32');
+    expect($event->fresh()->recorded_at->format('Y-m-d H:i'))->toBe($expected);
 });
 
 /**
@@ -93,7 +106,8 @@ it('guardar el modal de editar marcación sin cambios no corre la fecha ni la ho
  */
 it('el modal de editar marcación en AttendanceDayResource prellena la fecha correcta', function () {
     $this->actingAs(User::factory()->create());
-    $event = makeEditableAttendanceEvent('2026-08-23 21:32:39');
+    $event = makeEditableAttendanceEvent();
+    $expectedDate = $event->recorded_at->toDateString();
 
     $test = Livewire::test(
         EventsRelationManager::class,
@@ -103,6 +117,6 @@ it('el modal de editar marcación en AttendanceDayResource prellena la fecha cor
 
     $data = $test->instance()->mountedTableActionsData[array_key_last($test->instance()->mountedTableActionsData)];
 
-    expect($data['_date'])->toBe('2026-08-23')
+    expect($data['_date'])->toBe($expectedDate)
         ->and($data['time'])->toContain('21:32');
 });
