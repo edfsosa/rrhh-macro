@@ -2248,6 +2248,12 @@ const statusBar           = document.getElementById("statusBar");
                             .filter(Boolean)
                             .join(" — ");
                     }
+                    // Título de pestaña — la empresa no se conoce server-side en esta
+                    // página (la identidad del empleado se resuelve recién acá, vía
+                    // IndexedDB/Sanctum), así que se corrige client-side apenas resuelve.
+                    if (employee?.company_name) {
+                        document.title = `${employee.company_name} — Marcación Facial`;
+                    }
                 })
                 .catch(() => {}); // sin caché todavía — se queda con el saludo genérico
 
@@ -2629,6 +2635,28 @@ const statusBar           = document.getElementById("statusBar");
             }
         });
         errorKeyListenerAdded = true;
+    }
+
+    // ==========================================================================
+    // TEMA CLARO / OSCURO
+    // ==========================================================================
+    // Mismo mecanismo que ya usa el kiosko (terminal.js) — localStorage con clave
+    // propia para no interferir si algún dispositivo llegara a usarse en los dos modos.
+    (function initTheme() {
+        const saved = localStorage.getItem("mark-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const isDark = saved === "dark" || (!saved && prefersDark);
+        document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+    })();
+
+    const btnThemeToggle = document.getElementById("btnThemeToggle");
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener("click", () => {
+            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            const next = isDark ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", next);
+            localStorage.setItem("mark-theme", next);
+        });
     }
 
     // ==========================================================================
