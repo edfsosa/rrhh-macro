@@ -141,3 +141,18 @@ it('el heartbeat sin contadores no rompe y deja los contadores en null', functio
     expect($terminal->last_pending_events_count)->toBeNull()
         ->and($terminal->last_conflict_events_count)->toBeNull();
 });
+
+/**
+ * Regresión: el título de pestaña ayuda a diferenciar kioskos de distintas
+ * sucursales cuando un admin monitorea varios a la vez — antes solo mostraba
+ * el nombre del propio terminal, sin sucursal ni empresa.
+ */
+it('el título de la página del terminal muestra sucursal — empresa', function () {
+    $terminal = makeConnectivityTerminal();
+
+    $response = $this->get("/terminal/{$terminal->code}");
+
+    $response->assertOk();
+    $expectedTitle = "{$terminal->branch->name} — {$terminal->branch->company->name}";
+    expect($response->getContent())->toContain("<title>{$expectedTitle}</title>");
+});
