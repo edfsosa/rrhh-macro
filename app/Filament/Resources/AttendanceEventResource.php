@@ -279,8 +279,11 @@ class AttendanceEventResource extends Resource
                                 ->required(),
                         ])
                         ->mutateRecordDataUsing(fn (array $data) => array_merge($data, [
-                            'time' => Carbon::parse($data['recorded_at'])->format('H:i'),
-                            '_date' => Carbon::parse($data['recorded_at'])->format('Y-m-d'),
+                            // $record->attributesToArray() serializa recorded_at en UTC
+                            // (Carbon::toJSON()), no en la timezone de la app — sin la
+                            // conversión acá, la fecha (y hora) mostradas quedan corridas.
+                            'time' => Carbon::parse($data['recorded_at'])->timezone(config('app.timezone'))->format('H:i'),
+                            '_date' => Carbon::parse($data['recorded_at'])->timezone(config('app.timezone'))->format('Y-m-d'),
                         ]))
                         ->mutateFormDataUsing(fn (array $data) => [
                             'event_type' => $data['event_type'],
