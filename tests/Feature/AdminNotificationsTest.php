@@ -78,6 +78,20 @@ it('la url de la notificación de terminal apunta al detalle real del recurso', 
     expect($data['actions'][0]['url'])->toBe(TerminalResource::getUrl('view', ['record' => $terminal]));
 });
 
+it('la notificación de terminal provisionado también se envía por email', function () {
+    $employee = makeNotifiableEmployee();
+    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+
+    $notification = new TerminalProvisionedNotification($terminal);
+
+    expect($notification->via(new User))->toBe(['database', 'mail']);
+
+    $mail = $notification->toMail(new User);
+
+    expect($mail->subject)->toBe('Terminal provisionado — Kiosko Test')
+        ->and($mail->actionUrl)->toBe(TerminalResource::getUrl('view', ['record' => $terminal]));
+});
+
 // ─── Autoenrolamiento pendiente de aprobación ──────────────────────────────
 
 it('notifica a los admins cuando un empleado completa el autoenrolamiento facial', function () {
@@ -171,4 +185,20 @@ it('las notificaciones de dispositivo apuntan a la ficha real del empleado', fun
 
     expect($linked->toDatabase(new User)['actions'][0]['url'])->toBe($expectedUrl)
         ->and($relinked->toDatabase(new User)['actions'][0]['url'])->toBe($expectedUrl);
+});
+
+it('la notificación de re-vinculación también se envía por email, la de primera vinculación no', function () {
+    $employee = makeNotifiableEmployee();
+
+    $linked = new MobileDeviceLinkedNotification($employee);
+    $relinked = new MobileDeviceRelinkedNotification($employee, 'Mozilla/5.0 Test');
+
+    expect($linked->via(new User))->toBe(['database'])
+        ->and($relinked->via(new User))->toBe(['database', 'mail']);
+
+    $mail = $relinked->toMail(new User);
+
+    expect($mail->subject)->toBe("Dispositivo re-vinculado — {$employee->full_name}")
+        ->and($mail->actionUrl)->toBe(EmployeeResource::getUrl('view', ['record' => $employee]))
+        ->and(collect($mail->introLines)->implode(' '))->toContain('Dispositivo nuevo: Mozilla/5.0 Test');
 });
