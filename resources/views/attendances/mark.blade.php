@@ -30,6 +30,11 @@
                 <p class="splash-date"     id="splashDate"></p>
             </div>
 
+            {{-- Última marcación de hoy — datos ya cacheados en el dispositivo (mismo
+            camino que "Mis marcaciones"), se completa apenas resuelve sin bloquear
+            la pantalla. Oculto hasta tener una respuesta para no mostrar "cargando". --}}
+            <p id="splashStatus" class="splash-status hidden" aria-live="polite"></p>
+
             <div class="splash-center">
                 <div class="splash-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
