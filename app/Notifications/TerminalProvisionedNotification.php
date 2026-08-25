@@ -11,10 +11,16 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notificación a los admins cuando un terminal completa su
- * provisión (reclama el enlace de configuración de un solo uso y recibe
- * su token Sanctum) — confirma que la instalación física salió bien sin
- * que un admin tenga que entrar a revisar `last_heartbeat_at` a mano.
+ * Notificación a los admins cuando un terminal reclama el enlace de
+ * configuración de un solo uso y recibe su token Sanctum.
+ *
+ * No confirma que la instalación física haya salido bien — solo que el
+ * servidor emitió el token. Si la respuesta HTTP nunca llega al dispositivo
+ * (ej. se corta la red justo después de que el servidor la generó), esta
+ * notificación se dispara igual aunque el terminal físico se haya quedado
+ * sin token — por eso el wording pide verificar Conectividad en vez de dar
+ * la instalación por confirmada. Ver columna "Conectividad" en
+ * `TerminalResource` (`never_connected` hasta el primer heartbeat exitoso).
  */
 class TerminalProvisionedNotification extends Notification
 {
@@ -41,7 +47,8 @@ class TerminalProvisionedNotification extends Notification
     {
         return (new MailMessage)
             ->subject('Terminal provisionado — '.$this->terminal->name)
-            ->line("El terminal \"{$this->terminal->name}\" ({$this->terminal->branch?->name}) completó su configuración y ya está listo para marcar asistencia.")
+            ->line("El terminal \"{$this->terminal->name}\" ({$this->terminal->branch?->name}) reclamó su token de sincronización.")
+            ->line('Verificá el estado de Conectividad en unos minutos para confirmar que el dispositivo físico quedó sincronizando con normalidad.')
             ->action('Ver terminal', TerminalResource::getUrl('view', ['record' => $this->terminal]));
     }
 
@@ -60,7 +67,7 @@ class TerminalProvisionedNotification extends Notification
         return [
             ...FilamentNotification::make()
                 ->title('Terminal provisionado')
-                ->body("El terminal \"{$this->terminal->name}\" ({$this->terminal->branch?->name}) completó su configuración y ya está listo para marcar asistencia.")
+                ->body("El terminal \"{$this->terminal->name}\" ({$this->terminal->branch?->name}) reclamó su token de sincronización. Verificá Conectividad en unos minutos para confirmar que quedó sincronizando.")
                 ->icon('heroicon-o-computer-desktop')
                 ->success()
                 ->actions([
