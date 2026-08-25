@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
  * empleados — acá el empleado es implícito, siempre `$request->user()`).
  * El dispositivo prefiere esta consulta en línea; si falla, cae a una
  * resolución local equivalente (ver mobile-offline/queue.js, igual que
- * hace el kiosko desde la Fase 4).
+ * hace el terminal desde la Fase 4).
  *
  * `today_events` (lista completa del día, no solo el último) alimenta la
  * pantalla "Mis marcaciones" en /marcar — a diferencia del resto de esta

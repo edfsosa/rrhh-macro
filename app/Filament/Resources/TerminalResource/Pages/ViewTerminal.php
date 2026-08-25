@@ -5,6 +5,7 @@ namespace App\Filament\Resources\TerminalResource\Pages;
 use App\Filament\Resources\TerminalResource;
 use App\Models\Terminal;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -60,7 +61,7 @@ class ViewTerminal extends ViewRecord
             Action::make('deactivate')
                 ->label('Desactivar')
                 ->icon('heroicon-o-x-circle')
-                ->color('danger')
+                ->color('warning')
                 ->visible(fn () => $this->record->isActive())
                 ->requiresConfirmation()
                 ->modalHeading('Desactivar terminal')
@@ -72,59 +73,73 @@ class ViewTerminal extends ViewRecord
                     $this->refreshFormData(['status']);
                 }),
 
-            Action::make('regenerate_code')
-                ->label('Regenerar código')
-                ->icon('heroicon-o-arrow-path')
-                ->color('warning')
-                ->requiresConfirmation()
-                ->modalHeading('Regenerar código de acceso')
-                ->modalDescription('⚠️ Esto cambiará la URL de la terminal. El dispositivo físico dejará de funcionar hasta que sea reconfigurado con la nueva URL.')
-                ->modalSubmitActionLabel('Sí, regenerar')
-                ->action(function () {
-                    $newCode = Terminal::generateUniqueCode();
-                    $this->record->update(['code' => $newCode]);
-
-                    Notification::make()
-                        ->warning()
-                        ->title('Código regenerado')
-                        ->body('Recordá actualizar la URL en el dispositivo físico.')
-                        ->send();
-
-                    $this->refreshFormData(['code']);
-                }),
-
             Action::make('generate_setup_link')
                 ->label('Generar enlace de configuración')
                 ->tooltip('Enlace/QR de un solo uso para vincular el dispositivo a la sincronización offline')
                 ->icon('heroicon-o-qr-code')
                 ->color('gray')
                 ->modalHeading('Enlace de configuración del terminal')
+                ->modalDescription(fn () => $this->record->tokens()->exists()
+                    ? '⚠️ Este terminal ya está vinculado y sincronizando. Si otro dispositivo reclama este enlace, el acceso del terminal actual se revocará automáticamente.'
+                    : null)
                 ->modalContent(fn () => TerminalResource::renderSetupLinkModal($this->record))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Cerrar'),
 
-            Action::make('revoke_token')
-                ->label('Revocar token')
-                ->tooltip('Invalida el acceso del terminal a la sincronización offline — requerirá re-provisión')
-                ->icon('heroicon-o-shield-exclamation')
-                ->color('danger')
-                ->visible(fn () => $this->record->tokens()->exists())
-                ->requiresConfirmation()
-                ->modalHeading('Revocar token de sincronización')
-                ->modalDescription('El terminal perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar.')
-                ->modalSubmitActionLabel('Sí, revocar')
-                ->action(function () {
-                    $this->record->revokeSyncTokens();
-                    Notification::make()
-                        ->success()
-                        ->title('Token revocado')
-                        ->body('El terminal deberá re-provisionarse para volver a sincronizar.')
-                        ->send();
-                }),
-
             EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
 
-            DeleteAction::make()->icon('heroicon-o-trash'),
+            ActionGroup::make([
+                Action::make('regenerate_code')
+                    ->label('Cambiar URL del terminal')
+                    ->tooltip('Cambia la URL pública del terminal — el dispositivo físico deberá reconfigurarse con la nueva URL')
+                    ->icon('heroicon-o-link')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Cambiar URL del terminal')
+                    ->modalDescription('⚠️ Esto cambiará la URL pública de la terminal. El dispositivo físico dejará de funcionar hasta que sea reconfigurado con la nueva URL. Esto NO afecta el token de sincronización — el terminal seguirá conectado a la API mientras tanto.')
+                    ->modalSubmitActionLabel('Sí, cambiar')
+                    ->action(function () {
+                        $newCode = Terminal::generateUniqueCode();
+                        $this->record->update(['code' => $newCode]);
+
+                        Notification::make()
+                            ->warning()
+                            ->title('URL del terminal actualizada')
+                            ->body('Recordá reconfigurar el dispositivo físico con la nueva URL.')
+                            ->send();
+
+                        $this->refreshFormData(['code']);
+                    }),
+
+                Action::make('revoke_token')
+                    ->label('Revocar token')
+                    ->tooltip('Invalida el acceso del terminal a la sincronización offline — requerirá re-provisión')
+                    ->icon('heroicon-o-shield-exclamation')
+                    ->color('danger')
+                    ->visible(fn () => $this->record->tokens()->exists())
+                    ->requiresConfirmation()
+                    ->modalHeading('Revocar token de sincronización')
+                    ->modalDescription('El terminal perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar. El código y la URL del terminal no cambian.')
+                    ->modalSubmitActionLabel('Sí, revocar')
+                    ->action(function () {
+                        $this->record->revokeSyncTokens();
+                        Notification::make()
+                            ->success()
+                            ->title('Token revocado')
+                            ->body('El terminal deberá re-provisionarse para volver a sincronizar.')
+                            ->send();
+                    }),
+
+                DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->modalDescription('Esta acción no se puede deshacer. Las marcaciones ya registradas con este terminal no se eliminan, pero perderán la referencia a qué dispositivo físico las generó.')
+                    ->modalSubmitActionLabel('Sí, eliminar'),
+            ])
+                ->label('Más acciones')
+                ->icon('heroicon-m-chevron-down')
+                ->color('gray')
+                ->button(),
         ];
     }
 }

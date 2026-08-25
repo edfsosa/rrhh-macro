@@ -67,7 +67,7 @@ Two separate axes that converge in `Contract`:
 | Schedules | `ScheduleAssignmentService` — asignación de horarios fijos con vigencia por fechas |
 | Rotations | `RotationService` — asignación de patrones rotativos y resolución de turno efectivo por fecha |
 | Attendance | `AttendanceDay`, `AttendanceEvent`, observers auto-calculate daily totals |
-| Attendance offline (kiosko/dispositivo) | `Terminal`, `Employee` (Sanctum), `EmployeeDevice` (historial), `AttendanceMarkFailure` — ver "Módulo de Asistencia — Marcación Offline" más abajo |
+| Attendance offline (terminal/dispositivo) | `Terminal`, `Employee` (Sanctum), `EmployeeDevice` (historial), `AttendanceMarkFailure` — ver "Módulo de Asistencia — Marcación Offline" más abajo |
 | Face Recognition | TensorFlow.js (128-element descriptors), `FaceEnrollment`, `FaceCaptureApp.js` |
 | Warnings | `Warning` — registro documental de amonestaciones laborales (sin impacto en nómina por ahora) |
 
@@ -301,12 +301,12 @@ Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un
 
 **Pago con nómina (`payment_method = 'with_payroll'`):** `PayrollService::resolveVacationPays()` paga la remuneración vacacional **completa como pago único** en el período de nómina que contiene el `start_date` de la vacación — **no se prorratea** aunque el `end_date` caiga en el período de nómina siguiente. Es una convención intencional (lump sum al inicio de la vacación), no un bug. `Vacation.payment_status` es un enum simple `unpaid`/`paid` — no rastrea montos parciales, así que implementar prorrateo real requeriría un cambio de modelo de datos, no solo de lógica.
 
-### Módulo de Asistencia — Marcación Offline (Kiosko y Dispositivo Personal)
+### Módulo de Asistencia — Marcación Offline (Terminal y Dispositivo Personal)
 
 Documento completo con arquitectura, decisiones y deuda técnica: **`docs/marcacion-offline.md`**. Resumen:
 
 Dos dispositivos marcan asistencia por reconocimiento facial (face-api.js, 100% client-side), ambos con soporte offline vía PWA:
-- **Kiosko/terminal** (`Terminal`) — compartido por sucursal, cachea el descriptor de *todos* los empleados activos de esa sucursal. Provisión por enlace de un solo uso generado por un admin.
+- **Terminal** (`Terminal`) — compartido por sucursal, cachea el descriptor de *todos* los empleados activos de esa sucursal. Provisión por enlace de un solo uso generado por un admin.
 - **Dispositivo personal** (`Employee`) — individual, cachea *únicamente* el propio descriptor. Vinculación self-service en `/vincular-dispositivo` con CI + fecha de nacimiento (no es un factor de auth completo — el match facial sigue siendo el control real). Un dispositivo vinculado a la vez: vincular uno nuevo revoca el anterior y notifica a los admins.
 
 **Auth:** un único guard `auth:sanctum` sirve tokens de `Terminal` (`ability: terminal:sync`) y `Employee` (`ability: mobile:sync`) — Sanctum resuelve el `tokenable` de forma polimórfica sin config adicional en `config/auth.php`. Ambos modelos usan `HasApiTokens` + `Illuminate\Auth\Authenticatable` (este último solo necesario para que `Sanctum::actingAs()` funcione en tests).
@@ -323,10 +323,10 @@ Dos dispositivos marcan asistencia por reconocimiento facial (face-api.js, 100% 
 
 **Detección best-effort de marca/modelo (`DeviceHintsParser`):** al vincular un celular o provisionar un terminal, se intenta prellenar `device_brand`/`device_model` (siempre editables) a partir de Client Hints del navegador (`navigator.userAgentData.getHighEntropyValues(['model'])` — solo Chromium + Android, manda `device_model_hint` en el POST de claim) con fallback a parseo del `User-Agent` en el servidor. **MAC address y número de serie nunca son detectables desde ningún navegador** — quedan 100% manuales por diseño, no es una limitación de esta implementación. `Terminal::claimSanctumToken()` nunca pisa una corrección manual previa (mismo registro se reutiliza entre reprovisiones); `Employee::claimMobileToken()` siempre aplica el guess (cada vinculación crea un `EmployeeDevice` nuevo).
 
-**Logo de empresa (`CompanyLogoThumbnailService`):** mismo patrón offline-safe que `EmployeePhotoThumbnailService` (thumbnail pre-generado en `Company.logo_thumbnail` vía `CompanyObserver`, viaja como data URI embebido — en `window.terminalData` para el kiosko, en el payload de heartbeat para el celular) pero con dos diferencias por tratarse de un logo y no una foto de rostro: **ajusta preservando la proporción** (bounding box 240×80px, nunca recorta a cuadrado) y **exporta en PNG** (no JPEG, para conservar transparencia). SVG no se procesa — GD no puede rasterizarlo, degrada a sin logo.
+**Logo de empresa (`CompanyLogoThumbnailService`):** mismo patrón offline-safe que `EmployeePhotoThumbnailService` (thumbnail pre-generado en `Company.logo_thumbnail` vía `CompanyObserver`, viaja como data URI embebido — en `window.terminalData` para el terminal, en el payload de heartbeat para el celular) pero con dos diferencias por tratarse de un logo y no una foto de rostro: **ajusta preservando la proporción** (bounding box 240×80px, nunca recorta a cuadrado) y **exporta en PNG** (no JPEG, para conservar transparencia). SVG no se procesa — GD no puede rasterizarlo, degrada a sin logo.
 
 **UI del modo móvil (`resources/js/attendances/mark.js`):**
-- Header persistente con sucursal/empresa/logo (`#headerLocation`, `#headerLogo`), poblado por `refreshOwnEmployeeUi()` desde el empleado cacheado (heartbeat). Mismo patrón en el kiosko (`terminal.js`, `#terminalHeaderLocation`/`#terminalHeaderLogo`, poblado server-side vía `window.terminalData` ya que el terminal es fijo por sucursal).
+- Header persistente con sucursal/empresa/logo (`#headerLocation`, `#headerLogo`), poblado por `refreshOwnEmployeeUi()` desde el empleado cacheado (heartbeat). Mismo patrón en `terminal.js` (`#terminalHeaderLocation`/`#terminalHeaderLogo`, poblado server-side vía `window.terminalData` ya que el terminal es fijo por sucursal).
 - Splash personalizado: saludo con nombre + tarjeta de estado ("Hoy: Entrada · HH:MM"). **Gotcha corregido:** `returnToSplash()` (se ejecuta al cerrar el modal de éxito tras marcar) debe volver a llamar `refreshOwnEmployeeUi()` explícitamente — sin eso la tarjeta de estado queda con el valor de antes de marcar hasta recargar la página, porque `refreshOwnEmployeeUi` solo se disparaba en la carga inicial.
 - Botón "Pausar cámara" junto a Sincronizar/Desvincular — permite usar la interfaz (ver "Mis marcaciones", sincronizar) sin activar la identificación facial por accidente. Auto-resume a los 2 minutos por seguridad.
 - Modal "Mis marcaciones" — lista de eventos de hoy del propio empleado, consulta `getOwnStatus()` en el momento (no cachea una lista desactualizada offline; sin red muestra aviso en vez de una lista parcial).

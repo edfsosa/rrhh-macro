@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
  * Genera un thumbnail cuadrado de baja resolución de la foto de un empleado,
  * codificado como data URI base64. Se persiste en `Employee::photo_thumbnail`
  * (ver EmployeeObserver) para poder viajar embebido en el payload JSON de
- * sincronización offline del kiosko (ver EmployeeDescriptorSyncService) sin
+ * sincronización offline del terminal (ver EmployeeDescriptorSyncService) sin
  * depender de que el dispositivo tenga red para pedir la imagen original por
  * separado — la foto completa (potencialmente varios MB) nunca se sincroniza.
  *

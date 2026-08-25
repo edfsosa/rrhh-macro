@@ -8,7 +8,7 @@
  *               para que un ajuste de tuning (tamaño mínimo de cara, umbrales) se
  *               haga en un solo lugar. Deliberadamente NO incluye manejo de DOM ni
  *               máquinas de estado de pantalla — cada caller (marcación manual,
- *               terminal/kiosko, enrolamiento) tiene su propio flujo de UI distinto.
+ *               terminal, enrolamiento) tiene su propio flujo de UI distinto.
  *
  * @requires face-api.js cargado globalmente (faceapi) antes de invocar estas funciones.
  */

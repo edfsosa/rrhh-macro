@@ -53,7 +53,7 @@ function makeSyncEmployee(): Employee
 function makeSyncTerminal(Employee $employee): Terminal
 {
     return Terminal::create([
-        'name' => 'Kiosko Test',
+        'name' => 'Terminal Test',
         'branch_id' => $employee->branch_id,
     ]);
 }
@@ -82,7 +82,7 @@ it('sincroniza un evento nuevo y lo marca con origen terminal', function () {
 });
 
 /**
- * Regresión: el kiosko manda recorded_at en UTC (Date.toISOString(), ej.
+ * Regresión: el terminal manda recorded_at en UTC (Date.toISOString(), ej.
  * "...T22:30:00.000Z"). Antes del fix, ese valor se persistía tal cual (sin
  * convertir a la timezone de la app), guardando la hora UTC "cruda" — un
  * evento marcado a las 19:30 en Paraguay (UTC-3) quedaba con recorded_at en
@@ -137,7 +137,7 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
     $terminal = makeSyncTerminal($employee);
     $service = app(AttendanceEventSyncService::class);
 
-    // El check_out ya llegó al servidor (ej. desde otro origen mientras el kiosko estaba offline).
+    // El check_out ya llegó al servidor (ej. desde otro origen mientras el terminal estaba offline).
     $service->syncBatch($terminal, [[
         'client_event_id' => (string) Str::uuid(),
         'employee_id' => $employee->id,
@@ -145,7 +145,7 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
         'recorded_at' => '2026-08-19 17:00:00',
     ]]);
 
-    // El kiosko recién ahora sincroniza un break_start que había capturado offline, antes del check_out.
+    // El terminal recién ahora sincroniza un break_start que había capturado offline, antes del check_out.
     $conflictingClientEventId = (string) Str::uuid();
     $results = $service->syncBatch($terminal, [[
         'client_event_id' => $conflictingClientEventId,

@@ -164,7 +164,7 @@ class MobileEventSyncService
     /**
      * Persiste un intento fallido de sincronización para revisión en Filament
      * (`AttendanceMarkFailureResource` — mismo flujo de aprobar/descartar que
-     * ya existe para los conflictos del kiosko).
+     * ya existe para los conflictos del terminal).
      *
      * @param  array<string, mixed>  $metadata
      */

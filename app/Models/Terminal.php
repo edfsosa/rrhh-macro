@@ -256,7 +256,7 @@ class Terminal extends Model implements AuthenticatableContract
     /**
      * Estado de conectividad calculado a partir de `last_heartbeat_at` (a
      * diferencia de `last_seen_at`, que también se actualiza con cada carga
-     * de página vía sesión y por eso no distingue un kiosko que quedó abierto
+     * de página vía sesión y por eso no distingue un terminal que quedó abierto
      * offline días de uno que realmente sigue sincronizando):
      * - 'never_connected': nunca completó un heartbeat exitoso (sin
      *   provisionar, o provisionado pero sin conexión desde entonces).
@@ -276,7 +276,7 @@ class Terminal extends Model implements AuthenticatableContract
     }
 
     /**
-     * Estado de la cola de sincronización offline del kiosko, a partir de lo
+     * Estado de la cola de sincronización offline del terminal, a partir de lo
      * reportado en el último heartbeat exitoso (`last_pending_events_count`/
      * `last_conflict_events_count`) — complementa `connectivity_status`: un
      * terminal puede verse "en línea" (el heartbeat llega con normalidad) y

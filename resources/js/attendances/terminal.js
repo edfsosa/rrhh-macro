@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Logo de la empresa — ya viaja embebido como data URI en window.terminalData
-    // (inyectado server-side), así que queda cacheado junto con el shell del kiosko
+    // (inyectado server-side), así que queda cacheado junto con el shell del terminal
     // por el service worker sin necesidad de un fetch aparte.
     const headerLogo = document.getElementById("terminalHeaderLogo");
     if (terminalData && headerLogo && terminalData.company_logo) {
@@ -618,7 +618,7 @@ document.addEventListener("DOMContentLoaded", () => {
      * euclidiana + umbral/gap que corre en el servidor (ver terminal-offline/matcher.js).
      * El estado del día (último evento / eventos permitidos) se resuelve vía
      * getEmployeeStatus(), que intenta la consulta en línea y cae a lo que el
-     * kiosko ya sabe localmente si no hay red — ver terminal-offline/queue.js.
+     * terminal ya sabe localmente si no hay red — ver terminal-offline/queue.js.
      */
     async function identifyEmployee(descriptor) {
         try {
@@ -1104,7 +1104,7 @@ document.addEventListener("DOMContentLoaded", () => {
      * (empleados cacheados, cola de marcaciones pendientes) bajo presión de
      * espacio en disco. Best-effort: no todos los navegadores lo soportan, y
      * la concesión depende de heurísticas del navegador (ej. Chrome la
-     * otorga más fácil en un dispositivo instalado como PWA/kiosko).
+     * otorga más fácil en un dispositivo instalado como PWA/terminal).
      */
     async function requestPersistentStorage() {
         if (!navigator.storage?.persist) return;

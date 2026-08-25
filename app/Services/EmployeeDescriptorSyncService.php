@@ -9,7 +9,7 @@ use Carbon\Carbon;
 /**
  * Sincronización incremental (delta) de descriptores faciales de empleados
  * activos, scopeada por la sucursal del terminal — alimenta la caché offline
- * del kiosko (IndexedDB) para que el reconocimiento facial pueda correr
+ * del terminal (IndexedDB) para que el reconocimiento facial pueda correr
  * localmente sin conexión.
  */
 class EmployeeDescriptorSyncService
@@ -57,14 +57,14 @@ class EmployeeDescriptorSyncService
     /**
      * IDs de empleados de esta sucursal que cambiaron desde `$since` y ya no
      * califican para la caché offline (se desactivaron o perdieron su
-     * descriptor) — el kiosko debe eliminarlos de su copia local.
+     * descriptor) — el terminal debe eliminarlos de su copia local.
      *
      * Limitación conocida: si un empleado se movió a OTRA sucursal, esta
      * consulta no lo detecta porque ya no aparece con branch_id = la
      * sucursal del terminal. Un cambio de sucursal es infrecuente y, en el
-     * peor caso, deja un descriptor obsoleto en la caché del kiosko viejo
+     * peor caso, deja un descriptor obsoleto en la caché del terminal viejo
      * hasta la próxima re-provisión — no un problema de seguridad (el
-     * descriptor ya era visible para ese kiosko), solo de limpieza.
+     * descriptor ya era visible para ese terminal), solo de limpieza.
      *
      * @return array<int, int>
      */

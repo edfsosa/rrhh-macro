@@ -58,7 +58,7 @@ function makeNotifiableEmployee(): Employee
 it('notifica a los admins cuando un terminal completa su provisión', function () {
     $employee = makeNotifiableEmployee();
     $admin = User::create(['name' => 'Admin', 'email' => 'admin-term@test.com', 'password' => bcrypt('secret')]);
-    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $terminal = Terminal::create(['name' => 'Terminal Test', 'branch_id' => $employee->branch_id]);
 
     Notification::fake();
     $terminal->claimSanctumToken();
@@ -72,7 +72,7 @@ it('notifica a los admins cuando un terminal completa su provisión', function (
 
 it('la url de la notificación de terminal apunta al detalle real del recurso', function () {
     $employee = makeNotifiableEmployee();
-    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $terminal = Terminal::create(['name' => 'Terminal Test', 'branch_id' => $employee->branch_id]);
 
     $notification = new TerminalProvisionedNotification($terminal);
     $data = $notification->toDatabase(new User);
@@ -82,7 +82,7 @@ it('la url de la notificación de terminal apunta al detalle real del recurso', 
 
 it('la notificación de terminal provisionado también se envía por email', function () {
     $employee = makeNotifiableEmployee();
-    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $terminal = Terminal::create(['name' => 'Terminal Test', 'branch_id' => $employee->branch_id]);
 
     $notification = new TerminalProvisionedNotification($terminal);
 
@@ -90,7 +90,7 @@ it('la notificación de terminal provisionado también se envía por email', fun
 
     $mail = $notification->toMail(new User);
 
-    expect($mail->subject)->toBe('Terminal provisionado — Kiosko Test')
+    expect($mail->subject)->toBe('Terminal provisionado — Terminal Test')
         ->and($mail->actionUrl)->toBe(TerminalResource::getUrl('view', ['record' => $terminal]));
 });
 
@@ -219,7 +219,7 @@ it('la notificación de re-vinculación también se envía por email, la de prim
  */
 it('toDatabase() de cada notificación admin usa el formato de Filament (visible en la campanita)', function () {
     $employee = makeNotifiableEmployee();
-    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $terminal = Terminal::create(['name' => 'Terminal Test', 'branch_id' => $employee->branch_id]);
     $enrollment = FaceEnrollment::create([
         'employee_id' => $employee->id,
         'token' => Str::random(40),

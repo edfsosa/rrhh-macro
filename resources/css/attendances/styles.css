@@ -62,7 +62,7 @@
 }
 
 /* Tokens oscuros — activados por preferencia del sistema O por toggle manual
-   (#btnThemeToggle, mismo mecanismo que ya usa el kiosko en terminal.css). */
+   (#btnThemeToggle, mismo mecanismo que ya usa el terminal en terminal.css). */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         --c-bg:          #0f172a;

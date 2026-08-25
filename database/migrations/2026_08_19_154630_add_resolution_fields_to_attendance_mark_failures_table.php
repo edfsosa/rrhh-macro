@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Agrega el flujo de revisión manual a los fallos de marcación: hasta ahora
  * `AttendanceMarkFailureResource` era de solo lectura — un `sync_conflict`
- * (kiosko offline, ver AttendanceEventSyncService) quedaba registrado pero
+ * (terminal offline, ver AttendanceEventSyncService) quedaba registrado pero
  * sin ninguna acción posible desde Filament. Permite que un admin apruebe
  * (reconstruye el `AttendanceEvent`), o descarte el fallo como revisado.
  */

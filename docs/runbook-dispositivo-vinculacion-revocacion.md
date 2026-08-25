@@ -12,11 +12,11 @@ Guía operativa para el equipo de soporte/administración de **Nominapp** ante l
 - Se sospecha que alguien vinculó su propio dispositivo usando el CI + fecha de nacimiento de otro empleado (denegación de servicio dirigida — ver [Riesgos aceptados](#riesgos-aceptados)).
 - El empleado causa baja (aunque esto se revoca automáticamente — ver [Revocación automática](#revocación-automática-sin-intervención-manual)).
 
-A diferencia del kiosko de sucursal, acá **no hay enlace de un solo uso generado por un admin**: el propio empleado se vincula en `/vincular-dispositivo` identificándose con su CI + fecha de nacimiento. El token Sanctum del dispositivo (`ability: mobile:sync`) sigue siendo válido hasta que se revoque explícitamente — no expira solo.
+A diferencia del terminal de sucursal, acá **no hay enlace de un solo uso generado por un admin**: el propio empleado se vincula en `/vincular-dispositivo` identificándose con su CI + fecha de nacimiento. El token Sanctum del dispositivo (`ability: mobile:sync`) sigue siendo válido hasta que se revoque explícitamente — no expira solo.
 
 ## Qué NO cubre este runbook
 
-- **Borrado remoto del dispositivo perdido**: no existe hoy un mecanismo para borrar la caché de IndexedDB (el descriptor facial propio del empleado) de un dispositivo físico que ya no está bajo control. Revocar el token evita que ese dispositivo pueda seguir *sincronizando* o *marcando*, pero el descriptor que ya tenía cacheado localmente permanece en el dispositivo — mismo riesgo aceptado que en el kiosko, mitigado acá por el hecho de que solo se cachea el descriptor de UN empleado (no toda la sucursal).
+- **Borrado remoto del dispositivo perdido**: no existe hoy un mecanismo para borrar la caché de IndexedDB (el descriptor facial propio del empleado) de un dispositivo físico que ya no está bajo control. Revocar el token evita que ese dispositivo pueda seguir *sincronizando* o *marcando*, pero el descriptor que ya tenía cacheado localmente permanece en el dispositivo — mismo riesgo aceptado que en el terminal, mitigado acá por el hecho de que solo se cachea el descriptor de UN empleado (no toda la sucursal).
 - Incidentes de seguridad más amplios (compromiso del servidor, credenciales de admin filtradas).
 
 ---
