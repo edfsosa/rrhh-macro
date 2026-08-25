@@ -146,6 +146,42 @@ it('claimSanctumToken() NO pisa marca/modelo cargados manualmente al reprovision
         ->and($terminal->device_model)->toBe('iPad Pro 12.9 2022');
 });
 
+/**
+ * Regresión: producción tenía MAIL_MAILER=resend sin RESEND_KEY configurada.
+ * claimSanctumToken() ya había consumido el setup_token (single-use) antes de
+ * notificar a los admins, así que el TypeError de Resend::client() tumbaba el
+ * request con 500 DESPUÉS de invalidar el enlace — el kiosko quedaba con
+ * "Server Error" y, al recargar, con "enlace inválido" sin haber recibido
+ * nunca su token Sanctum. Un fallo de notificación nunca debe poder romper
+ * la provisión ya persistida.
+ */
+it('claimSanctumToken() sigue provisionando el terminal aunque falle el envío de la notificación por email', function () {
+    config(['mail.default' => 'resend', 'services.resend.key' => null]);
+
+    $terminal = makeProvisioningTerminal();
+    User::factory()->create();
+
+    $token = $terminal->claimSanctumToken();
+
+    expect($token)->not->toBeEmpty();
+
+    $terminal->refresh();
+    expect($terminal->setup_token)->toBeNull()
+        ->and($terminal->tokens()->where('name', 'like', 'kiosk:%')->exists())->toBeTrue();
+});
+
+it('POST .../claim responde ok=true aunque falle el envío de la notificación por email', function () {
+    config(['mail.default' => 'resend', 'services.resend.key' => null]);
+
+    $terminal = makeProvisioningTerminal();
+    User::factory()->create();
+    $setupToken = $terminal->generateSetupToken();
+
+    $this->postJson("/terminal/{$terminal->code}/setup/{$setupToken}/claim")
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+});
+
 it('POST .../claim pasa el device_model_hint del cliente hasta el terminal provisionado', function () {
     $terminal = makeProvisioningTerminal();
     $setupToken = $terminal->generateSetupToken();

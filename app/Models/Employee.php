@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -1244,7 +1245,17 @@ class Employee extends Model implements AuthenticatableContract
             ? new MobileDeviceRelinkedNotification($this, $userAgent)
             : new MobileDeviceLinkedNotification($this, $userAgent);
 
-        User::all()->each(fn (User $user) => $user->notify($notification));
+        // La vinculación ya quedó persistida arriba — un fallo al notificar (ej. mailer
+        // mal configurado) no debe convertirse en un 500 que deje el enlace/CI+fecha
+        // consumido sin token emitido (mismo gotcha corregido en
+        // Terminal::claimSanctumToken()).
+        try {
+            User::all()->each(fn (User $user) => $user->notify($notification));
+        } catch (\Throwable $e) {
+            Log::warning("No se pudo notificar la vinculación de dispositivo móvil del empleado #{$this->id}: {$e->getMessage()}", [
+                'employee_id' => $this->id,
+            ]);
+        }
 
         return $this->createToken('mobile:'.$this->id, [self::MOBILE_SYNC_ABILITY])->plainTextToken;
     }

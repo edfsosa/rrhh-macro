@@ -395,6 +395,30 @@ it('notifica a todos los admins cuando un dispositivo ya vinculado se re-vincula
     );
 });
 
+/**
+ * Regresión: mismo gotcha que claimSanctumToken() en Terminal — el
+ * mobile_linked_at (single-use del CI+fecha) ya había quedado persistido
+ * antes de notificar a los admins, así que un mailer roto (MAIL_MAILER=resend
+ * sin RESEND_KEY) tumbaba el request con 500 DESPUÉS de vincular el
+ * dispositivo, dejando al empleado sin el token pero con /vincular-dispositivo
+ * ya consumido.
+ */
+it('vincula el dispositivo aunque falle el envío de la notificación por email', function () {
+    config(['mail.default' => 'resend', 'services.resend.key' => null]);
+    User::create(['name' => 'Admin', 'email' => 'admin-mailfail@test.com', 'password' => bcrypt('secret')]);
+
+    $employee = makeLinkableEmployee();
+
+    $response = $this->postJson('/vincular-dispositivo', [
+        'ci' => $employee->ci,
+        'birth_date' => '1990-05-15',
+    ]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('token'))->not->toBeNull()
+        ->and($employee->fresh()->hasMobileLinked())->toBeTrue();
+});
+
 it('el heartbeat actualiza mobile_last_heartbeat_at', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
