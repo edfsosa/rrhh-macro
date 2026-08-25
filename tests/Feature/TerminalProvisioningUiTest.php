@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Terminal;
 use App\Models\User;
+use Filament\Actions\ActionGroup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -92,12 +93,19 @@ it('el redirect tras crear un terminal apunta a su vista con ?provision=1', func
         ->and($redirectUrl)->toEndWith('?provision=1');
 });
 
+/**
+ * revoke_token vive dentro del ActionGroup "Más acciones" — hay que
+ * aplanar los grupos con getFlatActions() para encontrarla, en vez de
+ * buscar directo en getCachedHeaderActions() (que solo devuelve el nivel
+ * superior: la acción individual quedaría anidada dentro del grupo).
+ */
 it('la acción "Revocar token" solo es visible en el detalle si el terminal tiene un token activo', function () {
     $this->actingAs(User::factory()->create());
     $terminal = makeProvisioningTerminal();
 
     $withoutToken = Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()]);
     $action = collect($withoutToken->instance()->getCachedHeaderActions())
+        ->flatMap(fn ($a) => $a instanceof ActionGroup ? $a->getFlatActions() : [$a])
         ->first(fn ($a) => $a->getName() === 'revoke_token');
 
     expect($action->isVisible())->toBeFalse();
@@ -106,6 +114,7 @@ it('la acción "Revocar token" solo es visible en el detalle si el terminal tien
 
     $withToken = Livewire::test(ViewTerminal::class, ['record' => $terminal->fresh()->getKey()]);
     $action = collect($withToken->instance()->getCachedHeaderActions())
+        ->flatMap(fn ($a) => $a instanceof ActionGroup ? $a->getFlatActions() : [$a])
         ->first(fn ($a) => $a->getName() === 'revoke_token');
 
     expect($action->isVisible())->toBeTrue();
