@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -402,7 +403,18 @@ class Terminal extends Model implements AuthenticatableContract
 
         $this->forceFill($attributes)->save();
 
-        User::all()->each(fn (User $user) => $user->notify(new TerminalProvisionedNotification($this)));
+        // La provisión del terminal ya quedó persistida arriba — un fallo al notificar
+        // (ej. mailer mal configurado) no debe convertirse en un 500 que deje al enlace
+        // de configuración consumido pero sin token emitido (ver claim() en
+        // TerminalSetupController, que retornaría "Server Error" con el setup_token ya
+        // invalidado, sin forma de reintentar sin generar un enlace nuevo).
+        try {
+            User::all()->each(fn (User $user) => $user->notify(new TerminalProvisionedNotification($this)));
+        } catch (\Throwable $e) {
+            Log::warning("No se pudo notificar la provisión del terminal '{$this->code}': {$e->getMessage()}", [
+                'terminal_id' => $this->id,
+            ]);
+        }
 
         return $this->createToken('kiosk:'.$this->code, [self::SYNC_ABILITY])->plainTextToken;
     }
