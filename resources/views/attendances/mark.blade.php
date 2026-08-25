@@ -108,7 +108,7 @@
     </div>
 
     {{-- Estado de sincronización offline + sync manual — paridad con el botón "Sincronizar"
-    del kiosko (terminal-idle.blade.php). --}}
+    del terminal (terminal-idle.blade.php). --}}
     <div class="sync-status-row" id="syncStatusRow">
         <span class="sync-status-text" id="syncStatusText" aria-live="polite"></span>
         <button type="button" id="btnSyncNow" class="sync-status-btn" aria-label="Sincronizar marcaciones pendientes">

@@ -5,7 +5,7 @@
  *
  * @fileoverview Cliente delgado para /api/v1/mobile/* — heartbeat (que además
  *               devuelve el descriptor facial propio, no hay endpoint de
- *               "sync de empleados" separado como en el kiosko), estado del
+ *               "sync de empleados" separado como en el terminal), estado del
  *               propio empleado, y envío de eventos. Requiere que el dispositivo
  *               ya haya sido vinculado (token en mobile_meta.api_token, ver
  *               MobileLinkController / device-link.blade.php).
@@ -51,7 +51,7 @@ export async function apiFetch(path, options = {}) {
  * Heartbeat: refresca la configuración de reconocimiento facial (umbral/gap)
  * y el descriptor facial propio (propaga automáticamente una re-inscripción
  * sin que el empleado tenga que re-vincular el dispositivo) — no existe un
- * endpoint separado de "sync de empleados" como en el kiosko, porque acá solo
+ * endpoint separado de "sync de empleados" como en el terminal, porque acá solo
  * hace falta cachear un único descriptor: el del dueño del dispositivo.
  * @returns {Promise<void>}
  */
@@ -85,7 +85,7 @@ export async function getFaceConfig() {
 
 /**
  * Estado del día (último evento / eventos permitidos) del propio empleado —
- * a diferencia del kiosko, no recibe `employeeId` por parámetro: el servidor
+ * a diferencia del terminal, no recibe `employeeId` por parámetro: el servidor
  * lo resuelve implícitamente del token. Requiere red — el caller (`queue.js`,
  * `getOwnStatus()`) cae a una resolución local si esta consulta falla.
  * @returns {Promise<{last_event: string|null, last_event_time: string|null, allowed_events: string[]}>}
@@ -113,7 +113,7 @@ export async function unlinkDevice() {
  * Envía un lote de eventos de marcación — uno solo si se llama justo tras
  * capturar la marcación con red disponible, o varios si se está vaciando la
  * cola offline acumulada (ver mobile-offline/queue.js). A diferencia del
- * kiosko, cada evento NO lleva `employee_id` — el empleado es implícito (el
+ * terminal, cada evento NO lleva `employee_id` — el empleado es implícito (el
  * dueño del token).
  * @param {Array<{client_event_id: string, event_type: string, recorded_at: string, location?: object|null}>} events
  * @returns {Promise<Array<{client_event_id: string, status: string, event_id?: number, message?: string}>>}

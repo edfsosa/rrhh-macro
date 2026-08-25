@@ -1,11 +1,11 @@
 /**
  * =============================================================================
- * MATCHING FACIAL CLIENT-SIDE (kiosko offline)
+ * MATCHING FACIAL CLIENT-SIDE (terminal offline)
  * =============================================================================
  *
  * @fileoverview Port a JS de la lógica de identificación por distancia
  *               euclidiana de AttendanceFaceMarkController::identifyEmployeeByDescriptor()
- *               (backend), para poder correr el matching en el kiosko sin
+ *               (backend), para poder correr el matching en el terminal sin
  *               depender del servidor. Mismo algoritmo, mismos criterios de
  *               umbral/gap — la config (threshold/minGap) se sincroniza desde
  *               GeneralSettings vía el endpoint de heartbeat (ver sync.js).

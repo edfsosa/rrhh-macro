@@ -4,7 +4,7 @@
  * =============================================================================
  *
  * @fileoverview Orquesta la captura, resolución de estado y sincronización en
- *               segundo plano de las marcaciones del kiosko. A diferencia de
+ *               segundo plano de las marcaciones del terminal. A diferencia de
  *               la Fase 3 (matching client-side, pero marcación aún síncrona),
  *               acá el envío puede diferirse: toda marcación se guarda primero
  *               en `outbound_events` (durable) y recién después se intenta
@@ -55,7 +55,7 @@ export function allowedNextEventTypes(lastEventType) {
 
 /**
  * Hora actual corregida con el offset de reloj del último heartbeat exitoso
- * (`server_clock_offset_ms`, ver sync.js) — un kiosko sin NTP configurado
+ * (`server_clock_offset_ms`, ver sync.js) — un terminal sin NTP configurado
  * puede tener el reloj local desviado, lo que arrastraría el error a cada
  * marcación capturada offline. Sin heartbeat previo el offset es 0.
  * @returns {Promise<Date>}
@@ -77,7 +77,7 @@ function localDateString(date = new Date()) {
  * Resuelve el estado de marcación de un empleado para hoy, combinando:
  * 1) el último estado que el servidor confirmó (cacheado en la última
  *    consulta online exitosa), con
- * 2) los eventos que este mismo kiosko ya encoló hoy para ese empleado pero
+ * 2) los eventos que este mismo terminal ya encoló hoy para ese empleado pero
  *    el servidor todavía no confirmó — para no repetir ni saltear pasos
  *    mientras está offline.
  * @param {number} employeeId
@@ -108,7 +108,7 @@ export async function resolveEmployeeStatus(employeeId) {
 /**
  * Estado de marcación de un empleado ya identificado localmente: intenta la
  * consulta en línea (y cachea el resultado para uso offline futuro); si falla
- * por falta de red, cae a resolveEmployeeStatus() con lo que el kiosko ya sabe.
+ * por falta de red, cae a resolveEmployeeStatus() con lo que el terminal ya sabe.
  * @param {number} employeeId
  */
 export async function getEmployeeStatus(employeeId) {
@@ -128,7 +128,7 @@ export async function getEmployeeStatus(employeeId) {
  * pestaña se cierre a mitad de camino.
  *
  * `recorded_at` se corrige con el offset de reloj calculado en el último
- * heartbeat exitoso (`server_clock_offset_ms`, ver sync.js) — un kiosko sin
+ * heartbeat exitoso (`server_clock_offset_ms`, ver sync.js) — un terminal sin
  * NTP configurado puede tener el reloj local desviado varios minutos, y esa
  * desviación se arrastraría a cada marcación capturada mientras estuvo
  * offline. Sin heartbeat previo el offset es 0 (no hay corrección posible).
