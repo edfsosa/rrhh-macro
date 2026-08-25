@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Schema;
  * offline vía PWA): a diferencia de `last_seen_at` (se actualiza también con
  * cada carga de página, vía sesión), estos campos solo se actualizan cuando
  * el terminal completa exitosamente cada tipo de sincronización con la API
- * Sanctum — permiten distinguir "el kiosko cargó la página una vez" de "el
- * kiosko está efectivamente sincronizando" en un dispositivo que puede
+ * Sanctum — permiten distinguir "el terminal cargó la página una vez" de "el
+ * terminal está efectivamente sincronizando" en un dispositivo que puede
  * quedar abierto días sin recargar.
  *
  * - last_heartbeat_at: último POST /api/v1/terminal/heartbeat exitoso.

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Agrega client_event_id y synced_at para el flujo de sincronización de
- * terminales (kiosko offline vía PWA, ver AttendanceEventSyncController).
+ * terminales (offline vía PWA, ver AttendanceEventSyncController).
  *
  * - client_event_id: UUID generado en el cliente al momento de la captura
  *   (no al sincronizar), usado para deduplicar reintentos con seguridad.

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Agrega `user_agent` a terminals — capturado en TerminalSetupController::claim()
- * al provisionar el kiosko, mismo dato que ya guarda EmployeeDevice desde la
+ * al provisionar el terminal, mismo dato que ya guarda EmployeeDevice desde la
  * Fase 1 de Parte C. Insumo de DeviceHintsParser para prellenar marca/modelo
  * como sugerencia editable, y referencia diagnóstica adicional en el panel.
  */
