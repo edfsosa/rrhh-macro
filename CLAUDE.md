@@ -67,7 +67,7 @@ Two separate axes that converge in `Contract`:
 | Schedules | `ScheduleAssignmentService` — asignación de horarios fijos con vigencia por fechas |
 | Rotations | `RotationService` — asignación de patrones rotativos y resolución de turno efectivo por fecha |
 | Attendance | `AttendanceDay`, `AttendanceEvent`, observers auto-calculate daily totals |
-| Attendance offline (kiosko/dispositivo) | `Terminal`, `Employee` (Sanctum), `AttendanceMarkFailure` — ver "Módulo de Asistencia — Marcación Offline" más abajo |
+| Attendance offline (kiosko/dispositivo) | `Terminal`, `Employee` (Sanctum), `EmployeeDevice` (historial), `AttendanceMarkFailure` — ver "Módulo de Asistencia — Marcación Offline" más abajo |
 | Face Recognition | TensorFlow.js (128-element descriptors), `FaceEnrollment`, `FaceCaptureApp.js` |
 | Warnings | `Warning` — registro documental de amonestaciones laborales (sin impacto en nómina por ahora) |
 
@@ -319,6 +319,24 @@ Dos dispositivos marcan asistencia por reconocimiento facial (face-api.js, 100% 
 
 **Runbooks:** `docs/runbook-terminal-revocacion-reprovision.md`, `docs/runbook-dispositivo-vinculacion-revocacion.md`.
 
+**Historial de dispositivos (`EmployeeDevice`):** cada vinculación/re-vinculación del celular personal crea un registro nuevo (no se sobrescribe el anterior) — `Employee::claimMobileToken()` cierra el `activeDevice` previo (`unlinked_at`) y crea uno nuevo vía `$this->devices()->create(...)`. Recurso Filament standalone (`EmployeeDeviceResource`, solo `index`/`view`/`edit`, sin `create` — es append-only) más un `DevicesRelationManager` de solo lectura en `EmployeeResource`. Acción **Revocar** disponible en ambos lados. Gotcha real ya corregido: `$employee->activeDevice` (relación `hasOne`) queda cacheado (stale) si se lee después de mutar vía `devices()->create()`/`update()` en la misma instancia — `claimMobileToken()`/`revokeMobileToken()` llaman `$this->setRelation('activeDevice', ...)` explícitamente para evitarlo.
+
+**Detección best-effort de marca/modelo (`DeviceHintsParser`):** al vincular un celular o provisionar un terminal, se intenta prellenar `device_brand`/`device_model` (siempre editables) a partir de Client Hints del navegador (`navigator.userAgentData.getHighEntropyValues(['model'])` — solo Chromium + Android, manda `device_model_hint` en el POST de claim) con fallback a parseo del `User-Agent` en el servidor. **MAC address y número de serie nunca son detectables desde ningún navegador** — quedan 100% manuales por diseño, no es una limitación de esta implementación. `Terminal::claimSanctumToken()` nunca pisa una corrección manual previa (mismo registro se reutiliza entre reprovisiones); `Employee::claimMobileToken()` siempre aplica el guess (cada vinculación crea un `EmployeeDevice` nuevo).
+
+**Logo de empresa (`CompanyLogoThumbnailService`):** mismo patrón offline-safe que `EmployeePhotoThumbnailService` (thumbnail pre-generado en `Company.logo_thumbnail` vía `CompanyObserver`, viaja como data URI embebido — en `window.terminalData` para el kiosko, en el payload de heartbeat para el celular) pero con dos diferencias por tratarse de un logo y no una foto de rostro: **ajusta preservando la proporción** (bounding box 240×80px, nunca recorta a cuadrado) y **exporta en PNG** (no JPEG, para conservar transparencia). SVG no se procesa — GD no puede rasterizarlo, degrada a sin logo.
+
+**UI del modo móvil (`resources/js/attendances/mark.js`):**
+- Header persistente con sucursal/empresa/logo (`#headerLocation`, `#headerLogo`), poblado por `refreshOwnEmployeeUi()` desde el empleado cacheado (heartbeat). Mismo patrón en el kiosko (`terminal.js`, `#terminalHeaderLocation`/`#terminalHeaderLogo`, poblado server-side vía `window.terminalData` ya que el terminal es fijo por sucursal).
+- Splash personalizado: saludo con nombre + tarjeta de estado ("Hoy: Entrada · HH:MM"). **Gotcha corregido:** `returnToSplash()` (se ejecuta al cerrar el modal de éxito tras marcar) debe volver a llamar `refreshOwnEmployeeUi()` explícitamente — sin eso la tarjeta de estado queda con el valor de antes de marcar hasta recargar la página, porque `refreshOwnEmployeeUi` solo se disparaba en la carga inicial.
+- Botón "Pausar cámara" junto a Sincronizar/Desvincular — permite usar la interfaz (ver "Mis marcaciones", sincronizar) sin activar la identificación facial por accidente. Auto-resume a los 2 minutos por seguridad.
+- Modal "Mis marcaciones" — lista de eventos de hoy del propio empleado, consulta `getOwnStatus()` en el momento (no cachea una lista desactualizada offline; sin red muestra aviso en vez de una lista parcial).
+- Toggle de tema oscuro/claro (`#btnThemeToggle`, `localStorage` key `mark-theme` en el celular vs. su propia key en el terminal — ambos mismo patrón, no comparten estado entre sí a propósito).
+- Título de pestaña dinámico: `{empresa} — Marcación Facial` (celular) / `{sucursal} — {empresa}` (terminal) — se resuelve client-side en el celular porque la identidad del empleado recién se conoce vía IndexedDB/Sanctum, no server-side.
+
+**Notificaciones por email:** `MobileDeviceLinkedNotification`/`MobileDeviceRelinkedNotification`/`TerminalProvisionedNotification` tienen canal `mail` además de `database` — llegan a todos los `User::all()`.
+
+**Gotcha de throttle compartido (recurrente — revisar en cualquier ruta pública nueva):** `Illuminate\Routing\Middleware\ThrottleRequests::resolveRequestSignature()` genera la clave del rate limit solo con dominio+IP, **sin distinguir ruta ni parámetros del middleware** (`maxAttempts`/`decayMinutes`). Dos rutas públicas distintas con `throttle:X,Y` sin prefijo comparten el mismo bucket por IP — agotar el límite de una bloquea también a la otra. **Siempre** usar un tercer parámetro de prefijo único: `throttle:10,1,mi-prefijo-unico`. Ya corregido en `terminal.setup` (`terminal-setup`), `registro-facial` (`face-enrollment`) y `vincular-dispositivo` (`device-link-show`/`device-link-minute`/`device-link-day`) — todas las rutas públicas actuales del proyecto ya tienen prefijo explícito.
+
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
 
@@ -474,6 +492,7 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 - Aguinaldo (item): `pending` → `paid`
 - AguinaldoPeriod: `draft` → `processing` → `closed`
 - Warnings: sin ciclo de vida (registro documental permanente)
+- EmployeeDevice: sin columna de estado real — `status` es un accessor virtual (`active`/`unlinked`) derivado de `unlinked_at IS NULL`
 
 ### Key Config Files
 - `config/payroll.php` — vacation tiers, payroll rules
