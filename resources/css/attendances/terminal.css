@@ -179,6 +179,7 @@ body {
     box-shadow: none;
 }
 .terminal-header--idle .terminal-mode-badge,
+.terminal-header--idle .header-logo,
 .terminal-header--idle .terminal-location-badge,
 .terminal-header--idle .terminal-clock {
     opacity: 0;
@@ -208,6 +209,15 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+}
+/* Logo de la empresa junto al badge de sucursal — PNG con transparencia, se ve
+   bien en ambos temas. object-fit: contain preserva la proporción original. */
+.header-logo {
+    height: 24px;
+    max-width: 120px;
+    width: auto;
+    object-fit: contain;
+    flex-shrink: 0;
 }
 .theme-toggle {
     display: flex; align-items: center; justify-content: center;

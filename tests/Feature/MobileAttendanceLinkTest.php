@@ -171,6 +171,27 @@ it('el heartbeat también devuelve sucursal y empresa para el header de /marcar'
         ->and($response->json('employee.company_name'))->toBe($employee->branch->company->name);
 });
 
+it('el heartbeat también devuelve el logo de la empresa para el header de /marcar', function () {
+    $employee = makeLinkableEmployee();
+    $employee->branch->company->update(['logo_thumbnail' => 'data:image/png;base64,FAKE_LOGO']);
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/mobile/heartbeat');
+
+    $response->assertOk();
+    expect($response->json('employee.company_logo'))->toBe('data:image/png;base64,FAKE_LOGO');
+});
+
+it('el heartbeat devuelve company_logo null si la empresa no tiene logo', function () {
+    $employee = makeLinkableEmployee();
+    Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
+
+    $response = $this->postJson('/api/v1/mobile/heartbeat');
+
+    $response->assertOk();
+    expect($response->json('employee.company_logo'))->toBeNull();
+});
+
 it('el heartbeat revoca el token y responde 403 si el empleado ya no está activo', function () {
     $employee = makeLinkableEmployee();
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);

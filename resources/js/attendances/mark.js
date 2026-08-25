@@ -2207,6 +2207,7 @@ const statusBar           = document.getElementById("statusBar");
         const splashDateEl     = document.getElementById("splashDate");
         const splashStatusEl   = document.getElementById("splashStatus");
         const headerLocationEl = document.getElementById("headerLocation");
+        const headerLogoEl     = document.getElementById("headerLogo");
 
         // Nombre propio cacheado (mismo dato que ya usa Mis marcaciones) — normalmente
         // ya está en IndexedDB de una sesión anterior, así que suele completarse antes
@@ -2251,6 +2252,12 @@ const statusBar           = document.getElementById("statusBar");
                         headerLocationEl.textContent = [employee.branch_name, employee.company_name]
                             .filter(Boolean)
                             .join(" — ");
+                    }
+                    // Logo de la empresa — ya viaja embebido como data URI en el propio
+                    // heartbeat (mismo caché offline que branch_name/company_name).
+                    if (headerLogoEl && employee?.company_logo) {
+                        headerLogoEl.src = employee.company_logo;
+                        headerLogoEl.classList.remove("hidden");
                     }
                     // Título de pestaña — la empresa no se conoce server-side en esta
                     // página (la identidad del empleado se resuelve recién acá, vía

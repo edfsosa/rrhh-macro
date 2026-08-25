@@ -96,6 +96,15 @@ document.addEventListener("DOMContentLoaded", () => {
             .join(" — ");
     }
 
+    // Logo de la empresa — ya viaja embebido como data URI en window.terminalData
+    // (inyectado server-side), así que queda cacheado junto con el shell del kiosko
+    // por el service worker sin necesidad de un fetch aparte.
+    const headerLogo = document.getElementById("terminalHeaderLogo");
+    if (terminalData && headerLogo && terminalData.company_logo) {
+        headerLogo.src = terminalData.company_logo;
+        headerLogo.classList.remove("hidden");
+    }
+
     // ============================================================================
     // ESTADO GLOBAL
     // ============================================================================

@@ -19,6 +19,7 @@ class Company extends Model
         'ruc',
         'employer_number',
         'logo',
+        'logo_thumbnail',
         'address',
         'phone',
         'email',
