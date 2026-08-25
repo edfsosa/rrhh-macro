@@ -79,6 +79,9 @@ class ViewTerminal extends ViewRecord
                 ->icon('heroicon-o-qr-code')
                 ->color('gray')
                 ->modalHeading('Enlace de configuración del terminal')
+                ->modalDescription(fn () => $this->record->tokens()->exists()
+                    ? '⚠️ Este terminal ya está vinculado y sincronizando. Si otro dispositivo reclama este enlace, el acceso del terminal actual se revocará automáticamente.'
+                    : null)
                 ->modalContent(fn () => TerminalResource::renderSetupLinkModal($this->record))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Cerrar'),
@@ -87,22 +90,22 @@ class ViewTerminal extends ViewRecord
 
             ActionGroup::make([
                 Action::make('regenerate_code')
-                    ->label('Regenerar código')
+                    ->label('Cambiar URL del terminal')
                     ->tooltip('Cambia la URL pública del terminal — el dispositivo físico deberá reconfigurarse con la nueva URL')
-                    ->icon('heroicon-o-arrow-path')
+                    ->icon('heroicon-o-link')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Regenerar código de acceso')
-                    ->modalDescription('⚠️ Esto cambiará la URL de la terminal. El dispositivo físico dejará de funcionar hasta que sea reconfigurado con la nueva URL.')
-                    ->modalSubmitActionLabel('Sí, regenerar')
+                    ->modalHeading('Cambiar URL del terminal')
+                    ->modalDescription('⚠️ Esto cambiará la URL pública de la terminal. El dispositivo físico dejará de funcionar hasta que sea reconfigurado con la nueva URL. Esto NO afecta el token de sincronización — el terminal seguirá conectado a la API mientras tanto.')
+                    ->modalSubmitActionLabel('Sí, cambiar')
                     ->action(function () {
                         $newCode = Terminal::generateUniqueCode();
                         $this->record->update(['code' => $newCode]);
 
                         Notification::make()
                             ->warning()
-                            ->title('Código regenerado')
-                            ->body('Recordá actualizar la URL en el dispositivo físico.')
+                            ->title('URL del terminal actualizada')
+                            ->body('Recordá reconfigurar el dispositivo físico con la nueva URL.')
                             ->send();
 
                         $this->refreshFormData(['code']);
@@ -116,7 +119,7 @@ class ViewTerminal extends ViewRecord
                     ->visible(fn () => $this->record->tokens()->exists())
                     ->requiresConfirmation()
                     ->modalHeading('Revocar token de sincronización')
-                    ->modalDescription('El terminal perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar.')
+                    ->modalDescription('El terminal perderá acceso a la API de sincronización offline de inmediato. Deberá re-provisionarse con un nuevo enlace de configuración antes de volver a sincronizar. El código y la URL del terminal no cambian.')
                     ->modalSubmitActionLabel('Sí, revocar')
                     ->action(function () {
                         $this->record->revokeSyncTokens();
@@ -127,7 +130,11 @@ class ViewTerminal extends ViewRecord
                             ->send();
                     }),
 
-                DeleteAction::make()->icon('heroicon-o-trash'),
+                DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->modalDescription('Esta acción no se puede deshacer. Las marcaciones ya registradas con este terminal no se eliminan, pero perderán la referencia a qué dispositivo físico las generó.')
+                    ->modalSubmitActionLabel('Sí, eliminar'),
             ])
                 ->label('Más acciones')
                 ->icon('heroicon-m-chevron-down')
