@@ -136,7 +136,7 @@ export async function getOwnStatus() {
  * heartbeat exitoso (`server_clock_offset_ms`, ver sync.js). Sin heartbeat
  * previo el offset es 0 (no hay corrección posible).
  * @param {string} eventType
- * @param {{lat: number, lng: number}|null} [location] - GPS real del dispositivo (a diferencia del kiosko, que solo tiene fallback a coordenadas de sucursal).
+ * @param {{lat: number, lng: number}|null} [location] - GPS real del dispositivo (a diferencia del terminal, que solo tiene fallback a coordenadas de sucursal).
  * @returns {Promise<{client_event_id: string, recorded_at: string}>}
  */
 export async function enqueueMark(eventType, location = null) {
@@ -176,8 +176,8 @@ let flushInProgress = false;
  * Máximo de eventos por request de sincronización — debe coincidir con el
  * límite del servidor (`MobileEventSyncController`: `'events' => [...,
  * 'max:200']`). En la práctica un dispositivo personal difícilmente acumule
- * tantas marcaciones (a diferencia de un kiosko con muchos empleados), pero
- * se mantiene el mismo chunking por las dudas y por paridad con el kiosko.
+ * tantas marcaciones (a diferencia de un terminal con muchos empleados), pero
+ * se mantiene el mismo chunking por las dudas y por paridad con el terminal.
  */
 const MAX_BATCH_SIZE = 200;
 

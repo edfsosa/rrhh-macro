@@ -3,7 +3,7 @@
  * INDEXEDDB — CACHÉ LOCAL DEL TERMINAL
  * =============================================================================
  *
- * @fileoverview Wrapper delgado sobre `idb` para la base local del kiosko.
+ * @fileoverview Wrapper delgado sobre `idb` para la base local del terminal.
  *
  * Stores:
  * - terminal_meta          — key/value: api_token, terminal_id/code/branch_id,

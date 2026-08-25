@@ -11,7 +11,7 @@ use Illuminate\View\View;
 /**
  * Provisión de terminales para la marcación offline vía PWA. El admin genera
  * un enlace de configuración de un solo uso desde TerminalResource; el
- * kiosko lo visita una vez, online, durante la instalación física, y recibe
+ * terminal lo visita una vez, online, durante la instalación física, y recibe
  * a cambio un token Sanctum (ability `terminal:sync`) que usará contra
  * routes/api.php de ahí en adelante — incluso tras largos períodos offline,
  * ya que no depende de la sesión de Laravel (que expira a los 120 minutos).

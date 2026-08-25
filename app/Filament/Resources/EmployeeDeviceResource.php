@@ -25,7 +25,7 @@ use Illuminate\Database\Eloquent\Builder;
 /**
  * Historial de dispositivos personales vinculados por empleados para
  * marcación offline vía PWA — contraparte de `TerminalResource` para
- * dispositivos propios (no kioskos compartidos). Registros creados
+ * dispositivos propios (no terminales compartidos). Registros creados
  * automáticamente por `Employee::claimMobileToken()`/`revokeMobileToken()`;
  * este recurso solo permite anotar marca/modelo/serie/MAC/notas a mano,
  * igual que ya se hace con los terminales.

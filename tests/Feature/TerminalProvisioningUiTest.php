@@ -2,10 +2,18 @@
 
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
+use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
+use App\Models\AttendanceDay;
+use App\Models\AttendanceEvent;
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\Contract;
+use App\Models\Department;
+use App\Models\Employee;
+use App\Models\Position;
 use App\Models\Terminal;
 use App\Models\User;
+use Filament\Actions\ActionGroup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -21,7 +29,42 @@ function makeProvisioningTerminal(): Terminal
     $company = Company::create(['name' => "Empresa Prov {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
     $branch = Branch::create(['name' => "Sucursal Prov {$n}", 'company_id' => $company->id]);
 
-    return Terminal::create(['name' => 'Kiosko Prov', 'branch_id' => $branch->id]);
+    return Terminal::create(['name' => 'Terminal Prov', 'branch_id' => $branch->id]);
+}
+
+function makeAttendanceEventForTerminal(Terminal $terminal, array $overrides = []): AttendanceEvent
+{
+    static $ci = 9800000;
+    $n = $ci++;
+
+    $department = Department::create(['name' => "Depto Term {$n}", 'company_id' => $terminal->branch->company_id]);
+    $position = Position::create(['name' => "Cargo Term {$n}", 'department_id' => $department->id]);
+
+    $employee = Employee::create([
+        'first_name' => 'Terminal', 'last_name' => "Empleado {$n}", 'ci' => (string) $n,
+        'birth_date' => '1990-01-01', 'branch_id' => $terminal->branch_id, 'status' => 'active',
+    ]);
+    Contract::create([
+        'employee_id' => $employee->id, 'type' => 'indefinido', 'start_date' => now()->subYear(),
+        'salary_type' => 'mensual', 'salary' => 2_550_000, 'position_id' => $position->id,
+        'department_id' => $department->id, 'status' => 'active',
+    ]);
+
+    $recordedAt = now();
+    $day = AttendanceDay::create(['employee_id' => $employee->id, 'date' => $recordedAt->toDateString(), 'status' => 'present']);
+
+    return AttendanceEvent::create(array_merge([
+        'attendance_day_id' => $day->id,
+        'employee_id' => $employee->id,
+        'employee_name' => $employee->full_name,
+        'employee_ci' => $employee->ci,
+        'event_type' => 'check_in',
+        'recorded_at' => $recordedAt,
+        'source' => 'terminal',
+        'terminal_id' => $terminal->id,
+        'branch_id' => $terminal->branch_id,
+        'branch_name' => $terminal->branch->name,
+    ], $overrides));
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -92,12 +135,19 @@ it('el redirect tras crear un terminal apunta a su vista con ?provision=1', func
         ->and($redirectUrl)->toEndWith('?provision=1');
 });
 
+/**
+ * revoke_token vive dentro del ActionGroup "Más acciones" — hay que
+ * aplanar los grupos con getFlatActions() para encontrarla, en vez de
+ * buscar directo en getCachedHeaderActions() (que solo devuelve el nivel
+ * superior: la acción individual quedaría anidada dentro del grupo).
+ */
 it('la acción "Revocar token" solo es visible en el detalle si el terminal tiene un token activo', function () {
     $this->actingAs(User::factory()->create());
     $terminal = makeProvisioningTerminal();
 
     $withoutToken = Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()]);
     $action = collect($withoutToken->instance()->getCachedHeaderActions())
+        ->flatMap(fn ($a) => $a instanceof ActionGroup ? $a->getFlatActions() : [$a])
         ->first(fn ($a) => $a->getName() === 'revoke_token');
 
     expect($action->isVisible())->toBeFalse();
@@ -106,6 +156,7 @@ it('la acción "Revocar token" solo es visible en el detalle si el terminal tien
 
     $withToken = Livewire::test(ViewTerminal::class, ['record' => $terminal->fresh()->getKey()]);
     $action = collect($withToken->instance()->getCachedHeaderActions())
+        ->flatMap(fn ($a) => $a instanceof ActionGroup ? $a->getFlatActions() : [$a])
         ->first(fn ($a) => $a->getName() === 'revoke_token');
 
     expect($action->isVisible())->toBeTrue();
@@ -150,7 +201,7 @@ it('claimSanctumToken() NO pisa marca/modelo cargados manualmente al reprovision
  * Regresión: producción tenía MAIL_MAILER=resend sin RESEND_KEY configurada.
  * claimSanctumToken() ya había consumido el setup_token (single-use) antes de
  * notificar a los admins, así que el TypeError de Resend::client() tumbaba el
- * request con 500 DESPUÉS de invalidar el enlace — el kiosko quedaba con
+ * request con 500 DESPUÉS de invalidar el enlace — el terminal quedaba con
  * "Server Error" y, al recargar, con "enlace inválido" sin haber recibido
  * nunca su token Sanctum. Un fallo de notificación nunca debe poder romper
  * la provisión ya persistida.
@@ -193,4 +244,44 @@ it('POST .../claim pasa el device_model_hint del cliente hasta el terminal provi
     $terminal->refresh();
     expect($terminal->device_brand)->toBe('Google')
         ->and($terminal->device_model)->toBe('Pixel 8 Pro');
+});
+
+// ─── RelationManager de marcaciones ────────────────────────────────────────
+
+it('el RelationManager de marcaciones renderiza en la ficha del terminal', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    makeAttendanceEventForTerminal($terminal);
+
+    Livewire::test(AttendanceEventsRelationManager::class, [
+        'ownerRecord' => $terminal,
+        'pageClass' => ViewTerminal::class,
+    ])->assertOk();
+});
+
+it('el RelationManager de marcaciones solo muestra eventos de ese terminal, no de otros', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    $otherTerminal = makeProvisioningTerminal();
+
+    $ownEvent = makeAttendanceEventForTerminal($terminal);
+    makeAttendanceEventForTerminal($otherTerminal);
+
+    $component = Livewire::test(AttendanceEventsRelationManager::class, [
+        'ownerRecord' => $terminal,
+        'pageClass' => ViewTerminal::class,
+    ]);
+
+    $component->assertCanSeeTableRecords([$ownEvent])
+        ->assertCountTableRecords(1);
+});
+
+it('el RelationManager de marcaciones es de solo lectura, sin acciones de fila', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    makeAttendanceEventForTerminal($terminal);
+
+    $manager = new AttendanceEventsRelationManager;
+
+    expect($manager->isReadOnly())->toBeTrue();
 });

@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
  * Heartbeat del terminal — se llama periódicamente mientras hay conexión
  * (y desde el botón "Forzar sincronización") para mantener `last_seen_at`/
  * `last_heartbeat_at` vivos y entregar la configuración vigente de
- * reconocimiento facial, así el kiosko no depende de un sync completo de
+ * reconocimiento facial, así el terminal no depende de un sync completo de
  * empleados para tener el umbral actualizado. Autenticado vía Sanctum
  * (ability `terminal:sync`).
  *
@@ -22,7 +22,7 @@ use Illuminate\Http\Request;
  * conectividad en Filament (ver TerminalResource).
  *
  * También recibe opcionalmente `pending_events`/`conflict_events` — el
- * tamaño de la cola offline del kiosko (`outbound_events` en IndexedDB, ver
+ * tamaño de la cola offline del terminal (`outbound_events` en IndexedDB, ver
  * terminal-offline/queue.js) al momento del heartbeat. Sin esto, un
  * terminal con la cola atascada (ej. eventos en conflicto que requieren
  * revisión) se ve "en línea" igual que uno sano, porque el heartbeat en sí

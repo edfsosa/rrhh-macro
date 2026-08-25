@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Agrega `logo_thumbnail` a companies: un data URI base64 (PNG, ajustado
  * preservando proporción, generado por CompanyLogoThumbnailService) para que
- * el header persistente de ambos modos de marcación (celular y kiosko) pueda
+ * el header persistente de ambos modos de marcación (celular y terminal) pueda
  * mostrar el logo real sin depender de red — se sincroniza embebido en el
- * shell cacheado del kiosko y en el payload de heartbeat del celular, igual
+ * shell cacheado del terminal y en el payload de heartbeat del celular, igual
  * que `photo_thumbnail` en employees (PR #83).
  *
  * A diferencia de `photo_thumbnail`, acá sí se hace backfill: la cantidad de

@@ -9,7 +9,7 @@
  *               flujos puedan coexistir sin chocar si algún dispositivo
  *               llegara a usarse en los dos modos.
  *
- * Diferencia clave con el kiosko: acá NO existe un store de `employees_cache`
+ * Diferencia clave con el terminal: acá NO existe un store de `employees_cache`
  * — el dispositivo vinculado cachea el descriptor facial de un único empleado (el
  * dueño del dispositivo), guardado directamente en `mobile_meta` bajo la key
  * `own_employee`. Todo lo demás (cola de eventos, caché de estado, log de

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
  * vinculado — a diferencia de `mobile_linked_at` (fecha de vinculación, no
  * cambia mientras el dispositivo siga siendo el mismo), este campo permite
  * ver en `EmployeeResource` si el dispositivo sigue sincronizando con normalidad.
- * Menor prioridad que el heartbeat/staleness del kiosko (Terminal): acá es
+ * Menor prioridad que el heartbeat/staleness del `Terminal`: acá es
  * un dispositivo personal, no un activo físico de la empresa a monitorear
  * activamente, así que no se agrega un sistema de umbral configurable como
  * el de `Terminal::connectivity_status` — solo se muestra la fecha relativa.

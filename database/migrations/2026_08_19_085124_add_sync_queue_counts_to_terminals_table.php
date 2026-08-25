@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Agrega los contadores de cola offline que el kiosko reporta en cada
+ * Agrega los contadores de cola offline que el terminal reporta en cada
  * heartbeat (Fase 6 — hardening): sin esto, el badge de conectividad
  * (Fase 5) no distingue un terminal con red intermitente y una cola de
  * marcaciones atascada de uno realmente sano — ambos se ven "en línea"

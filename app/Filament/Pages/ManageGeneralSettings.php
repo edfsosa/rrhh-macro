@@ -107,7 +107,7 @@ class ManageGeneralSettings extends SettingsPage
                     ]),
 
                 Section::make('Terminales de Marcación')
-                    ->description('Configuración de conectividad para kioskos offline (marcación vía PWA)')
+                    ->description('Configuración de conectividad para terminales offline (marcación vía PWA)')
                     ->icon('heroicon-o-wifi')
                     ->schema([
                         TextInput::make('terminal_stale_threshold_hours')

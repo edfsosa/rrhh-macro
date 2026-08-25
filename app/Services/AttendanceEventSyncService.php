@@ -95,7 +95,7 @@ class AttendanceEventSyncService
         }
 
         try {
-            // El kiosko manda recorded_at en UTC (Date.toISOString()) — convertir a la
+            // El terminal manda recorded_at en UTC (Date.toISOString()) — convertir a la
             // timezone de la app ANTES de persistir, no solo para calcular $date. Sin esto
             // el evento queda guardado con la hora UTC "cruda" (ej. 3 horas adelantado en
             // America/Asuncion), porque el resto de la app asume que recorded_at ya está en
@@ -249,7 +249,7 @@ class AttendanceEventSyncService
     }
 
     /**
-     * El kiosko no envía GPS (mismo criterio que AttendanceFaceMarkController::store()
+     * El terminal no envía GPS (mismo criterio que AttendanceFaceMarkController::store()
      * en modo terminal) — se usan las coordenadas de la sucursal de la terminal, o
      * las de la sucursal del empleado si la terminal no tiene sucursal asignada.
      */

@@ -430,7 +430,7 @@ const statusBar           = document.getElementById("statusBar");
 
     // --------------------------------------------------------------------------
     // ESTADO DE SINCRONIZACIÓN OFFLINE — paridad con refreshIdleSyncStatus()
-    // de terminal.js (kiosko): mismo texto/prioridad (conflictos > pendientes >
+    // de terminal.js: mismo texto/prioridad (conflictos > pendientes >
     // sincronizado), pero acá además hay un aviso separado (conflictBanner)
     // porque un conflicto en el dispositivo es del propio empleado, no de un
     // tercero — amerita más que una línea de texto discreta.
@@ -1000,7 +1000,7 @@ const statusBar           = document.getElementById("statusBar");
      * /vincular-dispositivo, ver MobileLinkController) antes de arrancar la
      * cámara — sin token no hay nada que identificar localmente. Migra
      * primero el token que device-link.blade.php deja en localStorage tras
-     * una vinculación exitosa (mismo patrón que terminal.js con el kiosko).
+     * una vinculación exitosa (mismo patrón que ya usa terminal.js).
      * @returns {Promise<boolean>}
      */
     async function ensureLinkedDevice() {
@@ -1043,7 +1043,7 @@ const statusBar           = document.getElementById("statusBar");
 
     /**
      * Reintenta heartbeat y vaciar la cola de marcaciones pendientes en
-     * segundo plano — mismo patrón que terminal.js del kiosko, adaptado sin
+     * segundo plano — mismo patrón que ya usa terminal.js, adaptado sin
      * sync de empleados (acá no existe, ver mobile-offline/sync.js).
      */
     function startBackgroundSync() {
@@ -2651,7 +2651,7 @@ const statusBar           = document.getElementById("statusBar");
     // ==========================================================================
     // TEMA CLARO / OSCURO
     // ==========================================================================
-    // Mismo mecanismo que ya usa el kiosko (terminal.js) — localStorage con clave
+    // Mismo mecanismo que ya usa terminal.js — localStorage con clave
     // propia para no interferir si algún dispositivo llegara a usarse en los dos modos.
     (function initTheme() {
         const saved = localStorage.getItem("mark-theme");

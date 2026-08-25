@@ -88,14 +88,14 @@ it('un update que no toca la foto no regenera ni borra el thumbnail existente', 
     expect($employee->fresh()->photo_thumbnail)->toBe($originalThumbnail);
 });
 
-it('el delta de sincronización del kiosko incluye photo_thumbnail', function () {
+it('el delta de sincronización del terminal incluye photo_thumbnail', function () {
     Storage::fake('public');
     $path = UploadedFile::fake()->image('foto.jpg', 300, 200)->store('employees/photos', 'public');
     $employee = makePhotoEmployee([
         'photo' => $path,
         'face_descriptor' => array_fill(0, 128, 0.1),
     ]);
-    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $terminal = Terminal::create(['name' => 'Terminal Test', 'branch_id' => $employee->branch_id]);
 
     $delta = app(EmployeeDescriptorSyncService::class)->deltaSince($terminal, null);
 

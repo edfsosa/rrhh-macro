@@ -175,7 +175,7 @@
 
                 // Almacenamiento provisorio del token — en la fase de sincronización offline
                 // (IndexedDB, módulo mobile-offline/) este valor pasa a vivir en su propio store,
-                // mismo patrón que usó terminal-setup.blade.php para el kiosko.
+                // mismo patrón que usó terminal-setup.blade.php para el terminal.
                 localStorage.setItem('nominapp_mobile_token', data.token);
                 localStorage.setItem('nominapp_mobile_employee_id', String(data.employee.id));
 

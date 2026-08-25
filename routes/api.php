@@ -11,19 +11,19 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes — Sincronización offline vía PWA (kiosko y dispositivo personal)
+| API Routes — Sincronización offline vía PWA (terminal y dispositivo personal)
 |--------------------------------------------------------------------------
 |
 | Autenticadas con Laravel Sanctum. Sanctum resuelve el `tokenable` de forma
 | polimórfica (por `personal_access_tokens.tokenable_type`) — un mismo guard
-| `auth:sanctum` sirve tokens de `Terminal` (kiosko) y de `Employee`
+| `auth:sanctum` sirve tokens de `Terminal` y de `Employee`
 | (dispositivo personal) sin necesidad de guards/providers separados en
 | config/auth.php. Cada grupo abajo exige su propia ability.
 |
 */
 
-// Kiosko de sucursal — bearer token emitido al provisionar el terminal (ver
-// TerminalSetupController). Ability requerida: 'terminal:sync'.
+// Terminal compartido por sucursal — bearer token emitido al provisionarlo
+// (ver TerminalSetupController). Ability requerida: 'terminal:sync'.
 Route::prefix('v1/terminal')->name('api.terminal.')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/employees/sync', [TerminalEmployeeSyncController::class, 'index'])
         ->middleware('ability:terminal:sync')
@@ -44,7 +44,7 @@ Route::prefix('v1/terminal')->name('api.terminal.')->middleware(['auth:sanctum']
 
 // Dispositivo personal del empleado — bearer token emitido al vincular el
 // dispositivo (ver MobileLinkController). Ability requerida: 'mobile:sync'.
-// A diferencia del kiosko (N empleados por terminal), acá el token identifica
+// A diferencia del terminal compartido (N empleados por dispositivo), acá el token identifica
 // a un único empleado (el propio dueño del token vía $request->user()), por
 // eso no existe un endpoint de "sync de empleados" — el heartbeat ya
 // devuelve el descriptor facial actualizado del propio empleado.

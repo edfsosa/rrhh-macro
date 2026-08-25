@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Historial de dispositivos personales vinculados por un empleado para
  * marcación offline vía PWA (ver `Employee::claimMobileToken()`). A
- * diferencia de `Terminal` (un solo registro por kiosko, editado a mano),
+ * diferencia de `Terminal` (un solo registro por terminal, editado a mano),
  * acá cada vinculación real crea un registro nuevo — `unlinked_at` null
  * identifica el dispositivo actualmente activo (a lo sumo uno por
  * empleado). Marca/modelo/serie/MAC/notas quedan vacíos hasta que un

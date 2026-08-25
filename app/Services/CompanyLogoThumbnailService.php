@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Genera un thumbnail de baja resolución del logo de una empresa, codificado
  * como data URI PNG en base64. Se persiste en `Company::logo_thumbnail` (ver
- * CompanyObserver) para viajar embebido en el shell cacheado del kiosko
+ * CompanyObserver) para viajar embebido en el shell cacheado del terminal
  * (`window.terminalData`) y en el payload de heartbeat del celular, sin
  * depender de red para pedir la imagen original por separado.
  *

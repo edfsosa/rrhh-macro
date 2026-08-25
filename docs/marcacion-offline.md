@@ -1,6 +1,6 @@
-# Arquitectura: marcación de asistencia offline (kiosko y dispositivo)
+# Arquitectura: marcación de asistencia offline (terminal y dispositivo)
 
-Documento de referencia de la arquitectura de marcación de asistencia por reconocimiento facial con soporte offline, cubriendo tanto el kiosko/terminal de sucursal como el dispositivo personal del empleado. Consolida el trabajo de tres iniciativas relacionadas: ajuste de reconocimiento facial, marcación offline vía PWA en el kiosko, y marcación offline vía PWA en el dispositivo personal.
+Documento de referencia de la arquitectura de marcación de asistencia por reconocimiento facial con soporte offline, cubriendo tanto el terminal de sucursal como el dispositivo personal del empleado. Consolida el trabajo de tres iniciativas relacionadas: ajuste de reconocimiento facial, marcación offline vía PWA en el terminal, y marcación offline vía PWA en el dispositivo personal.
 
 Para el resumen corto orientado a desarrollo día a día, ver la sección "Módulo de Asistencia — Marcación Offline" en `CLAUDE.md`. Este documento tiene el detalle completo de arquitectura y decisiones.
 
@@ -12,7 +12,7 @@ El reconocimiento facial corre 100% en el navegador (face-api.js, descriptores d
 
 Hay dos dispositivos distintos que marcan asistencia, con modelos de confianza y caché muy diferentes:
 
-| | Kiosko/terminal | Dispositivo personal |
+| | Terminal | Dispositivo personal |
 |---|---|---|
 | Propiedad | De la empresa, en la sucursal | Del empleado |
 | Uso | Compartido, N empleados | Individual, 1 empleado |
@@ -45,12 +45,12 @@ Ajustes basados en datos reales de fallos (`AttendanceMarkFailure`, 30 días, 29
 
 ---
 
-## Parte B — Kiosko/terminal offline
+## Parte B — Terminal offline
 
 ### Capa de API (`routes/api.php`, prefijo `v1/terminal`)
 
 - `GET /employees/sync?since=...` — sync incremental (delta) de empleados activos con descriptor facial de la sucursal del terminal, con tombstones para los que dejaron de calificar.
-- `GET /employees/{employee}/status` — último evento / eventos permitidos de un empleado puntual (el kiosko no tiene esto cacheado localmente para todos).
+- `GET /employees/{employee}/status` — último evento / eventos permitidos de un empleado puntual (el terminal no tiene esto cacheado localmente para todos).
 - `POST /events/sync` — envío en lote (máx. 200) de eventos con `client_event_id` (UUID generado al capturar) para deduplicar reintentos.
 - `POST /heartbeat` — mantiene vivo `last_heartbeat_at`, devuelve config vigente (`face_threshold` etc.) y reporta contadores de cola (`pending_events`/`conflict_events`).
 
@@ -63,11 +63,11 @@ Ajustes basados en datos reales de fallos (`AttendanceMarkFailure`, 30 días, 29
 
 ### Service worker (`public/sw.js`)
 
-Hand-rolled (sin Workbox) — cache-first para `/models/*` y `/build/assets/*`, stale-while-revalidate para el shell HTML del kiosko. `skipWaiting()` + `clients.claim()` en cada deploy, con caché versionada.
+Hand-rolled (sin Workbox) — cache-first para `/models/*` y `/build/assets/*`, stale-while-revalidate para el shell HTML del terminal. `skipWaiting()` + `clients.claim()` en cada deploy, con caché versionada.
 
 ### Resolución de conflictos
 
-Si el kiosko sincroniza un evento offline cuya secuencia ya no es válida en el servidor (ej. otro origen ya registró un evento posterior mientras estaba desconectado), el servidor lo rechaza puntualmente (`AttendanceEventSyncService::recordSyncFailure()`) y lo registra en `AttendanceMarkFailure` (`failure_type: sync_conflict`) — nunca se descarta silenciosamente ni se fuerza. Un admin lo revisa desde Filament (`AttendanceMarkFailureResource`) y puede **aprobar** (reconstruye el evento, revalidando la secuencia contra el estado *actual*, con opción de ajustar tipo/hora) o **descartar**.
+Si el terminal sincroniza un evento offline cuya secuencia ya no es válida en el servidor (ej. otro origen ya registró un evento posterior mientras estaba desconectado), el servidor lo rechaza puntualmente (`AttendanceEventSyncService::recordSyncFailure()`) y lo registra en `AttendanceMarkFailure` (`failure_type: sync_conflict`) — nunca se descarta silenciosamente ni se fuerza. Un admin lo revisa desde Filament (`AttendanceMarkFailureResource`) y puede **aprobar** (reconstruye el evento, revalidando la secuencia contra el estado *actual*, con opción de ajustar tipo/hora) o **descartar**.
 
 ### Heartbeat / staleness (`Terminal`)
 
@@ -101,7 +101,7 @@ Los tres endpoints revocan el token y responden `403` si el empleado ya no está
 
 ### Cliente (`resources/js/attendances/mobile-offline/`)
 
-Reusa `db.js`/`matcher.js`/`queue.js` del kiosko con cambios mínimos (nombre de IndexedDB `nominapp-mobile`, para no chocar si algún día ambos flujos coexistieran en el mismo navegador — `matcher.js` funciona igual con un array de 1 solo candidato). `sync.js` es una variante propia apuntando a `/api/v1/mobile/*` (el original tenía `API_BASE` fijo a `/api/v1/terminal`).
+Reusa `db.js`/`matcher.js`/`queue.js` del terminal con cambios mínimos (nombre de IndexedDB `nominapp-mobile`, para no chocar si algún día ambos flujos coexistieran en el mismo navegador — `matcher.js` funciona igual con un array de 1 solo candidato). `sync.js` es una variante propia apuntando a `/api/v1/mobile/*` (el original tenía `API_BASE` fijo a `/api/v1/terminal`).
 
 ### Integración con `mark.js`
 
@@ -119,19 +119,19 @@ Notificación a admins (`MobileDeviceRelinkedNotification`) cuando un empleado q
 - **Borrado remoto de un dispositivo perdido no es posible** — revocar el token evita que siga *sincronizando*, pero no borra lo que ya tenía cacheado localmente. Ver los runbooks.
 - **CI + fecha de nacimiento como credencial de vinculación** es de baja entropía — mitigado con throttling agresivo y notificación de re-vinculación, no con un segundo factor real (ese rol lo cumple el match facial).
 - **Background Sync API no soportada en Safari/WebKit** — el fallback es que la sincronización ocurre mientras la pestaña/PWA sigue abierta.
-- **Heartbeat/staleness del dispositivo tiene menor prioridad que el del kiosko** — son N:1 por empleado, no un activo físico de la empresa a monitorear activamente; hoy solo hay un timestamp visible en `EmployeeResource`, sin badge de "desconectado" ni alertas.
+- **Heartbeat/staleness del dispositivo tiene menor prioridad que el del terminal** — son N:1 por empleado, no un activo físico de la empresa a monitorear activamente; hoy solo hay un timestamp visible en `EmployeeResource`, sin badge de "desconectado" ni alertas.
 - **`Employee::getAdvanceReferenceSalary()`** y otras áreas no relacionadas con asistencia no se tocaron en esta iniciativa.
 
 ## Runbooks relacionados
 
-- `docs/runbook-terminal-revocacion-reprovision.md` — pérdida/robo/reemplazo de un kiosko.
+- `docs/runbook-terminal-revocacion-reprovision.md` — pérdida/robo/reemplazo de un terminal.
 - `docs/runbook-dispositivo-vinculacion-revocacion.md` — pérdida/robo/reemplazo del dispositivo de un empleado, o revocación manual desde Filament.
 
 ## Archivos clave
 
 **Backend compartido:** `app/Models/AttendanceEvent.php` (máquina de estados `allowedNextEventTypes()`), `app/Models/AttendanceMarkFailure.php` (registro y resolución de conflictos), `app/Filament/Resources/AttendanceMarkFailureResource.php`.
 
-**Kiosko:** `app/Models/Terminal.php`, `app/Http/Controllers/Api/Terminal{EmployeeSync,EventSync,Heartbeat}Controller.php`, `app/Services/{EmployeeDescriptorSyncService,AttendanceEventSyncService}.php`, `app/Filament/Resources/TerminalResource.php`, `resources/js/attendances/{terminal,terminal-offline/*}.js`, `public/sw.js`.
+**Terminal:** `app/Models/Terminal.php`, `app/Http/Controllers/Api/Terminal{EmployeeSync,EventSync,Heartbeat}Controller.php`, `app/Services/{EmployeeDescriptorSyncService,AttendanceEventSyncService}.php`, `app/Filament/Resources/TerminalResource.php`, `resources/js/attendances/{terminal,terminal-offline/*}.js`, `public/sw.js`.
 
 **Dispositivo:** `app/Models/Employee.php` (sección "Marcación offline por dispositivo"), `app/Http/Controllers/MobileLinkController.php`, `app/Http/Controllers/Api/Mobile{Heartbeat,Status,EventSync}Controller.php`, `app/Services/MobileEventSyncService.php`, `resources/js/attendances/{mark,mobile-offline/*}.js`, `resources/views/attendances/device-link.blade.php`.
 
