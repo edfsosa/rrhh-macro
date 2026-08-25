@@ -4,6 +4,8 @@ namespace App\Notifications;
 
 use App\Filament\Resources\AttendanceMarkFailureResource;
 use App\Models\AttendanceMarkFailure;
+use Filament\Notifications\Actions\Action as FilamentAction;
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -33,6 +35,11 @@ class SyncConflictPendingNotification extends Notification
     }
 
     /**
+     * Se arma con el builder de `Filament\Notifications\Notification` (no un
+     * array plano) — la campanita del panel filtra por `data->format =
+     * 'filament'`, que solo ese builder genera (ver
+     * TerminalProvisionedNotification::toDatabase() para el detalle del gotcha).
+     *
      * @return array<string, mixed>
      */
     public function toDatabase(object $notifiable): array
@@ -42,16 +49,15 @@ class SyncConflictPendingNotification extends Notification
         $modeLabel = AttendanceMarkFailure::getModeLabel($this->failure->mode);
 
         return [
-            'title' => 'Conflicto al sincronizar una marcación offline',
-            'body' => "Una marcación de {$employeeLabel} desde {$modeLabel} no se pudo aplicar al reconectarse — la secuencia ya no era válida en el servidor. Requiere revisión manual.",
-            'icon' => 'heroicon-o-exclamation-triangle',
-            'color' => 'danger',
-            'actions' => [
-                [
-                    'label' => 'Revisar conflicto',
-                    'url' => AttendanceMarkFailureResource::getUrl('view', ['record' => $this->failure]),
-                ],
-            ],
+            ...FilamentNotification::make()
+                ->title('Conflicto al sincronizar una marcación offline')
+                ->body("Una marcación de {$employeeLabel} desde {$modeLabel} no se pudo aplicar al reconectarse — la secuencia ya no era válida en el servidor. Requiere revisión manual.")
+                ->icon('heroicon-o-exclamation-triangle')
+                ->danger()
+                ->actions([
+                    FilamentAction::make('view')->label('Revisar conflicto')->url(AttendanceMarkFailureResource::getUrl('view', ['record' => $this->failure])),
+                ])
+                ->getDatabaseMessage(),
             'failure_id' => $this->failure->id,
         ];
     }

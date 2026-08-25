@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -32,17 +33,22 @@ class MobileLinkThrottledNotification extends Notification
     }
 
     /**
+     * Se arma con el builder de `Filament\Notifications\Notification` (no un
+     * array plano) — la campanita del panel filtra por `data->format =
+     * 'filament'`, que solo ese builder genera (ver
+     * TerminalProvisionedNotification::toDatabase() para el detalle del gotcha).
+     *
      * @return array<string, mixed>
      */
     public function toDatabase(object $notifiable): array
     {
         $ciLabel = filled($this->lastCiAttempted) ? " (último CI intentado: {$this->lastCiAttempted})" : '';
 
-        return [
-            'title' => 'Límite diario de vinculación de dispositivo agotado',
-            'body' => "La IP {$this->ip} alcanzó el límite de 15 intentos de vinculación hoy{$ciLabel}. Puede ser un empleado con datos incorrectos o un intento de acceso indebido — revisar los logs si es necesario.",
-            'icon' => 'heroicon-o-shield-exclamation',
-            'color' => 'warning',
-        ];
+        return FilamentNotification::make()
+            ->title('Límite diario de vinculación de dispositivo agotado')
+            ->body("La IP {$this->ip} alcanzó el límite de 15 intentos de vinculación hoy{$ciLabel}. Puede ser un empleado con datos incorrectos o un intento de acceso indebido — revisar los logs si es necesario.")
+            ->icon('heroicon-o-shield-exclamation')
+            ->warning()
+            ->getDatabaseMessage();
     }
 }

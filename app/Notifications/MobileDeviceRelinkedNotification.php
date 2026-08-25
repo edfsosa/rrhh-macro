@@ -4,6 +4,8 @@ namespace App\Notifications;
 
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
+use Filament\Notifications\Actions\Action as FilamentAction;
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -57,6 +59,11 @@ class MobileDeviceRelinkedNotification extends Notification
     }
 
     /**
+     * Se arma con el builder de `Filament\Notifications\Notification` (no un
+     * array plano) — la campanita del panel filtra por `data->format =
+     * 'filament'`, que solo ese builder genera (ver
+     * TerminalProvisionedNotification::toDatabase() para el detalle del gotcha).
+     *
      * @return array<string, mixed>
      */
     public function toDatabase(object $notifiable): array
@@ -68,16 +75,15 @@ class MobileDeviceRelinkedNotification extends Notification
         }
 
         return [
-            'title' => 'Dispositivo re-vinculado',
-            'body' => $body,
-            'icon' => 'heroicon-o-device-phone-mobile',
-            'color' => 'warning',
-            'actions' => [
-                [
-                    'label' => 'Ver empleado',
-                    'url' => EmployeeResource::getUrl('view', ['record' => $this->employee]),
-                ],
-            ],
+            ...FilamentNotification::make()
+                ->title('Dispositivo re-vinculado')
+                ->body($body)
+                ->icon('heroicon-o-device-phone-mobile')
+                ->warning()
+                ->actions([
+                    FilamentAction::make('view')->label('Ver empleado')->url(EmployeeResource::getUrl('view', ['record' => $this->employee])),
+                ])
+                ->getDatabaseMessage(),
             'employee_id' => $this->employee->id,
         ];
     }

@@ -3,6 +3,8 @@
 namespace App\Notifications;
 
 use App\Models\Contract;
+use Filament\Notifications\Actions\Action as FilamentAction;
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -26,6 +28,11 @@ class ContractAlertNotification extends Notification
     }
 
     /**
+     * Se arma con el builder de `Filament\Notifications\Notification` (no un
+     * array plano) — la campanita del panel filtra por `data->format =
+     * 'filament'`, que solo ese builder genera (ver
+     * TerminalProvisionedNotification::toDatabase() para el detalle del gotcha).
+     *
      * @return array<string, mixed>
      */
     public function toDatabase(object $notifiable): array
@@ -36,29 +43,28 @@ class ContractAlertNotification extends Notification
         if ($this->alertType === 'expired') {
             $message = "El contrato de {$employeeName} venció el {$this->contract->end_date->format('d/m/Y')}.";
             $icon = 'heroicon-o-x-circle';
-            $color = 'danger';
+            $status = 'danger';
         } else {
             $days = $this->contract->remaining_days;
             $message = "El contrato de {$employeeName} vence en {$days} ".($days === 1 ? 'día' : 'días')
                 ." ({$this->contract->end_date->format('d/m/Y')}).";
             $icon = 'heroicon-o-clock';
-            $color = 'warning';
+            $status = 'warning';
         }
 
         return [
-            'title'        => $this->alertType === 'expired' ? 'Contrato vencido' : 'Contrato por vencer',
-            'body'         => $message,
-            'icon'         => $icon,
-            'color'        => $color,
-            'actions'      => [
-                [
-                    'label' => 'Ver contrato',
-                    'url'   => "/admin/contratos/{$this->contract->id}",
-                ],
-            ],
+            ...FilamentNotification::make()
+                ->title($this->alertType === 'expired' ? 'Contrato vencido' : 'Contrato por vencer')
+                ->body($message)
+                ->icon($icon)
+                ->status($status)
+                ->actions([
+                    FilamentAction::make('view')->label('Ver contrato')->url("/admin/contratos/{$this->contract->id}"),
+                ])
+                ->getDatabaseMessage(),
             // Datos adicionales para lógica de deduplicación
-            'contract_id'  => $this->contract->id,
-            'alert_type'   => $this->alertType,
+            'contract_id' => $this->contract->id,
+            'alert_type' => $this->alertType,
         ];
     }
 }
