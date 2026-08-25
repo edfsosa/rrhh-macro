@@ -11,7 +11,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notificación a los admins cuando un kiosko/terminal completa su
+ * Notificación a los admins cuando un terminal completa su
  * provisión (reclama el enlace de configuración de un solo uso y recibe
  * su token Sanctum) — confirma que la instalación física salió bien sin
  * que un admin tenga que entrar a revisar `last_heartbeat_at` a mano.
@@ -34,7 +34,7 @@ class TerminalProvisionedNotification extends Notification
 
     /**
      * Envía por email a los admins además de la campanita — confirma la
-     * instalación física del kiosko (o su reprovisión) sin depender de que
+     * instalación física del terminal (o su reprovisión) sin depender de que
      * alguien revise Filament a tiempo.
      */
     public function toMail(object $notifiable): MailMessage

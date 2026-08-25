@@ -59,7 +59,7 @@ class AttendanceFaceMarkController extends Controller
 
         $terminal->update(['last_seen_at' => now()]);
 
-        // Sucursal — empresa en el título de pestaña: ayuda a diferenciar kioskos de
+        // Sucursal — empresa en el título de pestaña: ayuda a diferenciar terminales de
         // distintas sucursales cuando un admin monitorea varios a la vez. Sin
         // sucursal/empresa cargada (dato incompleto), cae al nombre del propio terminal.
         $title = collect([$terminal->branch?->name, $terminal->branch?->company?->name])

@@ -272,7 +272,7 @@ class TerminalResource extends Resource
                             TextEntry::make('sync_queue_status')
                                 ->label('Cola de sincronización')
                                 ->badge()
-                                ->tooltip('Reportado por el kiosko en cada heartbeat')
+                                ->tooltip('Reportado por el terminal en cada heartbeat')
                                 ->formatStateUsing(fn (string $state) => Terminal::getSyncQueueStatusLabels()[$state] ?? $state)
                                 ->color(fn (string $state) => Terminal::getSyncQueueStatusColors()[$state] ?? 'gray'),
 
@@ -359,7 +359,7 @@ class TerminalResource extends Resource
                 TextColumn::make('sync_queue_status')
                     ->label('Cola de sync')
                     ->badge()
-                    ->tooltip('Marcaciones pendientes o en conflicto reportadas por el kiosko en su último heartbeat')
+                    ->tooltip('Marcaciones pendientes o en conflicto reportadas por el terminal en su último heartbeat')
                     ->formatStateUsing(fn (string $state) => Terminal::getSyncQueueStatusLabels()[$state] ?? $state)
                     ->color(fn (string $state) => Terminal::getSyncQueueStatusColors()[$state] ?? 'gray'),
 

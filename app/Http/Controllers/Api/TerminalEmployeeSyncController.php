@@ -15,7 +15,7 @@ use Throwable;
 
 /**
  * Sincronización incremental de empleados/descriptores faciales para la
- * caché offline del kiosko. Autenticado vía Sanctum (ability `terminal:sync`).
+ * caché offline del terminal. Autenticado vía Sanctum (ability `terminal:sync`).
  */
 class TerminalEmployeeSyncController extends Controller
 {
@@ -24,7 +24,7 @@ class TerminalEmployeeSyncController extends Controller
     /**
      * GET /api/v1/terminal/employees/sync?since=<ISO8601>
      *
-     * Sin `since`, retorna la carga completa (primera sincronización del kiosko).
+     * Sin `since`, retorna la carga completa (primera sincronización del terminal).
      * Con `since`, retorna solo los empleados modificados después de esa fecha,
      * más los `tombstones` (empleados que dejaron de calificar) a eliminar de la caché.
      */
@@ -57,8 +57,8 @@ class TerminalEmployeeSyncController extends Controller
      * GET /api/v1/terminal/employees/{employee}/status
      *
      * Estado de marcación del día en curso para un empleado ya identificado
-     * localmente por el kiosko (matching client-side, ver terminal-offline/matcher.js).
-     * El kiosko prefiere esta consulta en línea cuando hay red; si falla,
+     * localmente por el terminal (matching client-side, ver terminal-offline/matcher.js).
+     * El terminal prefiere esta consulta en línea cuando hay red; si falla,
      * cae a una resolución local equivalente combinando la última respuesta
      * cacheada de este endpoint con sus propios eventos aún no confirmados
      * (ver terminal-offline/queue.js, `resolveEmployeeStatus()`).

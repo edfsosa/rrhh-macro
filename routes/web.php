@@ -52,7 +52,7 @@ Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name
 Route::get('/terminal/{code}', [AttendanceFaceMarkController::class, 'terminalByCode'])->name('terminal.show');
 
 // Provisión del terminal como PWA offline — enlace de un solo uso generado desde TerminalResource,
-// emite el token Sanctum que el kiosko usará contra la API de sincronización (routes/api.php).
+// emite el token Sanctum que el terminal usará contra la API de sincronización (routes/api.php).
 // Prefijo explícito en el throttle: sin él, comparte bucket de rate limit (por
 // IP, sin distinguir ruta — ver ThrottleRequests::resolveRequestSignature())
 // con cualquier otra ruta pública que use 'throttle:X,Y' sin prefijo, como
