@@ -87,12 +87,37 @@ export async function migrateTokenFromLocalStorage() {
     const legacyToken = localStorage.getItem('nominapp_terminal_token');
     if (!legacyToken) return;
 
+    const legacyId = localStorage.getItem('nominapp_terminal_id');
     const legacyCode = localStorage.getItem('nominapp_terminal_code');
     await setMeta('api_token', legacyToken);
+    if (legacyId) await setMeta('terminal_id', Number(legacyId));
     if (legacyCode) await setMeta('terminal_code', legacyCode);
 
     localStorage.removeItem('nominapp_terminal_token');
+    localStorage.removeItem('nominapp_terminal_id');
     localStorage.removeItem('nominapp_terminal_code');
+}
+
+/**
+ * Limpia todo el estado local ligado a la identidad de un terminal (token,
+ * empleados cacheados, cola de eventos, estado por empleado) — se usa cuando
+ * `initializeOfflineSync()` detecta que el `terminal_id`/`terminal_code`
+ * guardado no coincide con el de la página actual (`window.terminalData`):
+ * significa que este navegador ya reclamó un token de sincronización para
+ * OTRO terminal en algún momento (esta base de IndexedDB, `nominapp-terminal`,
+ * es única por navegador, no está separada por terminal), y sin esta
+ * limpieza seguiría autenticando/sincronizando en silencio como el terminal
+ * viejo en cualquier `/terminal/{code}` que se abra desde este dispositivo.
+ * @returns {Promise<void>}
+ */
+export async function clearTerminalState() {
+    const db = await getDb();
+    await Promise.all([
+        db.clear('terminal_meta'),
+        db.clear('employees_cache'),
+        db.clear('outbound_events'),
+        db.clear('employee_status_cache'),
+    ]);
 }
 
 /**
