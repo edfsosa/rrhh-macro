@@ -69,7 +69,20 @@ class TerminalResource extends Resource
 
                         Select::make('branch_id')
                             ->label('Sucursal')
-                            ->relationship('branch', 'name')
+                            // Excluye sucursales de empresas inactivas de las opciones — pero
+                            // nunca de la sucursal YA asignada al editar: modifyQueryUsing()
+                            // también filtra la query que resuelve la etiqueta del valor
+                            // actual (Select::getSelectedRecordUsing()), así que sin el OR con
+                            // $record?->branch_id, editar un terminal cuya empresa se
+                            // desactivó después dejaría el campo en blanco.
+                            ->relationship('branch', 'name', modifyQueryUsing: fn (Builder $query, ?Terminal $record) => $query
+                                ->where(function (Builder $query) use ($record) {
+                                    $query->whereHas('company', fn (Builder $query) => $query->active());
+
+                                    if ($record?->branch_id) {
+                                        $query->orWhere('id', $record->branch_id);
+                                    }
+                                }))
                             ->searchable()
                             ->preload()
                             ->native(false)
@@ -78,6 +91,7 @@ class TerminalResource extends Resource
                         Select::make('status')
                             ->label('Estado')
                             ->options(Terminal::getStatusOptions())
+                            ->helperText('Un terminal inactivo no puede marcar asistencia, aunque conserve su token de sincronización.')
                             ->native(false)
                             ->default('active')
                             ->required(),
@@ -209,22 +223,22 @@ class TerminalResource extends Resource
                         InfoGrid::make(3)->schema([
                             TextEntry::make('device_brand')
                                 ->label('Marca')
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
 
                             TextEntry::make('device_model')
                                 ->label('Modelo')
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
 
                             TextEntry::make('device_serial')
                                 ->label('Número de Serie')
                                 ->copyable()
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
                         ]),
 
                         TextEntry::make('device_mac')
                             ->label('Dirección MAC')
                             ->copyable()
-                            ->placeholder('-'),
+                            ->placeholder('Sin datos'),
 
                         TextEntry::make('user_agent')
                             ->label('Navegador (detectado al provisionar)')
@@ -298,11 +312,11 @@ class TerminalResource extends Resource
                             TextEntry::make('installed_at')
                                 ->label('Fecha de instalación')
                                 ->date('d/m/Y')
-                                ->placeholder('-'),
+                                ->placeholder('Sin fecha de instalación'),
 
                             TextEntry::make('installedBy.name')
                                 ->label('Instalado por')
-                                ->placeholder('-'),
+                                ->placeholder('Sin registrar'),
                         ]),
                     ])
                     ->visible(fn (Terminal $record) => $record->installed_at || $record->installed_by_id),
@@ -380,7 +394,7 @@ class TerminalResource extends Resource
                 TextColumn::make('installed_at')
                     ->label('Instalada')
                     ->date('d/m/Y')
-                    ->placeholder('-')
+                    ->placeholder('Sin instalar')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])

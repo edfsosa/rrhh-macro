@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\TerminalResource;
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
+use App\Filament\Resources\TerminalResource\Pages\EditTerminal;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
 use App\Models\AttendanceDay;
@@ -351,4 +352,48 @@ it('"Generar nuevo enlace" invalida el enlace vigente y notifica en vez de mostr
 
     expect($terminal->fresh()->setup_token)->not->toBeNull()
         ->and($terminal->fresh()->setup_token)->not->toBe($oldToken);
+});
+
+// ─── Form: sucursal filtrada por empresa activa ────────────────────────────
+
+it('el select de sucursal excluye sucursales de empresas inactivas al crear un terminal', function () {
+    $this->actingAs(User::factory()->create());
+
+    $activeCompany = Company::create(['name' => 'Empresa Activa Form', 'ruc' => '7900001-1', 'employer_number' => 7900001, 'is_active' => true]);
+    $inactiveCompany = Company::create(['name' => 'Empresa Inactiva Form', 'ruc' => '7900002-1', 'employer_number' => 7900002, 'is_active' => false]);
+    $activeBranch = Branch::create(['name' => 'Sucursal Activa Form', 'company_id' => $activeCompany->id]);
+    $inactiveBranch = Branch::create(['name' => 'Sucursal Inactiva Form', 'company_id' => $inactiveCompany->id]);
+
+    $field = Livewire::test(CreateTerminal::class)
+        ->instance()
+        ->form
+        ->getFlatFields(withHidden: true)['branch_id'];
+
+    expect($field->getOptions())->toHaveKey($activeBranch->id)
+        ->not->toHaveKey($inactiveBranch->id);
+});
+
+/**
+ * Regresión: Select::relationship()'s modifyQueryUsing() también filtra la
+ * query que resuelve la etiqueta del valor YA seleccionado
+ * (getSelectedRecordUsing()) — sin el OR por $record->branch_id en
+ * TerminalResource::form(), editar un terminal cuya empresa se desactivó
+ * DESPUÉS de asignarle la sucursal dejaría el campo en blanco, aunque
+ * branch_id siga apuntando correctamente en la base de datos.
+ */
+it('editar un terminal mantiene visible su sucursal aunque la empresa se haya desactivado después', function () {
+    $this->actingAs(User::factory()->create());
+
+    $company = Company::create(['name' => 'Empresa Form X', 'ruc' => '7900003-1', 'employer_number' => 7900003, 'is_active' => true]);
+    $branch = Branch::create(['name' => 'Sucursal Form X', 'company_id' => $company->id]);
+    $terminal = Terminal::create(['name' => 'Terminal Form X', 'branch_id' => $branch->id]);
+
+    $company->update(['is_active' => false]);
+
+    $field = Livewire::test(EditTerminal::class, ['record' => $terminal->getKey()])
+        ->instance()
+        ->form
+        ->getFlatFields(withHidden: true)['branch_id'];
+
+    expect($field->getOptions())->toHaveKey($branch->id);
 });
