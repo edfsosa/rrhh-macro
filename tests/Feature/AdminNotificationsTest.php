@@ -13,9 +13,11 @@ use App\Models\FaceEnrollment;
 use App\Models\Position;
 use App\Models\Terminal;
 use App\Models\User;
+use App\Notifications\ContractAlertNotification;
 use App\Notifications\FaceEnrollmentPendingApprovalNotification;
 use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
+use App\Notifications\MobileLinkThrottledNotification;
 use App\Notifications\SyncConflictPendingNotification;
 use App\Notifications\TerminalProvisionedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -201,4 +203,52 @@ it('la notificación de re-vinculación también se envía por email, la de prim
     expect($mail->subject)->toBe("Dispositivo re-vinculado — {$employee->full_name}")
         ->and($mail->actionUrl)->toBe(EmployeeResource::getUrl('view', ['record' => $employee]))
         ->and(collect($mail->introLines)->implode(' '))->toContain('Dispositivo nuevo: Mozilla/5.0 Test');
+});
+
+// ─── format=filament (regresión: campanita del panel vacía) ────────────────
+
+/**
+ * Regresión: `Filament\Notifications\Livewire\DatabaseNotifications::getNotificationsQuery()`
+ * filtra explícitamente por `data->format = 'filament'`. Un `toDatabase()`
+ * construido como array plano (sin ese formato, generado únicamente por el
+ * builder `Filament\Notifications\Notification`) se persiste sin error en la
+ * tabla `notifications`, pero la campanita del panel Filament nunca lo
+ * muestra — quedaba invisible para los admins sin ningún error visible en
+ * consola ni en el log, hasta que se reportó como "la campanita no muestra
+ * nada" para un caso puntual (terminal recién vinculado).
+ */
+it('toDatabase() de cada notificación admin usa el formato de Filament (visible en la campanita)', function () {
+    $employee = makeNotifiableEmployee();
+    $terminal = Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $employee->branch_id]);
+    $enrollment = FaceEnrollment::create([
+        'employee_id' => $employee->id,
+        'token' => Str::random(40),
+        'status' => 'pending_capture',
+        'expires_at' => now()->addHours(48),
+    ]);
+    $failure = AttendanceMarkFailure::record([
+        'mode' => 'mobile',
+        'failure_type' => 'sync_conflict',
+        'employee_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'attempted_event_type' => 'break_start',
+        'failure_message' => 'test',
+    ]);
+    $contract = $employee->contracts()->first();
+    $contract->update(['type' => 'plazo_fijo', 'end_date' => now()->addDays(5)]);
+
+    $notifications = [
+        new TerminalProvisionedNotification($terminal),
+        new MobileDeviceLinkedNotification($employee),
+        new MobileDeviceRelinkedNotification($employee),
+        new SyncConflictPendingNotification($failure),
+        new FaceEnrollmentPendingApprovalNotification($enrollment),
+        new ContractAlertNotification($contract, 'expiring'),
+        new MobileLinkThrottledNotification('203.0.113.1', null),
+    ];
+
+    foreach ($notifications as $notification) {
+        expect($notification->toDatabase(new User)['format'])
+            ->toBe('filament', $notification::class.' debe usar el builder de Filament\\Notifications\\Notification');
+    }
 });
