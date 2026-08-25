@@ -1,13 +1,13 @@
 # Runbook: Revocación y reprovisión de terminales offline
 
-Guía operativa para el equipo de soporte/administración de **Nominapp** ante la pérdida, robo o reemplazo de un dispositivo kiosko de marcación de asistencia (terminal offline vía PWA).
+Guía operativa para el equipo de soporte/administración de **Nominapp** ante la pérdida, robo o reemplazo de un terminal de marcación de asistencia (offline vía PWA).
 
 ---
 
 ## Cuándo aplica
 
-- El dispositivo físico del kiosko se perdió o fue robado.
-- Se reemplaza el hardware de un kiosko existente (tablet/PC nueva en la misma sucursal).
+- El dispositivo físico del terminal se perdió o fue robado.
+- Se reemplaza el hardware de un terminal existente (tablet/PC nueva en la misma sucursal).
 - Se sospecha que el token de sincronización de un terminal fue comprometido (ej. acceso no autorizado al dispositivo).
 - Un terminal se va a dar de baja definitivamente (la sucursal cierra, o se reemplaza el proceso de marcación).
 
@@ -25,7 +25,7 @@ En todos estos casos, el token Sanctum del terminal (`ability: terminal:sync`) s
 1. Ir a **Filament → Asistencias → Terminales**.
 2. Ubicar el terminal afectado (por nombre o sucursal).
 3. Abrir el menú de acciones de la fila (`⋮`) y seleccionar **"Revocar token"**.
-4. Confirmar en el modal. Esto invalida inmediatamente el token Sanctum — el próximo intento de sincronización desde ese dispositivo recibirá `401`/`403` y el kiosko mostrará "Terminal sin configurar" (o el mensaje equivalente de re-provisión).
+4. Confirmar en el modal. Esto invalida inmediatamente el token Sanctum — el próximo intento de sincronización desde ese dispositivo recibirá `401`/`403` y el terminal mostrará "Terminal sin configurar" (o el mensaje equivalente de re-provisión).
 
 **No hace falta desactivar el terminal** (`status: inactive`) al revocar el token — son conceptos independientes: `status` controla si el terminal puede usarse para marcar (vía `/terminal/{code}`), mientras que el token controla el acceso a la API de sincronización offline. Si el dispositivo físico se perdió y no se va a recuperar, desactivar el terminal además de revocar el token evita que alguien reactive el acceso reutilizando la URL pública.
 
