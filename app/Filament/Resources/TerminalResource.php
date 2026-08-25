@@ -468,7 +468,7 @@ class TerminalResource extends Resource
                     Action::make('deactivate')
                         ->label('Desactivar')
                         ->icon('heroicon-o-x-circle')
-                        ->color('danger')
+                        ->color('warning')
                         ->visible(fn (Terminal $record) => $record->isActive())
                         ->requiresConfirmation()
                         ->modalHeading('Desactivar terminal')
@@ -549,7 +549,9 @@ class TerminalResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->modalDescription('Esta acción no se puede deshacer. Las marcaciones ya registradas con los terminales seleccionados no se eliminan, pero perderán la referencia a qué dispositivo físico las generó.')
+                        ->modalSubmitActionLabel('Sí, eliminar'),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
