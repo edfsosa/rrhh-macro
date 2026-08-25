@@ -5,7 +5,7 @@
  *
  * Hand-rolled, sin Workbox/vite-plugin-pwa. Un mismo script compartido entre
  * dos flujos con scope de registro distinto:
- * - Kiosko de sucursal: /terminal/* (registrado en terminal.blade.php).
+ * - Terminal de sucursal: /terminal/* (registrado en terminal.blade.php).
  * - Dispositivo personal del empleado: /marcar (registrado en mark.blade.php,
  *   Parte C Fase 2 — la vinculación en /vincular-dispositivo NO se cachea, es
  *   una acción intrínsecamente online).
@@ -31,7 +31,7 @@ const CACHE_FIRST_PATTERNS = [
     /^\/build\/assets\//, // todos los bundles JS/CSS de Vite (nombres con hash de contenido — seguros de cachear indefinidamente)
 ];
 
-/** Shell HTML del kiosko y del dispositivo — stale-while-revalidate para que un reload offline funcione. */
+/** Shell HTML del terminal y del dispositivo — stale-while-revalidate para que un reload offline funcione. */
 const SHELL_PATTERNS = [
     /^\/terminal\/?$/,
     /^\/terminal\/[a-z0-9]+\/?$/,
@@ -39,7 +39,7 @@ const SHELL_PATTERNS = [
 ];
 
 self.addEventListener('install', () => {
-    // Kiosko de un solo propósito: aplicar la versión nueva del SW sin esperar
+    // Terminal de un solo propósito: aplicar la versión nueva del SW sin esperar
     // a que se cierren todas las pestañas abiertas.
     self.skipWaiting();
 });
