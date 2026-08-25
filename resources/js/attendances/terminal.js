@@ -1,5 +1,5 @@
 import { captureFaceSamples } from '../shared/face-capture-core.js';
-import { migrateTokenFromLocalStorage, getMeta, getCachedEmployees } from './terminal-offline/db.js';
+import { migrateTokenFromLocalStorage, getMeta, getCachedEmployees, clearTerminalState } from './terminal-offline/db.js';
 import { identifyEmployee as matchDescriptor } from './terminal-offline/matcher.js';
 import { heartbeat, syncEmployees, getFaceConfig, TerminalAuthError } from './terminal-offline/sync.js';
 import { getEmployeeStatus, enqueueMark, flushQueue, countPendingEvents, countConflictEvents } from './terminal-offline/queue.js';
@@ -1122,9 +1122,39 @@ document.addEventListener("DOMContentLoaded", () => {
      * arrancar el reposo. Si el terminal no está provisionado, no bloquea el
      * arranque — solo informa en la pantalla idle, la auto-identificación
      * fallará limpiamente con "terminal sin configurar" hasta que se resuelva.
+     *
+     * Regresión de seguridad: `nominapp-terminal` (IndexedDB) es una única
+     * base por navegador, no separada por terminal — sin este chequeo, un
+     * dispositivo que alguna vez reclamó un token para OTRO terminal seguía
+     * autenticando y sincronizando en silencio como ese terminal viejo al
+     * abrir la URL pública de cualquier terminal nuevo, sin pasar de nuevo
+     * por el enlace de configuración de un solo uso.
+     *
+     * Compara por `terminal_id` (estable) cuando está disponible, no por
+     * `terminal_code` — "Cambiar URL del terminal" cambia el code del MISMO
+     * terminal a propósito sin afectar el token (ver ViewTerminal), así que
+     * comparar solo por code trataría ese caso legítimo como si fuera un
+     * terminal distinto y borraría un token todavía válido. Cae a comparar
+     * por code únicamente en dispositivos provisionados antes de este fix,
+     * que todavía no tienen terminal_id guardado.
      */
     async function initializeOfflineSync() {
         await migrateTokenFromLocalStorage();
+
+        const storedId = await getMeta("terminal_id");
+        const storedCode = await getMeta("terminal_code");
+        const currentId = window.terminalData?.id;
+        const currentCode = window.terminalData?.code;
+
+        const belongsToOtherTerminal = (storedId != null && currentId != null)
+            ? storedId !== currentId
+            : (storedCode != null && currentCode != null && storedCode !== currentCode);
+
+        if (belongsToOtherTerminal) {
+            console.warn(`Datos locales pertenecen a otro terminal (id ${storedId ?? 'desconocido'}, code "${storedCode}") — limpiando antes de continuar.`);
+            await clearTerminalState();
+        }
+
         const token = await getMeta("api_token");
 
         if (!token) {

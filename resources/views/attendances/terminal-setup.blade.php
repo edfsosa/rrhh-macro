@@ -107,8 +107,12 @@
 
                 // Almacenamiento provisorio del token — en la fase de sincronización offline
                 // (IndexedDB, módulo terminal-offline/) este valor pasa a vivir en el store
-                // `terminal_meta` en vez de localStorage.
+                // `terminal_meta` en vez de localStorage. Se guarda el id (estable, no cambia
+                // con "Cambiar URL del terminal") además del code (cambia con esa acción) —
+                // terminal.js usa el id para detectar si el estado local pertenece a OTRO
+                // terminal distinto, sin confundir un simple cambio de URL con eso.
                 localStorage.setItem('nominapp_terminal_token', data.token);
+                localStorage.setItem('nominapp_terminal_id', data.terminal.id);
                 localStorage.setItem('nominapp_terminal_code', data.terminal.code);
 
                 statusEl.textContent = 'Dispositivo vinculado correctamente. Redirigiendo...';
