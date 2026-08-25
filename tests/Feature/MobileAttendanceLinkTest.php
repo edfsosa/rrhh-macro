@@ -311,7 +311,7 @@ it('events/sync revoca el token y responde 403 si el empleado ya no está activo
 it('un token de terminal no puede usar las rutas móviles (ability distinta)', function () {
     $employee = makeLinkableEmployee();
     $terminal = Terminal::create([
-        'name' => 'Kiosko Test', 'branch_id' => $employee->branch_id,
+        'name' => 'Terminal Test', 'branch_id' => $employee->branch_id,
     ]);
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 
@@ -347,7 +347,7 @@ it('unlink deja al empleado listo para vincular un dispositivo nuevo', function 
 it('un token de terminal no puede usar el endpoint de unlink móvil (ability distinta)', function () {
     $employee = makeLinkableEmployee();
     $terminal = Terminal::create([
-        'name' => 'Kiosko Test', 'branch_id' => $employee->branch_id,
+        'name' => 'Terminal Test', 'branch_id' => $employee->branch_id,
     ]);
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 

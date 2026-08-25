@@ -20,7 +20,7 @@ function makeConnectivityTerminal(): Terminal
     $company = Company::create(['name' => "Empresa Term {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
     $branch = Branch::create(['name' => "Sucursal Term {$n}", 'company_id' => $company->id]);
 
-    return Terminal::create(['name' => 'Kiosko Test', 'branch_id' => $branch->id]);
+    return Terminal::create(['name' => 'Terminal Test', 'branch_id' => $branch->id]);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ it('con al menos un conflicto, la cola de sync es conflict aunque también haya 
     expect($terminal->fresh()->sync_queue_status)->toBe('conflict');
 });
 
-it('el heartbeat guarda los contadores de cola que reporta el kiosko', function () {
+it('el heartbeat guarda los contadores de cola que reporta el terminal', function () {
     $terminal = makeConnectivityTerminal();
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 
@@ -143,7 +143,7 @@ it('el heartbeat sin contadores no rompe y deja los contadores en null', functio
 });
 
 /**
- * Regresión: el título de pestaña ayuda a diferenciar kioskos de distintas
+ * Regresión: el título de pestaña ayuda a diferenciar terminales de distintas
  * sucursales cuando un admin monitorea varios a la vez — antes solo mostraba
  * el nombre del propio terminal, sin sucursal ni empresa.
  */

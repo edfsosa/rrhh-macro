@@ -29,7 +29,7 @@ function makeProvisioningTerminal(): Terminal
     $company = Company::create(['name' => "Empresa Prov {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
     $branch = Branch::create(['name' => "Sucursal Prov {$n}", 'company_id' => $company->id]);
 
-    return Terminal::create(['name' => 'Kiosko Prov', 'branch_id' => $branch->id]);
+    return Terminal::create(['name' => 'Terminal Prov', 'branch_id' => $branch->id]);
 }
 
 function makeAttendanceEventForTerminal(Terminal $terminal, array $overrides = []): AttendanceEvent
@@ -41,7 +41,7 @@ function makeAttendanceEventForTerminal(Terminal $terminal, array $overrides = [
     $position = Position::create(['name' => "Cargo Term {$n}", 'department_id' => $department->id]);
 
     $employee = Employee::create([
-        'first_name' => 'Kiosko', 'last_name' => "Empleado {$n}", 'ci' => (string) $n,
+        'first_name' => 'Terminal', 'last_name' => "Empleado {$n}", 'ci' => (string) $n,
         'birth_date' => '1990-01-01', 'branch_id' => $terminal->branch_id, 'status' => 'active',
     ]);
     Contract::create([
@@ -201,7 +201,7 @@ it('claimSanctumToken() NO pisa marca/modelo cargados manualmente al reprovision
  * Regresión: producción tenía MAIL_MAILER=resend sin RESEND_KEY configurada.
  * claimSanctumToken() ya había consumido el setup_token (single-use) antes de
  * notificar a los admins, así que el TypeError de Resend::client() tumbaba el
- * request con 500 DESPUÉS de invalidar el enlace — el kiosko quedaba con
+ * request con 500 DESPUÉS de invalidar el enlace — el terminal quedaba con
  * "Server Error" y, al recargar, con "enlace inválido" sin haber recibido
  * nunca su token Sanctum. Un fallo de notificación nunca debe poder romper
  * la provisión ya persistida.
