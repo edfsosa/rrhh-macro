@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Terminal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
@@ -30,12 +31,39 @@ class TerminalSetupController extends Controller
         return view('attendances.terminal-setup', compact('terminal', 'setupToken'));
     }
 
-    /** Reclama el enlace y emite el token Sanctum del terminal. Un solo uso. */
+    /**
+     * Reclama el enlace y emite el token Sanctum del terminal. Un solo uso.
+     *
+     * El check-y-consumo del setup_token corre bajo un `lockForUpdate()` en
+     * una transacción propia — sin esto, dos reclamos casi simultáneos del
+     * mismo enlace (ej. el QR escaneado dos veces por error, o un doble tap)
+     * podían pasar `isSetupTokenValid()` ambos antes de que ninguno hubiera
+     * guardado el null-out todavía, dejando dos tokens Sanctum válidos por un
+     * instante para el mismo terminal sin que ningún cliente supiera cuál
+     * quedó realmente vivo (el segundo `claimSanctumToken()` revoca al
+     * primero al crear el suyo). El lock serializa: el segundo reclamo espera
+     * a que el primero confirme el null-out y entonces `isSetupTokenValid()`
+     * ya lo rechaza correctamente con el 422 de siempre.
+     */
     public function claim(Request $request, string $code, string $setupToken): JsonResponse
     {
-        $terminal = Terminal::where('code', $code)->first();
+        $terminal = DB::transaction(function () use ($code, $setupToken) {
+            $terminal = Terminal::where('code', $code)->lockForUpdate()->first();
 
-        if (! $terminal || ! $terminal->isSetupTokenValid($setupToken)) {
+            if (! $terminal || ! $terminal->isSetupTokenValid($setupToken)) {
+                return null;
+            }
+
+            // Consume el setup_token ya dentro del lock — claimSanctumToken() más
+            // abajo (fuera del lock) vuelve a guardar setup_token=null (ya lo está,
+            // no-op) junto con el resto de su trabajo. No hace falta duplicar esa
+            // lógica acá, solo cerrar la ventana de la carrera.
+            $terminal->forceFill(['setup_token' => null, 'setup_token_expires_at' => null])->save();
+
+            return $terminal;
+        });
+
+        if (! $terminal) {
             Log::warning("Intento de reclamo de setup token inválido o expirado para terminal '{$code}'", [
                 'code' => $code,
                 'ip' => $request->ip(),

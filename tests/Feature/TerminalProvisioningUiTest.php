@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Resources\TerminalResource;
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
@@ -284,4 +285,70 @@ it('el RelationManager de marcaciones es de solo lectura, sin acciones de fila',
     $manager = new AttendanceEventsRelationManager;
 
     expect($manager->isReadOnly())->toBeTrue();
+});
+
+// ─── Endurecimiento del flujo de vinculación (Ver/Generar enlace, carrera) ──
+
+/**
+ * Regresión: claim() ahora corre el check-y-consumo del setup_token bajo un
+ * lockForUpdate() para cerrar la ventana de carrera entre dos reclamos casi
+ * simultáneos — este test confirma que el comportamiento de un solo uso
+ * sigue intacto para el caso simple (secuencial) tras ese cambio.
+ */
+it('reclamar un enlace de configuración ya usado falla con 422 — un solo uso', function () {
+    $terminal = makeProvisioningTerminal();
+    $setupToken = $terminal->generateSetupToken();
+
+    $this->postJson("/terminal/{$terminal->code}/setup/{$setupToken}/claim")
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    $this->postJson("/terminal/{$terminal->code}/setup/{$setupToken}/claim")
+        ->assertStatus(422)
+        ->assertJson(['ok' => false]);
+});
+
+it('"Generar enlace" está visible sin enlace vigente; "Ver enlace" y "Generar nuevo" aparecen tras generar uno', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+
+    $withoutLink = collect(
+        Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])->instance()->getCachedHeaderActions()
+    );
+    expect($withoutLink->first(fn ($a) => $a->getName() === 'generate_setup_link')?->isVisible())->toBeTrue();
+    expect($withoutLink->first(fn ($a) => $a->getName() === 'view_setup_link')?->isVisible())->toBeFalse();
+    expect($withoutLink->first(fn ($a) => $a->getName() === 'regenerate_setup_link')?->isVisible())->toBeFalse();
+
+    $terminal->generateSetupToken();
+
+    $withLink = collect(
+        Livewire::test(ViewTerminal::class, ['record' => $terminal->fresh()->getKey()])->instance()->getCachedHeaderActions()
+    );
+    expect($withLink->first(fn ($a) => $a->getName() === 'generate_setup_link')?->isVisible())->toBeFalse();
+    expect($withLink->first(fn ($a) => $a->getName() === 'view_setup_link')?->isVisible())->toBeTrue();
+    expect($withLink->first(fn ($a) => $a->getName() === 'regenerate_setup_link')?->isVisible())->toBeTrue();
+});
+
+it('TerminalResource::renderCurrentSetupLinkModal() no genera un token nuevo, a diferencia de renderSetupLinkModal()', function () {
+    $terminal = makeProvisioningTerminal();
+    $setupToken = $terminal->generateSetupToken();
+
+    TerminalResource::renderCurrentSetupLinkModal($terminal);
+    expect($terminal->fresh()->setup_token)->toBe($setupToken);
+
+    TerminalResource::renderSetupLinkModal($terminal);
+    expect($terminal->fresh()->setup_token)->not->toBe($setupToken);
+});
+
+it('"Generar nuevo enlace" invalida el enlace vigente y notifica en vez de mostrar el QR en el mismo paso', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    $oldToken = $terminal->generateSetupToken();
+
+    Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])
+        ->callAction('regenerate_setup_link')
+        ->assertHasNoActionErrors();
+
+    expect($terminal->fresh()->setup_token)->not->toBeNull()
+        ->and($terminal->fresh()->setup_token)->not->toBe($oldToken);
 });

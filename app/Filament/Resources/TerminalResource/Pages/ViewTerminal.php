@@ -73,11 +73,26 @@ class ViewTerminal extends ViewRecord
                     $this->refreshFormData(['status']);
                 }),
 
+            // "Ver enlace" (hay uno vigente sin usar): solo lectura, sin efecto colateral.
+            Action::make('view_setup_link')
+                ->label('Ver enlace de configuración')
+                ->tooltip('Ver el enlace/QR de un solo uso todavía vigente, sin invalidarlo')
+                ->icon('heroicon-o-qr-code')
+                ->color('gray')
+                ->visible(fn () => TerminalResource::hasValidSetupLink($this->record))
+                ->modalHeading('Enlace de configuración del terminal')
+                ->modalContent(fn () => TerminalResource::renderCurrentSetupLinkModal($this->record))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Cerrar'),
+
+            // "Generar enlace" (sin enlace vigente): un solo paso, sin confirmación —
+            // abre el modal y genera+muestra el QR de inmediato, como ya funcionaba.
             Action::make('generate_setup_link')
                 ->label('Generar enlace de configuración')
                 ->tooltip('Enlace/QR de un solo uso para vincular el dispositivo a la sincronización offline')
                 ->icon('heroicon-o-qr-code')
                 ->color('gray')
+                ->visible(fn () => ! TerminalResource::hasValidSetupLink($this->record))
                 ->modalHeading('Enlace de configuración del terminal')
                 ->modalDescription(fn () => $this->record->tokens()->exists()
                     ? '⚠️ Este terminal ya está vinculado y sincronizando. Si otro dispositivo reclama este enlace, el acceso del terminal actual se revocará automáticamente.'
@@ -85,6 +100,37 @@ class ViewTerminal extends ViewRecord
                 ->modalContent(fn () => TerminalResource::renderSetupLinkModal($this->record))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Cerrar'),
+
+            // "Generar nuevo enlace" (ya hay uno vigente): pide confirmación explícita
+            // ANTES de generar — modalContent() se evalúa (con su efecto colateral) al
+            // abrir el modal, no al confirmar, así que no se puede mostrar el QR nuevo
+            // en el mismo paso sin invalidar el vigente antes de que el admin decida.
+            // Genera y avisa por notificación; el QR nuevo se ve con "Ver enlace".
+            Action::make('regenerate_setup_link')
+                ->label('Generar nuevo enlace de configuración')
+                ->tooltip('Invalida el enlace vigente y genera uno nuevo')
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->visible(fn () => TerminalResource::hasValidSetupLink($this->record))
+                ->requiresConfirmation()
+                ->modalHeading('¿Generar un enlace nuevo?')
+                ->modalDescription(function () {
+                    $base = 'Ya existe un enlace de configuración vigente para este terminal. Generar uno nuevo invalida el anterior de inmediato, aunque todavía no haya sido usado.';
+                    if ($this->record->tokens()->exists()) {
+                        $base .= ' ⚠️ Además, este terminal ya está vinculado y sincronizando — si otro dispositivo reclama el enlace nuevo, el acceso del terminal actual se revocará automáticamente.';
+                    }
+
+                    return $base;
+                })
+                ->modalSubmitActionLabel('Sí, generar uno nuevo')
+                ->action(function () {
+                    $this->record->generateSetupToken(30);
+                    Notification::make()
+                        ->success()
+                        ->title('Enlace nuevo generado')
+                        ->body('El enlace anterior quedó invalidado. Usá "Ver enlace de configuración" para verlo.')
+                        ->send();
+                }),
 
             EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
 
