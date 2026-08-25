@@ -64,6 +64,7 @@
     <header class="app-header">
         <div class="app-header-brand">
             <span class="app-mode-badge">Marcación Facial</span>
+            <img id="headerLogo" class="header-logo hidden" alt="">
             <span id="headerLocation" class="app-location-badge"></span>
             <button type="button" id="btnThemeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
                 <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
