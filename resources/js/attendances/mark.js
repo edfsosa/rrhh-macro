@@ -916,6 +916,10 @@ const statusBar           = document.getElementById("statusBar");
         splashHandled = false;
         showSplash();
         window.scrollTo({ top: 0, behavior: "instant" });
+
+        // Refrescar la tarjeta "Hoy: ..." con la marcación recién registrada —
+        // sin esto queda con el texto de antes de marcar hasta recargar la página.
+        refreshOwnEmployeeUi();
     }
 
     /**
