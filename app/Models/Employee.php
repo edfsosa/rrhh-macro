@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
+use App\Services\DeviceHintsParser;
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Illuminate\Auth\Authenticatable;
@@ -1201,9 +1202,12 @@ class Employee extends Model implements AuthenticatableContract
      * `MobileLinkController`). Revoca cualquier token móvil previo — un solo
      * dispositivo vinculado a la vez, igual que `Terminal::claimSanctumToken()`.
      *
+     * @param  string|null  $clientHintModel  Modelo reportado por Client Hints del navegador
+     *                                        (`navigator.userAgentData.getHighEntropyValues(['model'])`), cuando está disponible —
+     *                                        ver DeviceHintsParser para el detalle de qué navegadores lo soportan.
      * @return string Token Sanctum en texto plano — solo se retorna una vez, nunca se persiste en claro.
      */
-    public function claimMobileToken(?string $userAgent = null): string
+    public function claimMobileToken(?string $userAgent = null, ?string $clientHintModel = null): string
     {
         // Se evalúa antes de pisar mobile_linked_at — distingue una vinculación
         // nueva (informativa) de una re-vinculación (ver MobileDeviceRelinkedNotification:
@@ -1217,9 +1221,17 @@ class Employee extends Model implements AuthenticatableContract
         // Cierra el dispositivo activo anterior (si había) antes de abrir uno
         // nuevo — nunca quedan dos registros con unlinked_at null a la vez.
         $this->activeDevice?->update(['unlinked_at' => $linkedAt]);
+        // Marca/modelo sugeridos (best-effort, editables) a partir del User-Agent
+        // y, si el navegador lo soporta, de Client Hints — ver DeviceHintsParser.
+        // Siempre se aplican acá: cada vinculación crea un EmployeeDevice nuevo,
+        // no hay un valor manual previo que pisar (a diferencia de Terminal, que
+        // reutiliza el mismo registro entre reprovisiones).
+        $guess = DeviceHintsParser::guess($userAgent, $clientHintModel);
         $newDevice = $this->devices()->create([
             'linked_at' => $linkedAt,
             'user_agent' => $userAgent,
+            'device_brand' => $guess['brand'],
+            'device_model' => $guess['model'],
         ]);
         // setRelation en vez de dejar que quede cacheado el activeDevice anterior (o
         // null) en esta misma instancia — sin esto, $employee->activeDevice después de

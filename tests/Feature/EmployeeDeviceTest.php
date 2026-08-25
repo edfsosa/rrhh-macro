@@ -57,6 +57,33 @@ it('claimMobileToken crea un EmployeeDevice activo', function () {
         ->and($employee->activeDevice->isActive())->toBeTrue();
 });
 
+it('claimMobileToken sugiere marca/modelo a partir del User-Agent (best-effort, sin Client Hint)', function () {
+    $employee = makeDeviceTestEmployee();
+
+    $employee->claimMobileToken('Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36');
+
+    expect($employee->activeDevice->device_brand)->toBe('Samsung')
+        ->and($employee->activeDevice->device_model)->toBe('SM-S911B');
+});
+
+it('claimMobileToken prioriza el Client Hint del navegador sobre el User-Agent', function () {
+    $employee = makeDeviceTestEmployee();
+
+    $employee->claimMobileToken('Mozilla/5.0 (Linux; Android 14; SM-S911B)', 'Pixel 8 Pro');
+
+    expect($employee->activeDevice->device_brand)->toBe('Google')
+        ->and($employee->activeDevice->device_model)->toBe('Pixel 8 Pro');
+});
+
+it('claimMobileToken sin datos de dispositivo no revienta y deja marca/modelo en null', function () {
+    $employee = makeDeviceTestEmployee();
+
+    $employee->claimMobileToken(null);
+
+    expect($employee->activeDevice->device_brand)->toBeNull()
+        ->and($employee->activeDevice->device_model)->toBeNull();
+});
+
 it('re-vincular cierra el dispositivo anterior y abre uno nuevo', function () {
     $employee = makeDeviceTestEmployee();
     $employee->claimMobileToken('Device A');

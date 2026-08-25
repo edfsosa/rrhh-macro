@@ -64,11 +64,13 @@ class EmployeeDeviceResource extends Resource
                         TextInput::make('device_brand')
                             ->label('Marca')
                             ->placeholder('Ej: Samsung, Apple, Motorola')
+                            ->helperText('Se sugiere automáticamente al vincular el dispositivo, cuando el navegador lo permite. Editable.')
                             ->maxLength(60),
 
                         TextInput::make('device_model')
                             ->label('Modelo')
                             ->placeholder('Ej: Galaxy A54')
+                            ->helperText('Igual que la marca: sugerido automáticamente, no siempre disponible (ej. iPhone/iPad nunca lo reportan).')
                             ->maxLength(100),
 
                         TextInput::make('device_serial')

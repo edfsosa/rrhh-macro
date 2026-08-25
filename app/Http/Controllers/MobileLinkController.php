@@ -45,6 +45,7 @@ class MobileLinkController extends Controller
         $data = $request->validate([
             'ci' => ['required', 'string', 'max:20'],
             'birth_date' => ['required', 'date'],
+            'device_model_hint' => ['nullable', 'string', 'max:100'],
         ]);
 
         $employee = Employee::query()
@@ -68,7 +69,7 @@ class MobileLinkController extends Controller
             ], 422);
         }
 
-        $plainTextToken = $employee->claimMobileToken($request->userAgent());
+        $plainTextToken = $employee->claimMobileToken($request->userAgent(), $data['device_model_hint'] ?? null);
 
         Log::info("Dispositivo vinculado para el empleado #{$employee->id} ({$employee->first_name} {$employee->last_name})", [
             'employee_id' => $employee->id,
