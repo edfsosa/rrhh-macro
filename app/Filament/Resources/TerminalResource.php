@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TerminalResource\Pages;
+use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
 use App\Models\Terminal;
 use App\Settings\GeneralSettings;
 use Filament\Forms\Components\DatePicker;
@@ -533,7 +534,9 @@ class TerminalResource extends Resource
      */
     public static function getRelations(): array
     {
-        return [];
+        return [
+            AttendanceEventsRelationManager::class,
+        ];
     }
 
     /**

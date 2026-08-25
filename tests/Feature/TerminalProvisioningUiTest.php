@@ -2,8 +2,15 @@
 
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
+use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
+use App\Models\AttendanceDay;
+use App\Models\AttendanceEvent;
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\Contract;
+use App\Models\Department;
+use App\Models\Employee;
+use App\Models\Position;
 use App\Models\Terminal;
 use App\Models\User;
 use Filament\Actions\ActionGroup;
@@ -23,6 +30,41 @@ function makeProvisioningTerminal(): Terminal
     $branch = Branch::create(['name' => "Sucursal Prov {$n}", 'company_id' => $company->id]);
 
     return Terminal::create(['name' => 'Kiosko Prov', 'branch_id' => $branch->id]);
+}
+
+function makeAttendanceEventForTerminal(Terminal $terminal, array $overrides = []): AttendanceEvent
+{
+    static $ci = 9800000;
+    $n = $ci++;
+
+    $department = Department::create(['name' => "Depto Term {$n}", 'company_id' => $terminal->branch->company_id]);
+    $position = Position::create(['name' => "Cargo Term {$n}", 'department_id' => $department->id]);
+
+    $employee = Employee::create([
+        'first_name' => 'Kiosko', 'last_name' => "Empleado {$n}", 'ci' => (string) $n,
+        'birth_date' => '1990-01-01', 'branch_id' => $terminal->branch_id, 'status' => 'active',
+    ]);
+    Contract::create([
+        'employee_id' => $employee->id, 'type' => 'indefinido', 'start_date' => now()->subYear(),
+        'salary_type' => 'mensual', 'salary' => 2_550_000, 'position_id' => $position->id,
+        'department_id' => $department->id, 'status' => 'active',
+    ]);
+
+    $recordedAt = now();
+    $day = AttendanceDay::create(['employee_id' => $employee->id, 'date' => $recordedAt->toDateString(), 'status' => 'present']);
+
+    return AttendanceEvent::create(array_merge([
+        'attendance_day_id' => $day->id,
+        'employee_id' => $employee->id,
+        'employee_name' => $employee->full_name,
+        'employee_ci' => $employee->ci,
+        'event_type' => 'check_in',
+        'recorded_at' => $recordedAt,
+        'source' => 'terminal',
+        'terminal_id' => $terminal->id,
+        'branch_id' => $terminal->branch_id,
+        'branch_name' => $terminal->branch->name,
+    ], $overrides));
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -202,4 +244,44 @@ it('POST .../claim pasa el device_model_hint del cliente hasta el terminal provi
     $terminal->refresh();
     expect($terminal->device_brand)->toBe('Google')
         ->and($terminal->device_model)->toBe('Pixel 8 Pro');
+});
+
+// ─── RelationManager de marcaciones ────────────────────────────────────────
+
+it('el RelationManager de marcaciones renderiza en la ficha del terminal', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    makeAttendanceEventForTerminal($terminal);
+
+    Livewire::test(AttendanceEventsRelationManager::class, [
+        'ownerRecord' => $terminal,
+        'pageClass' => ViewTerminal::class,
+    ])->assertOk();
+});
+
+it('el RelationManager de marcaciones solo muestra eventos de ese terminal, no de otros', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    $otherTerminal = makeProvisioningTerminal();
+
+    $ownEvent = makeAttendanceEventForTerminal($terminal);
+    makeAttendanceEventForTerminal($otherTerminal);
+
+    $component = Livewire::test(AttendanceEventsRelationManager::class, [
+        'ownerRecord' => $terminal,
+        'pageClass' => ViewTerminal::class,
+    ]);
+
+    $component->assertCanSeeTableRecords([$ownEvent])
+        ->assertCountTableRecords(1);
+});
+
+it('el RelationManager de marcaciones es de solo lectura, sin acciones de fila', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    makeAttendanceEventForTerminal($terminal);
+
+    $manager = new AttendanceEventsRelationManager;
+
+    expect($manager->isReadOnly())->toBeTrue();
 });
