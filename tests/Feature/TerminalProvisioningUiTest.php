@@ -121,3 +121,40 @@ it('el detalle del terminal expone la acción "Generar enlace de configuración"
 
     expect($action)->not->toBeNull();
 });
+
+// ─── DeviceHintsParser: marca/modelo sugeridos al provisionar ──────────────
+
+it('claimSanctumToken() guarda el User-Agent y sugiere marca/modelo cuando el terminal no tiene datos cargados', function () {
+    $terminal = makeProvisioningTerminal();
+
+    $terminal->claimSanctumToken('Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15');
+    $terminal->refresh();
+
+    expect($terminal->user_agent)->toContain('iPhone')
+        ->and($terminal->device_brand)->toBe('Apple')
+        ->and($terminal->device_model)->toBe('iPhone');
+});
+
+it('claimSanctumToken() NO pisa marca/modelo cargados manualmente al reprovisionar el mismo terminal', function () {
+    $terminal = makeProvisioningTerminal();
+    $terminal->update(['device_brand' => 'Apple (corregido a mano)', 'device_model' => 'iPad Pro 12.9 2022']);
+
+    $terminal->claimSanctumToken('Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X)');
+    $terminal->refresh();
+
+    expect($terminal->device_brand)->toBe('Apple (corregido a mano)')
+        ->and($terminal->device_model)->toBe('iPad Pro 12.9 2022');
+});
+
+it('POST .../claim pasa el device_model_hint del cliente hasta el terminal provisionado', function () {
+    $terminal = makeProvisioningTerminal();
+    $setupToken = $terminal->generateSetupToken();
+
+    $this->postJson("/terminal/{$terminal->code}/setup/{$setupToken}/claim", [
+        'device_model_hint' => 'Pixel 8 Pro',
+    ])->assertOk()->assertJson(['ok' => true]);
+
+    $terminal->refresh();
+    expect($terminal->device_brand)->toBe('Google')
+        ->and($terminal->device_model)->toBe('Pixel 8 Pro');
+});

@@ -90,11 +90,13 @@ class TerminalResource extends Resource
                         TextInput::make('device_brand')
                             ->label('Marca')
                             ->placeholder('Ej: Samsung, Apple, Lenovo')
+                            ->helperText('Se sugiere automáticamente al vincular el dispositivo, cuando el navegador lo permite. Editable.')
                             ->maxLength(60),
 
                         TextInput::make('device_model')
                             ->label('Modelo')
                             ->placeholder('Ej: Galaxy Tab A8')
+                            ->helperText('Igual que la marca: sugerido automáticamente, no siempre disponible (ej. iPhone/iPad nunca lo reportan).')
                             ->maxLength(100),
 
                         TextInput::make('device_serial')
@@ -223,12 +225,17 @@ class TerminalResource extends Resource
                             ->copyable()
                             ->placeholder('-'),
 
+                        TextEntry::make('user_agent')
+                            ->label('Navegador (detectado al provisionar)')
+                            ->placeholder('Sin datos')
+                            ->limit(60),
+
                         TextEntry::make('device_notes')
                             ->label('Notas')
                             ->placeholder('Sin notas')
                             ->columnSpanFull(),
                     ])
-                    ->visible(fn (Terminal $record) => $record->device_brand || $record->device_model || $record->device_serial || $record->device_mac || $record->device_notes),
+                    ->visible(fn (Terminal $record) => $record->device_brand || $record->device_model || $record->device_serial || $record->device_mac || $record->device_notes || $record->user_agent),
 
                 InfoSection::make('Conectividad')
                     ->description('Marcación offline vía PWA — heartbeat y sincronización con la API de terminales')

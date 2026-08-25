@@ -77,6 +77,19 @@ it('vincula el dispositivo con CI y fecha de nacimiento correctos y emite un tok
     expect($employee->fresh()->hasMobileLinked())->toBeTrue();
 });
 
+it('el device_model_hint enviado por el cliente llega hasta el EmployeeDevice creado', function () {
+    $employee = makeLinkableEmployee();
+
+    $this->postJson('/vincular-dispositivo', [
+        'ci' => $employee->ci,
+        'birth_date' => '1990-05-15',
+        'device_model_hint' => 'Pixel 8 Pro',
+    ])->assertOk();
+
+    expect($employee->fresh()->activeDevice->device_model)->toBe('Pixel 8 Pro')
+        ->and($employee->fresh()->activeDevice->device_brand)->toBe('Google');
+});
+
 it('rechaza CI o fecha de nacimiento incorrectos con un mensaje genérico', function () {
     $employee = makeLinkableEmployee();
 

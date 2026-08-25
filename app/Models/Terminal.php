@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\TerminalProvisionedNotification;
+use App\Services\DeviceHintsParser;
 use App\Settings\GeneralSettings;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -44,6 +45,7 @@ class Terminal extends Model implements AuthenticatableContract
         'device_serial',
         'device_mac',
         'device_notes',
+        'user_agent',
         'installed_at',
         'installed_by_id',
         'last_seen_at',
@@ -373,16 +375,32 @@ class Terminal extends Model implements AuthenticatableContract
      * con la ability de sincronización. Revoca tokens `terminal:sync`
      * previos para que solo quede uno activo por terminal.
      *
+     * @param  string|null  $userAgent  User-Agent del dispositivo que provisiona, para diagnóstico
+     *                                  y como insumo de DeviceHintsParser (marca/modelo sugeridos, editables).
+     * @param  string|null  $clientHintModel  Modelo reportado por Client Hints del navegador
+     *                                        (`navigator.userAgentData.getHighEntropyValues(['model'])`), cuando está disponible —
+     *                                        ver DeviceHintsParser para el detalle de qué navegadores lo soportan.
      * @return string Token Sanctum en texto plano — solo se retorna una vez, nunca se persiste en claro.
      */
-    public function claimSanctumToken(): string
+    public function claimSanctumToken(?string $userAgent = null, ?string $clientHintModel = null): string
     {
         $this->tokens()->where('name', 'like', 'kiosk:%')->delete();
 
-        $this->forceFill([
+        $attributes = [
             'setup_token' => null,
             'setup_token_expires_at' => null,
-        ])->save();
+            'user_agent' => $userAgent,
+        ];
+
+        // Solo sugiere marca/modelo si el admin no los cargó ya a mano — nunca pisa una
+        // corrección manual previa (ej. una reprovisión del mismo terminal físico).
+        if (blank($this->device_brand) && blank($this->device_model)) {
+            $guess = DeviceHintsParser::guess($userAgent, $clientHintModel);
+            $attributes['device_brand'] = $guess['brand'];
+            $attributes['device_model'] = $guess['model'];
+        }
+
+        $this->forceFill($attributes)->save();
 
         User::all()->each(fn (User $user) => $user->notify(new TerminalProvisionedNotification($this)));
 

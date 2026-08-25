@@ -134,6 +134,20 @@
         const statusEl = document.getElementById('status');
         const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
+        // Modelo real del dispositivo, solo disponible vía Client Hints en navegadores
+        // Chromium sobre Android (Chrome, Edge...) — null en iOS/Safari/Firefox/desktop,
+        // donde el servidor cae al parseo del User-Agent (ver DeviceHintsParser). Sirve
+        // solo para prellenar marca/modelo como sugerencia editable en el panel.
+        async function getClientHintModel() {
+            if (!navigator.userAgentData?.getHighEntropyValues) return null;
+            try {
+                const hints = await navigator.userAgentData.getHighEntropyValues(['model']);
+                return hints.model || null;
+            } catch {
+                return null;
+            }
+        }
+
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
             btn.disabled = true;
@@ -147,6 +161,7 @@
                     body: JSON.stringify({
                         ci: document.getElementById('ci').value.trim(),
                         birth_date: document.getElementById('birth_date').value,
+                        device_model_hint: await getClientHintModel(),
                     }),
                 });
                 const data = await response.json();
