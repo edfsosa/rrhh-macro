@@ -3,6 +3,7 @@
 use App\Filament\Resources\TerminalResource;
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
 use App\Filament\Resources\TerminalResource\Pages\EditTerminal;
+use App\Filament\Resources\TerminalResource\Pages\ListTerminals;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
 use App\Models\AttendanceDay;
@@ -396,4 +397,32 @@ it('editar un terminal mantiene visible su sucursal aunque la empresa se haya de
         ->getFlatFields(withHidden: true)['branch_id'];
 
     expect($field->getOptions())->toHaveKey($branch->id);
+});
+
+it('el listado de terminales oculta la columna y el filtro de Empresa si solo hay una empresa activa', function () {
+    $this->actingAs(User::factory()->create());
+    makeProvisioningTerminal();
+
+    Livewire::test(ListTerminals::class)
+        ->assertTableColumnHidden('branch.company.name')
+        ->assertTableFilterHidden('company_id');
+});
+
+it('el listado de terminales muestra y filtra por Empresa cuando hay 2 o más empresas activas', function () {
+    $this->actingAs(User::factory()->create());
+
+    $companyA = Company::create(['name' => 'Empresa Terminal A', 'ruc' => '7900010-1', 'employer_number' => 7900010]);
+    $companyB = Company::create(['name' => 'Empresa Terminal B', 'ruc' => '7900011-1', 'employer_number' => 7900011]);
+    $branchA = Branch::create(['name' => 'Sucursal Terminal A', 'company_id' => $companyA->id]);
+    $branchB = Branch::create(['name' => 'Sucursal Terminal B', 'company_id' => $companyB->id]);
+    $terminalA = Terminal::create(['name' => 'Terminal A', 'branch_id' => $branchA->id]);
+    $terminalB = Terminal::create(['name' => 'Terminal B', 'branch_id' => $branchB->id]);
+
+    Livewire::test(ListTerminals::class)
+        ->assertTableColumnVisible('branch.company.name')
+        ->assertTableFilterVisible('company_id')
+        ->assertCanSeeTableRecords([$terminalA, $terminalB])
+        ->filterTable('company_id', $companyA->id)
+        ->assertCanSeeTableRecords([$terminalA])
+        ->assertCanNotSeeTableRecords([$terminalB]);
 });

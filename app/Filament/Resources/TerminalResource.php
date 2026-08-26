@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TerminalResource\Pages;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
+use App\Models\Company;
 use App\Models\Terminal;
 use App\Settings\GeneralSettings;
 use Filament\Forms\Components\DatePicker;
@@ -335,6 +336,15 @@ class TerminalResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('branch.company.name')
+                    ->label('Empresa')
+                    ->icon('heroicon-o-building-office-2')
+                    ->badge()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable()
+                    ->visible(fn () => Company::active()->count() > 1),
+
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->badge()
@@ -399,6 +409,17 @@ class TerminalResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->options(fn () => Company::active()->orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->native(false)
+                    ->visible(fn () => Company::active()->count() > 1)
+                    ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('branch', fn ($q) => $q->where('company_id', $data['value']))
+                        : $query
+                    ),
+
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->relationship('branch', 'name')
