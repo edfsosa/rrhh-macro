@@ -45,4 +45,12 @@ class Branch extends Model
     {
         return $this->hasMany(Employee::class)->where('status', 'active');
     }
+
+    /**
+     * Terminales de marcación de la sucursal
+     */
+    public function terminals(): HasMany
+    {
+        return $this->hasMany(Terminal::class);
+    }
 }

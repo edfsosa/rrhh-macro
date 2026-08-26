@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\BranchResource\Pages;
 use App\Filament\Resources\BranchResource\RelationManagers\EmployeesRelationManager;
+use App\Filament\Resources\BranchResource\RelationManagers\TerminalsRelationManager;
 use App\Models\Branch;
 use App\Models\Company;
 use Cheesegrits\FilamentGoogleMaps\Fields\Map;
@@ -321,6 +322,7 @@ class BranchResource extends Resource
     {
         return [
             EmployeesRelationManager::class,
+            TerminalsRelationManager::class,
         ];
     }
 
