@@ -164,11 +164,19 @@ class TerminalResource extends Resource
         return $infolist
             ->schema([
                 InfoSection::make('Identificación')
+                    ->collapsible()
                     ->schema([
-                        InfoGrid::make(3)->schema([
+                        InfoGrid::make(4)->schema([
                             TextEntry::make('name')
                                 ->label('Nombre')
                                 ->icon('heroicon-o-computer-desktop'),
+
+                            TextEntry::make('branch.company.name')
+                                ->label('Empresa')
+                                ->icon('heroicon-o-building-office-2')
+                                ->badge()
+                                ->color('primary')
+                                ->visible(fn () => Company::active()->count() > 1),
 
                             TextEntry::make('branch.name')
                                 ->label('Sucursal')
@@ -220,6 +228,7 @@ class TerminalResource extends Resource
                     ]),
 
                 InfoSection::make('Dispositivo')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(3)->schema([
                             TextEntry::make('device_brand')
@@ -244,7 +253,8 @@ class TerminalResource extends Resource
                         TextEntry::make('user_agent')
                             ->label('Navegador (detectado al provisionar)')
                             ->placeholder('Sin datos')
-                            ->limit(60),
+                            ->limit(60)
+                            ->tooltip(fn (Terminal $record) => $record->user_agent),
 
                         TextEntry::make('device_notes')
                             ->label('Notas')
@@ -256,6 +266,7 @@ class TerminalResource extends Resource
                 InfoSection::make('Conectividad')
                     ->description('Marcación offline vía PWA — heartbeat y sincronización con la API de terminales')
                     ->icon('heroicon-o-wifi')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(4)->schema([
                             TextEntry::make('connectivity_status')
@@ -308,6 +319,7 @@ class TerminalResource extends Resource
                     ]),
 
                 InfoSection::make('Instalación')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(2)->schema([
                             TextEntry::make('installed_at')

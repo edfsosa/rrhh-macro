@@ -426,3 +426,20 @@ it('el listado de terminales muestra y filtra por Empresa cuando hay 2 o más em
         ->assertCanSeeTableRecords([$terminalA])
         ->assertCanNotSeeTableRecords([$terminalB]);
 });
+
+it('el detalle del terminal oculta el nombre de la Empresa si solo hay una empresa activa', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+
+    Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])
+        ->assertDontSee($terminal->branch->company->name);
+});
+
+it('el detalle del terminal muestra el nombre de la Empresa cuando hay 2 o más empresas activas', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    Company::create(['name' => 'Otra Empresa Detalle', 'ruc' => '7900012-1', 'employer_number' => 7900012]);
+
+    Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])
+        ->assertSee($terminal->branch->company->name);
+});
