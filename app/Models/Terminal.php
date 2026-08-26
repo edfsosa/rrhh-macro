@@ -122,8 +122,8 @@ class Terminal extends Model implements AuthenticatableContract
     public static function getStatusOptions(): array
     {
         return [
-            'active' => 'Activa',
-            'inactive' => 'Inactiva',
+            'active' => 'Activo',
+            'inactive' => 'Inactivo',
         ];
     }
 
@@ -135,8 +135,8 @@ class Terminal extends Model implements AuthenticatableContract
     public static function getStatusLabels(): array
     {
         return [
-            'active' => 'Activa',
-            'inactive' => 'Inactiva',
+            'active' => 'Activo',
+            'inactive' => 'Inactivo',
         ];
     }
 

@@ -335,6 +335,10 @@ Dos dispositivos marcan asistencia por reconocimiento facial (face-api.js, 100% 
 
 **Notificaciones por email:** `MobileDeviceLinkedNotification`/`MobileDeviceRelinkedNotification`/`TerminalProvisionedNotification` tienen canal `mail` además de `database` — llegan a todos los `User::all()`.
 
+**`notify()` nunca debe invalidar una operación ya persistida:** `Terminal::claimSanctumToken()` y `Employee::claimMobileToken()` envuelven la llamada a `User::all()->each->notify(...)` en `try/catch` con `Log::warning()` en el catch. Un fallo del mailer (SMTP caído, credenciales vencidas, etc.) no debe hacer que el endpoint responda 500 y deje sin token a un dispositivo que ya fue provisionado en la base de datos — el dato crítico (token, vínculo) ya está guardado antes de notificar; la notificación es best-effort.
+
+**Estado offline cruzado entre dispositivos (IndexedDB):** antes de confiar en el token cacheado localmente, `terminal.js`/`mark.js` comparan el `terminal_id`/`terminal_code` (o el id del empleado, en el celular) guardado en IndexedDB contra el actual (`window.terminalData` / dato server-side). Si no coinciden, se asume que el navegador tiene el estado de OTRO terminal/dispositivo (mismo navegador reutilizado para abrir dos enlaces de configuración distintos) y se limpia todo el estado local (`clearTerminalState()` en `db.js`: `terminal_meta`, `employees_cache`, `outbound_events`, `employee_status_cache`) antes de sincronizar — de lo contrario el segundo dispositivo terminaría marcando asistencia con el token del primero.
+
 **Gotcha de throttle compartido (recurrente — revisar en cualquier ruta pública nueva):** `Illuminate\Routing\Middleware\ThrottleRequests::resolveRequestSignature()` genera la clave del rate limit solo con dominio+IP, **sin distinguir ruta ni parámetros del middleware** (`maxAttempts`/`decayMinutes`). Dos rutas públicas distintas con `throttle:X,Y` sin prefijo comparten el mismo bucket por IP — agotar el límite de una bloquea también a la otra. **Siempre** usar un tercer parámetro de prefijo único: `throttle:10,1,mi-prefijo-unico`. Ya corregido en `terminal.setup` (`terminal-setup`), `registro-facial` (`face-enrollment`) y `vincular-dispositivo` (`device-link-show`/`device-link-minute`/`device-link-day`) — todas las rutas públicas actuales del proyecto ya tienen prefijo explícito.
 
 ### Service Layer
@@ -635,6 +639,8 @@ public static function getShiftTypeColors(): array   // para colores de badges
 ->color(fn($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray')
 ```
 
+**Concordancia de género gramatical:** los labels deben concordar con el género que el resto del proyecto usa para esa entidad, no con el género "por defecto" de la palabra en español. Ej: `Terminal::getStatusOptions()` decía `'active' => 'Activa'` (femenino, como si "la terminal"), pero todo el código y la documentación del proyecto se refieren a "**el** terminal" (masculino, como el dispositivo/kiosko) — el label correcto es `'Activo'`. Revisar cómo se refiere el resto del código/UI a la entidad antes de fijar el género del label, no asumirlo por la palabra sola.
+
 ### Descargas de archivos desde acciones Filament
 
 Las acciones Filament corren via Livewire (AJAX) y **no pueden retornar respuestas binarias** desde `->action()` — causa `Malformed UTF-8` al serializar a JSON.
@@ -814,6 +820,9 @@ if (filled($state['ic_salary'] ?? null) && filled($state['ic_position_id'] ?? nu
 ```
 
 ### Filament Forms — convenciones adicionales
+
+**`modalContent()` se evalúa al ABRIR el modal, no al confirmar**
+Si `->modalContent()` ejecuta un side-effect (ej. generar y persistir un nuevo token), ese efecto corre **cada vez que el modal se abre** — incluyendo si el usuario lo cierra sin confirmar, o si Livewire vuelve a renderizar el componente. No se puede combinar `->requiresConfirmation()` + `->modalContent()` con side-effects esperando que el efecto ocurra recién al enviar el formulario del modal — eso rompe la semántica de "confirmar antes de ejecutar". Si la acción necesita mostrar el resultado de un side-effect (ej. el QR de un token recién generado) **y** requerir confirmación cuando ya existe un estado previo, separar en dos `Action` distintas con visibilidad mutuamente excluyente: una sin confirmación que genera-y-muestra (caso "no hay nada aún"), otra con `->requiresConfirmation()` que genera en `->action()` (evaluado al confirmar) y notifica en vez de mostrar el contenido inline (caso "ya existe algo, reemplazar"). Ver `TerminalResource::view_setup_link` / `generate_setup_link` / `regenerate_setup_link`.
 
 **`->live()` en lugar de `->reactive()`**
 `->reactive()` está deprecado en Filament 3. Siempre usar `->live()`.
@@ -1374,6 +1383,30 @@ MySQL en modo estricto exige que **todas las columnas no agregadas del SELECT es
 
 Las columnas calculadas por subquery en el SELECT (`DB::raw('(SELECT ...) AS alias')`) **no** necesitan ir en GROUP BY.
 
+### Tokens de un solo uso — evitar race conditions con `lockForUpdate()`
+
+Cualquier flujo de "reclamar/consumir" un token de un solo uso (setup links, invitaciones, etc.) debe leer y anular el token dentro de la **misma transacción con lock**, no en pasos separados — de lo contrario dos requests casi simultáneos (doble click, reintento de red) pueden pasar ambos la validación antes de que el primero anule el token, emitiendo dos credenciales para un solo enlace.
+
+```php
+$terminal = DB::transaction(function () use ($code, $setupToken) {
+    $terminal = Terminal::where('code', $code)->lockForUpdate()->first();
+
+    if (! $terminal || ! $terminal->isSetupTokenValid($setupToken)) {
+        return null;
+    }
+
+    $terminal->forceFill(['setup_token' => null, 'setup_token_expires_at' => null])->save();
+
+    return $terminal;
+});
+
+if (! $terminal) {
+    // token inválido, ya usado, o expirado
+}
+```
+
+El `lockForUpdate()` serializa las transacciones concurrentes sobre esa fila — la segunda espera a que la primera confirme el `forceFill` y entonces ve el token ya nulo. Ver `TerminalSetupController::claim()`.
+
 ### Deployment a producción — Cliente Macro (Sedacosmetica)
 
 **Servidor propio del cliente Macro (Sedacosmetica):** `sedvouco@bh7104` — CentOS, cPanel, PHP 8.2 via `/opt/cpanel/ea-php82/root/usr/bin/php`, Node 16 (sin RAM suficiente para Vite build). Esta sección aplica únicamente a la instalación de Macro; ver la sección siguiente para Bar777/Arca (infraestructura de TechForge, mecanismo distinto).
@@ -1519,6 +1552,25 @@ Select::make('employee_id')
 **Caso límite más grave: `titleAttribute` omitido por completo** (`->relationship('perception', modifyQueryUsing: ...)` sin segundo argumento) — sin `searchable([...])` explícito, `getSearchColumns()` retorna `null` y el buscador queda **completamente inerte**: no filtra nada, ni siquiera devuelve cero resultados, simplemente ignora lo que el usuario escribe.
 
 **Regla:** todo `Select::make(...)->relationship(...)->searchable()` que también tenga `->getOptionLabelFromRecordUsing()` debe pasarle a `searchable()` un array explícito con **todas** las columnas que aparecen en ese label override — nunca dejarlo sin argumentos cuando el label muestra más de una columna. Aplica igual a `SelectFilter::make(...)` en tablas (mismo mecanismo, ver `vendor/filament/tables/src/Filters/SelectFilter.php:260` `getFormField()`).
+
+### `Select::relationship()` con `modifyQueryUsing` puede vaciar el valor ya seleccionado
+
+`modifyQueryUsing` en `->relationship($name, $titleAttribute, $modifyQueryUsing)` no solo filtra las opciones listadas — también filtra la query que Filament usa internamente para resolver el label del valor **ya seleccionado** (`getSelectedRecordUsing()`, ver `vendor/filament/forms/src/Components/Select.php`). Si el closure excluye registros "inactivos" (ej. sucursales de empresas dadas de baja) y el registro editado tiene justo uno de esos como valor actual, el campo se muestra vacío al entrar a editar — aunque el dato siga guardado correctamente en la base.
+
+**Correcto — OR-ear el id ya asignado del record actual** (Filament inyecta `$record` por utility injection en el closure):
+```php
+Select::make('branch_id')
+    ->relationship('branch', 'name', modifyQueryUsing: fn (Builder $query, ?Terminal $record) => $query
+        ->where(function (Builder $query) use ($record) {
+            $query->whereHas('company', fn (Builder $query) => $query->active());
+
+            if ($record?->branch_id) {
+                $query->orWhere('id', $record->branch_id);
+            }
+        }))
+```
+
+Sin el `orWhere`, la sucursal actual desaparece de las opciones **y** del label mostrado en el edit — el usuario vería el select vacío y, si guarda sin darse cuenta, perdería la asignación.
 
 ### Nullsafe en propiedades de relaciones en closures de columnas Filament
 
@@ -1727,6 +1779,12 @@ Cuando un recurso tiene múltiples row actions que pueden aparecer condicionalme
 
 Agregar `->tooltip()` a cada acción cuando varias tienen propósito similar y el label solo no basta para diferenciarlas.
 
+**Testing:** una vez agrupadas dentro de un `ActionGroup` (tabla o header actions de página), `getCachedTableActions()`/`getCachedHeaderActions()` ya no devuelven esas acciones como items de nivel superior — `assertTableActionHidden()`/`assertActionHidden()` sobre el nombre de la acción puede dejar de encontrarla. Si el test necesita inspeccionar acciones dentro de un grupo, aplanarlas primero:
+```php
+$actions = collect($livewire->instance()->getCachedHeaderActions())
+    ->flatMap(fn ($a) => $a instanceof \Filament\Actions\ActionGroup ? $a->getFlatActions() : [$a]);
+```
+
 ### Filtrar solo empleados activos en selects de modales
 
 Cualquier `Select` de empleado en formularios de acciones (modales) debe filtrar `where('status', 'active')` — nunca mostrar empleados desvinculados o inactivos como opción seleccionable:
@@ -1871,6 +1929,32 @@ Schedule::command('foo:expire')->dailyAt('00:05')->withoutOverlapping();
 ```
 
 Usar `now()->startOfDay()` (no `now()`) para evitar que registros que vencen hoy a medianoche se salteen por segundos de diferencia.
+
+### Notificaciones de campanita — construir `toDatabase()` con `Filament\Notifications\Notification`
+
+Una clase `Notification` de Laravel con canal `database` que retorna un **array plano** en `toDatabase()` persiste el registro en `notifications` y el mail (si tiene canal `mail`) llega con normalidad, pero la campanita del panel Filament **no la muestra** — Filament espera que `data` tenga el formato que genera su propio builder (incluye `data->format = 'filament'`, `title`, `body`, `icon`, `iconColor`, `actions`, etc.).
+
+**Correcto:**
+```php
+public function toDatabase(object $notifiable): array
+{
+    return \Filament\Notifications\Notification::make()
+        ->title('Terminal provisionado')
+        ->body("El terminal \"{$this->terminal->name}\" reclamó su token de sincronización.")
+        ->icon('heroicon-o-computer-desktop')
+        ->success() // o ->warning()/->danger()
+        ->actions([
+            \Filament\Notifications\Actions\Action::make('view')
+                ->label('Ver terminal')
+                ->url(TerminalResource::getUrl('view', ['record' => $this->terminal])),
+        ])
+        ->getDatabaseMessage() + [
+            'entity_id' => $this->terminal->id, // claves extra propias, ej. para deduplicación
+        ];
+}
+```
+
+Aplica a toda notificación de BD que deba aparecer en la campanita del panel — no solo a canal `mail`+`database` combinados.
 
 ### Deduplicación de notificaciones de campanita
 

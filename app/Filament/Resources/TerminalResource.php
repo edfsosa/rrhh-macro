@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TerminalResource\Pages;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
+use App\Models\Company;
 use App\Models\Terminal;
 use App\Settings\GeneralSettings;
 use Filament\Forms\Components\DatePicker;
@@ -69,7 +70,20 @@ class TerminalResource extends Resource
 
                         Select::make('branch_id')
                             ->label('Sucursal')
-                            ->relationship('branch', 'name')
+                            // Excluye sucursales de empresas inactivas de las opciones — pero
+                            // nunca de la sucursal YA asignada al editar: modifyQueryUsing()
+                            // también filtra la query que resuelve la etiqueta del valor
+                            // actual (Select::getSelectedRecordUsing()), así que sin el OR con
+                            // $record?->branch_id, editar un terminal cuya empresa se
+                            // desactivó después dejaría el campo en blanco.
+                            ->relationship('branch', 'name', modifyQueryUsing: fn (Builder $query, ?Terminal $record) => $query
+                                ->where(function (Builder $query) use ($record) {
+                                    $query->whereHas('company', fn (Builder $query) => $query->active());
+
+                                    if ($record?->branch_id) {
+                                        $query->orWhere('id', $record->branch_id);
+                                    }
+                                }))
                             ->searchable()
                             ->preload()
                             ->native(false)
@@ -78,6 +92,7 @@ class TerminalResource extends Resource
                         Select::make('status')
                             ->label('Estado')
                             ->options(Terminal::getStatusOptions())
+                            ->helperText('Un terminal inactivo no puede marcar asistencia, aunque conserve su token de sincronización.')
                             ->native(false)
                             ->default('active')
                             ->required(),
@@ -149,11 +164,19 @@ class TerminalResource extends Resource
         return $infolist
             ->schema([
                 InfoSection::make('Identificación')
+                    ->collapsible()
                     ->schema([
-                        InfoGrid::make(3)->schema([
+                        InfoGrid::make(4)->schema([
                             TextEntry::make('name')
                                 ->label('Nombre')
                                 ->icon('heroicon-o-computer-desktop'),
+
+                            TextEntry::make('branch.company.name')
+                                ->label('Empresa')
+                                ->icon('heroicon-o-building-office-2')
+                                ->badge()
+                                ->color('primary')
+                                ->visible(fn () => Company::active()->count() > 1),
 
                             TextEntry::make('branch.name')
                                 ->label('Sucursal')
@@ -205,31 +228,33 @@ class TerminalResource extends Resource
                     ]),
 
                 InfoSection::make('Dispositivo')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(3)->schema([
                             TextEntry::make('device_brand')
                                 ->label('Marca')
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
 
                             TextEntry::make('device_model')
                                 ->label('Modelo')
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
 
                             TextEntry::make('device_serial')
                                 ->label('Número de Serie')
                                 ->copyable()
-                                ->placeholder('-'),
+                                ->placeholder('Sin datos'),
                         ]),
 
                         TextEntry::make('device_mac')
                             ->label('Dirección MAC')
                             ->copyable()
-                            ->placeholder('-'),
+                            ->placeholder('Sin datos'),
 
                         TextEntry::make('user_agent')
                             ->label('Navegador (detectado al provisionar)')
                             ->placeholder('Sin datos')
-                            ->limit(60),
+                            ->limit(60)
+                            ->tooltip(fn (Terminal $record) => $record->user_agent),
 
                         TextEntry::make('device_notes')
                             ->label('Notas')
@@ -241,6 +266,7 @@ class TerminalResource extends Resource
                 InfoSection::make('Conectividad')
                     ->description('Marcación offline vía PWA — heartbeat y sincronización con la API de terminales')
                     ->icon('heroicon-o-wifi')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(4)->schema([
                             TextEntry::make('connectivity_status')
@@ -293,16 +319,17 @@ class TerminalResource extends Resource
                     ]),
 
                 InfoSection::make('Instalación')
+                    ->collapsible()
                     ->schema([
                         InfoGrid::make(2)->schema([
                             TextEntry::make('installed_at')
                                 ->label('Fecha de instalación')
                                 ->date('d/m/Y')
-                                ->placeholder('-'),
+                                ->placeholder('Sin fecha de instalación'),
 
                             TextEntry::make('installedBy.name')
                                 ->label('Instalado por')
-                                ->placeholder('-'),
+                                ->placeholder('Sin registrar'),
                         ]),
                     ])
                     ->visible(fn (Terminal $record) => $record->installed_at || $record->installed_by_id),
@@ -320,6 +347,15 @@ class TerminalResource extends Resource
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
+
+                TextColumn::make('branch.company.name')
+                    ->label('Empresa')
+                    ->icon('heroicon-o-building-office-2')
+                    ->badge()
+                    ->color('primary')
+                    ->searchable()
+                    ->sortable()
+                    ->visible(fn () => Company::active()->count() > 1),
 
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
@@ -380,11 +416,22 @@ class TerminalResource extends Resource
                 TextColumn::make('installed_at')
                     ->label('Instalada')
                     ->date('d/m/Y')
-                    ->placeholder('-')
+                    ->placeholder('Sin instalar')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->options(fn () => Company::active()->orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->native(false)
+                    ->visible(fn () => Company::active()->count() > 1)
+                    ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('branch', fn ($q) => $q->where('company_id', $data['value']))
+                        : $query
+                    ),
+
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->relationship('branch', 'name')
@@ -454,7 +501,7 @@ class TerminalResource extends Resource
                     Action::make('deactivate')
                         ->label('Desactivar')
                         ->icon('heroicon-o-x-circle')
-                        ->color('danger')
+                        ->color('warning')
                         ->visible(fn (Terminal $record) => $record->isActive())
                         ->requiresConfirmation()
                         ->modalHeading('Desactivar terminal')
@@ -535,7 +582,9 @@ class TerminalResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->modalDescription('Esta acción no se puede deshacer. Las marcaciones ya registradas con los terminales seleccionados no se eliminan, pero perderán la referencia a qué dispositivo físico las generó.')
+                        ->modalSubmitActionLabel('Sí, eliminar'),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')

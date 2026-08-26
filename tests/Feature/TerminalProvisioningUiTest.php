@@ -2,6 +2,8 @@
 
 use App\Filament\Resources\TerminalResource;
 use App\Filament\Resources\TerminalResource\Pages\CreateTerminal;
+use App\Filament\Resources\TerminalResource\Pages\EditTerminal;
+use App\Filament\Resources\TerminalResource\Pages\ListTerminals;
 use App\Filament\Resources\TerminalResource\Pages\ViewTerminal;
 use App\Filament\Resources\TerminalResource\RelationManagers\AttendanceEventsRelationManager;
 use App\Models\AttendanceDay;
@@ -351,4 +353,93 @@ it('"Generar nuevo enlace" invalida el enlace vigente y notifica en vez de mostr
 
     expect($terminal->fresh()->setup_token)->not->toBeNull()
         ->and($terminal->fresh()->setup_token)->not->toBe($oldToken);
+});
+
+// ─── Form: sucursal filtrada por empresa activa ────────────────────────────
+
+it('el select de sucursal excluye sucursales de empresas inactivas al crear un terminal', function () {
+    $this->actingAs(User::factory()->create());
+
+    $activeCompany = Company::create(['name' => 'Empresa Activa Form', 'ruc' => '7900001-1', 'employer_number' => 7900001, 'is_active' => true]);
+    $inactiveCompany = Company::create(['name' => 'Empresa Inactiva Form', 'ruc' => '7900002-1', 'employer_number' => 7900002, 'is_active' => false]);
+    $activeBranch = Branch::create(['name' => 'Sucursal Activa Form', 'company_id' => $activeCompany->id]);
+    $inactiveBranch = Branch::create(['name' => 'Sucursal Inactiva Form', 'company_id' => $inactiveCompany->id]);
+
+    $field = Livewire::test(CreateTerminal::class)
+        ->instance()
+        ->form
+        ->getFlatFields(withHidden: true)['branch_id'];
+
+    expect($field->getOptions())->toHaveKey($activeBranch->id)
+        ->not->toHaveKey($inactiveBranch->id);
+});
+
+/**
+ * Regresión: Select::relationship()'s modifyQueryUsing() también filtra la
+ * query que resuelve la etiqueta del valor YA seleccionado
+ * (getSelectedRecordUsing()) — sin el OR por $record->branch_id en
+ * TerminalResource::form(), editar un terminal cuya empresa se desactivó
+ * DESPUÉS de asignarle la sucursal dejaría el campo en blanco, aunque
+ * branch_id siga apuntando correctamente en la base de datos.
+ */
+it('editar un terminal mantiene visible su sucursal aunque la empresa se haya desactivado después', function () {
+    $this->actingAs(User::factory()->create());
+
+    $company = Company::create(['name' => 'Empresa Form X', 'ruc' => '7900003-1', 'employer_number' => 7900003, 'is_active' => true]);
+    $branch = Branch::create(['name' => 'Sucursal Form X', 'company_id' => $company->id]);
+    $terminal = Terminal::create(['name' => 'Terminal Form X', 'branch_id' => $branch->id]);
+
+    $company->update(['is_active' => false]);
+
+    $field = Livewire::test(EditTerminal::class, ['record' => $terminal->getKey()])
+        ->instance()
+        ->form
+        ->getFlatFields(withHidden: true)['branch_id'];
+
+    expect($field->getOptions())->toHaveKey($branch->id);
+});
+
+it('el listado de terminales oculta la columna y el filtro de Empresa si solo hay una empresa activa', function () {
+    $this->actingAs(User::factory()->create());
+    makeProvisioningTerminal();
+
+    Livewire::test(ListTerminals::class)
+        ->assertTableColumnHidden('branch.company.name')
+        ->assertTableFilterHidden('company_id');
+});
+
+it('el listado de terminales muestra y filtra por Empresa cuando hay 2 o más empresas activas', function () {
+    $this->actingAs(User::factory()->create());
+
+    $companyA = Company::create(['name' => 'Empresa Terminal A', 'ruc' => '7900010-1', 'employer_number' => 7900010]);
+    $companyB = Company::create(['name' => 'Empresa Terminal B', 'ruc' => '7900011-1', 'employer_number' => 7900011]);
+    $branchA = Branch::create(['name' => 'Sucursal Terminal A', 'company_id' => $companyA->id]);
+    $branchB = Branch::create(['name' => 'Sucursal Terminal B', 'company_id' => $companyB->id]);
+    $terminalA = Terminal::create(['name' => 'Terminal A', 'branch_id' => $branchA->id]);
+    $terminalB = Terminal::create(['name' => 'Terminal B', 'branch_id' => $branchB->id]);
+
+    Livewire::test(ListTerminals::class)
+        ->assertTableColumnVisible('branch.company.name')
+        ->assertTableFilterVisible('company_id')
+        ->assertCanSeeTableRecords([$terminalA, $terminalB])
+        ->filterTable('company_id', $companyA->id)
+        ->assertCanSeeTableRecords([$terminalA])
+        ->assertCanNotSeeTableRecords([$terminalB]);
+});
+
+it('el detalle del terminal oculta el nombre de la Empresa si solo hay una empresa activa', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+
+    Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])
+        ->assertDontSee($terminal->branch->company->name);
+});
+
+it('el detalle del terminal muestra el nombre de la Empresa cuando hay 2 o más empresas activas', function () {
+    $this->actingAs(User::factory()->create());
+    $terminal = makeProvisioningTerminal();
+    Company::create(['name' => 'Otra Empresa Detalle', 'ruc' => '7900012-1', 'employer_number' => 7900012]);
+
+    Livewire::test(ViewTerminal::class, ['record' => $terminal->getKey()])
+        ->assertSee($terminal->branch->company->name);
 });

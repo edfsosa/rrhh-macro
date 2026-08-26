@@ -17,6 +17,14 @@ class ViewTerminal extends ViewRecord
     protected static string $resource = TerminalResource::class;
 
     /**
+     * Precarga las relaciones anidadas que usa el infolist en una sola query.
+     */
+    protected function resolveRecord(int|string $key): Terminal
+    {
+        return Terminal::with(['branch.company', 'installedBy'])->findOrFail($key);
+    }
+
+    /**
      * Al llegar desde la creación con `?provision=1` (ver
      * CreateTerminal::getRedirectUrl()), abre automáticamente el modal de
      * "Generar enlace de configuración" — evita que el admin tenga que volver
