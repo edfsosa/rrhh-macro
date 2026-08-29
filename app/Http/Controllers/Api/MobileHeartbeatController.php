@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Services\AttendanceCalculator;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,12 @@ class MobileHeartbeatController extends Controller
                 'branch_name' => $employee->branch?->name,
                 'company_name' => $employee->branch?->company?->name,
                 'company_logo' => $employee->branch?->company?->logo_thumbnail,
+                // Para que mark.js pueda filtrar "Inicio de descanso" localmente sin red —
+                // ver AttendanceCalculator::hasScheduledBreak(). Recalculado en cada
+                // heartbeat (cada ~90s mientras hay conexión): puede quedar desactualizado
+                // si el horario cambia mientras el dispositivo está offline por más tiempo
+                // que eso, hasta el próximo heartbeat exitoso.
+                'has_scheduled_break' => AttendanceCalculator::hasScheduledBreak($employee, now(config('app.timezone'))),
             ],
         ]);
     }

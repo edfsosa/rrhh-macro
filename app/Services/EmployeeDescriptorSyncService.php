@@ -18,6 +18,7 @@ class EmployeeDescriptorSyncService
      * @return array{
      *     employees: array<int, array{id: int, first_name: string, last_name: string, ci: string|null, face_descriptor: array, photo_thumbnail: string|null}>,
      *     tombstones: array<int, int>,
+     *     break_flags: array<int, bool>,
      *     server_time: string,
      *     sync_version: string,
      * }
@@ -49,6 +50,7 @@ class EmployeeDescriptorSyncService
                 'photo_thumbnail' => $employee->photo_thumbnail,
             ])->values()->all(),
             'tombstones' => $since ? $this->tombstonesSince($terminal, $since) : [],
+            'break_flags' => $this->breakFlagsForBranch($terminal),
             'server_time' => now()->toIso8601String(),
             'sync_version' => $queryStartedAt->toIso8601String(),
         ];
@@ -77,6 +79,33 @@ class EmployeeDescriptorSyncService
                 $query->where('status', '!=', 'active')->orWhereNull('face_descriptor');
             })
             ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * "¿Tiene descanso hoy?" para cada empleado activo de la sucursal — se
+     * recalcula completo en CADA sincronización (no solo para los que
+     * cambiaron desde `$since`), porque el horario de un empleado puede
+     * cambiar sin tocar el registro de `Employee` (ej. una nueva rotación
+     * asignada), y además el día calendario avanza. Alimenta el filtro de
+     * "Inicio de descanso" en la resolución local offline (ver
+     * terminal-offline/queue.js, `allowedNextEventTypes()`); mientras el
+     * terminal tiene red se refresca cada ciclo de sync de empleados
+     * (~5 min), así que solo puede quedar desactualizado durante un corte
+     * de conexión más largo que eso.
+     *
+     * @return array<int, bool>
+     */
+    private function breakFlagsForBranch(Terminal $terminal): array
+    {
+        $today = now(config('app.timezone'));
+
+        return Employee::query()
+            ->where('branch_id', $terminal->branch_id)
+            ->where('status', 'active')
+            ->whereNotNull('face_descriptor')
+            ->get(['id'])
+            ->mapWithKeys(fn (Employee $employee) => [$employee->id => AttendanceCalculator::hasScheduledBreak($employee, $today)])
             ->all();
     }
 }

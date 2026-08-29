@@ -10,7 +10,7 @@
  *               ver TerminalSetupController / terminal-setup.blade.php).
  */
 
-import { getMeta, setMeta, applyEmployeesDelta, logSync, countPendingEvents, countConflictEvents } from './db.js';
+import { getMeta, setMeta, applyEmployeesDelta, applyBreakFlags, logSync, countPendingEvents, countConflictEvents } from './db.js';
 
 const API_BASE = '/api/v1/terminal';
 
@@ -48,7 +48,8 @@ export async function apiFetch(path, options = {}) {
 
 /**
  * Trae el delta de empleados/descriptores desde la última sincronización y
- * lo aplica a la caché local.
+ * lo aplica a la caché local, junto con `break_flags` (siempre completo,
+ * ver EmployeeDescriptorSyncService::breakFlagsForBranch()).
  * @returns {Promise<{employees: number, tombstones: number}>}
  */
 export async function syncEmployees() {
@@ -60,6 +61,7 @@ export async function syncEmployees() {
         if (!data.ok) throw new Error(data.message || 'Error al sincronizar empleados');
 
         await applyEmployeesDelta(data.employees, data.tombstones);
+        await applyBreakFlags(data.break_flags);
         await setMeta('last_employee_sync_version', data.sync_version);
         await setMeta('employees_synced_at', Date.now());
 
