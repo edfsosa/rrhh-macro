@@ -160,20 +160,14 @@ class AttendanceFaceMarkController extends Controller
             }
 
             // CORRECCIÓN 5: Usar timezone de la aplicación
-            $today = Carbon::now(config('app.timezone'))->toDateString();
+            $now = Carbon::now(config('app.timezone'));
 
-            $day = AttendanceDay::where('employee_id', $employee->id)
-                ->where('date', $today)
-                ->first();
-
-            $last = null;
-            if ($day) {
-                $last = AttendanceEvent::where('attendance_day_id', $day->id)
-                    ->latest('recorded_at')
-                    ->first();
-            }
-
-            $allowed = $this->allowedNextEvents($last?->event_type);
+            // Considera una posible jornada nocturna del día anterior todavía abierta
+            // (ej: entrada 17:00 → todavía sin salida pasada la medianoche) — ver
+            // AttendanceDay::currentStateFor().
+            $state = AttendanceDay::currentStateFor($employee->id, $now);
+            $last = $state['last'];
+            $allowed = $state['allowed'];
 
             $photoUrl = $employee->photo
                 ? Storage::url($employee->photo)
@@ -326,7 +320,8 @@ class AttendanceFaceMarkController extends Controller
         }
 
         // CORRECCIÓN 8: Usar timezone de la aplicación
-        $today = Carbon::now(config('app.timezone'))->toDateString();
+        $now = Carbon::now(config('app.timezone'));
+        $today = $now->toDateString();
 
         // Captura de fallos que ocurren dentro de la transacción.
         // recordFailure() NO puede llamarse dentro de DB::transaction() porque el INSERT
@@ -334,23 +329,29 @@ class AttendanceFaceMarkController extends Controller
         $pendingFailure = null;
 
         try {
-            $result = DB::transaction(function () use ($employee, $today, $data, $location, $terminal, &$pendingFailure) {
-                // Asegurar AttendanceDay del día (firstOrCreate es atómico)
-                $day = AttendanceDay::firstOrCreate(
-                    ['employee_id' => $employee->id, 'date' => $today],
-                    ['status' => 'present']
+            $result = DB::transaction(function () use ($employee, $today, $now, $data, $location, $terminal, &$pendingFailure) {
+                // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si
+                // sigue abierta y la transición pedida solo tiene sentido ahí (turno
+                // nocturno que cruza medianoche). Ver AttendanceDay::resolveForEvent().
+                ['day' => $day, 'last' => $last] = AttendanceDay::resolveForEvent(
+                    $employee->id,
+                    $now,
+                    $data['event_type'],
+                    lockForUpdate: true,
                 );
+
+                // Ninguna jornada existente permite la transición pedida — abrir la de hoy.
+                if (! $day) {
+                    $day = AttendanceDay::firstOrCreate(
+                        ['employee_id' => $employee->id, 'date' => $today],
+                        ['status' => 'present']
+                    );
+                }
 
                 // Si existe y el status no es 'present', actualizarlo
                 if ($day->status !== 'present') {
                     $day->update(['status' => 'present']);
                 }
-
-                // Bloquear lectura del último evento para evitar condiciones de carrera
-                $last = AttendanceEvent::where('attendance_day_id', $day->id)
-                    ->lockForUpdate()
-                    ->latest('recorded_at')
-                    ->first();
 
                 $allowed = $this->allowedNextEvents($last?->event_type);
 

@@ -138,15 +138,22 @@ class AttendanceEventSyncService
         Carbon $recordedAt,
         string $date,
     ): array {
-        $day = AttendanceDay::firstOrCreate(
-            ['employee_id' => $employee->id, 'date' => $date],
-            ['status' => 'present']
+        // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si sigue
+        // abierta y la transición pedida solo tiene sentido ahí (turno nocturno que
+        // cruza medianoche). Ver AttendanceDay::resolveForEvent().
+        ['day' => $day, 'last' => $last] = AttendanceDay::resolveForEvent(
+            $employee->id,
+            $recordedAt,
+            $eventData['event_type'],
+            lockForUpdate: true,
         );
 
-        $last = AttendanceEvent::where('attendance_day_id', $day->id)
-            ->lockForUpdate()
-            ->latest('recorded_at')
-            ->first();
+        if (! $day) {
+            $day = AttendanceDay::firstOrCreate(
+                ['employee_id' => $employee->id, 'date' => $date],
+                ['status' => 'present']
+            );
+        }
 
         $allowed = AttendanceEvent::allowedNextEventTypes($last?->event_type);
 

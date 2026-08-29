@@ -94,6 +94,92 @@ class AttendanceDay extends Model implements Auditable
     }
 
     /**
+     * Resuelve a qué jornada (AttendanceDay) debe asociarse un evento entrante,
+     * soportando turnos que cruzan medianoche (ej: entrada 17:00 → salida 01:00
+     * del día siguiente).
+     *
+     * Primero intenta la jornada del día calendario de `$recordedAt`. Si la
+     * transición pedida no es válida ahí (típicamente porque esa jornada no
+     * tiene marcaciones todavía), revisa la jornada del día calendario
+     * anterior: si sigue abierta (su último evento no es `check_out`) y la
+     * transición pedida sí es válida para ella, el evento continúa esa
+     * jornada en lugar de abrir una nueva. Nunca mira más de un día hacia
+     * atrás — una jornada abierta de hace 2+ días requiere revisión manual
+     * (ver `attendance:check-missing`), no se reabre automáticamente.
+     *
+     * @return array{day: ?self, last: ?AttendanceEvent} `day` es null cuando debe crearse una jornada nueva para hoy (ninguna de las dos jornadas permite la transición pedida, o la de hoy sí la permite pero aún no existe).
+     */
+    public static function resolveForEvent(int $employeeId, Carbon $recordedAt, string $requestedEventType, bool $lockForUpdate = false): array
+    {
+        $resolveLast = function (?self $day) use ($lockForUpdate) {
+            if (! $day) {
+                return null;
+            }
+
+            $query = AttendanceEvent::where('attendance_day_id', $day->id)->latest('recorded_at');
+
+            return $lockForUpdate ? $query->lockForUpdate()->first() : $query->first();
+        };
+
+        $today = static::where('employee_id', $employeeId)->where('date', $recordedAt->toDateString())->first();
+        $todayLast = $resolveLast($today);
+
+        if (in_array($requestedEventType, AttendanceEvent::allowedNextEventTypes($todayLast?->event_type), true)) {
+            return ['day' => $today, 'last' => $todayLast];
+        }
+
+        $yesterday = static::where('employee_id', $employeeId)
+            ->where('date', $recordedAt->copy()->subDay()->toDateString())
+            ->first();
+        $yesterdayLast = $resolveLast($yesterday);
+
+        if ($yesterdayLast
+            && $yesterdayLast->event_type !== 'check_out'
+            && in_array($requestedEventType, AttendanceEvent::allowedNextEventTypes($yesterdayLast->event_type), true)
+        ) {
+            return ['day' => $yesterday, 'last' => $yesterdayLast];
+        }
+
+        return ['day' => $today, 'last' => $todayLast];
+    }
+
+    /**
+     * Estado informativo (sin persistir nada) usado por `identify()` para mostrar
+     * al empleado qué puede marcar ahora, considerando una posible jornada
+     * nocturna del día anterior que sigue abierta. `allowed` es la unión de lo
+     * que permitiría continuar hoy y lo que permitiría cerrar/continuar esa
+     * jornada de ayer — refleja exactamente lo que `resolveForEvent()`
+     * aceptaría, sin decidir todavía a qué jornada se asociará.
+     *
+     * @return array{last: ?AttendanceEvent, allowed: array<int, string>}
+     */
+    public static function currentStateFor(int $employeeId, Carbon $recordedAt): array
+    {
+        $today = static::where('employee_id', $employeeId)->where('date', $recordedAt->toDateString())->first();
+        $todayLast = $today ? AttendanceEvent::where('attendance_day_id', $today->id)->latest('recorded_at')->first() : null;
+
+        $yesterday = static::where('employee_id', $employeeId)
+            ->where('date', $recordedAt->copy()->subDay()->toDateString())
+            ->first();
+        $yesterdayLast = $yesterday ? AttendanceEvent::where('attendance_day_id', $yesterday->id)->latest('recorded_at')->first() : null;
+
+        $overnightOpen = $yesterdayLast && $yesterdayLast->event_type !== 'check_out';
+
+        $allowed = AttendanceEvent::allowedNextEventTypes($todayLast?->event_type);
+        if ($overnightOpen) {
+            $allowed = array_values(array_unique(array_merge(
+                $allowed,
+                AttendanceEvent::allowedNextEventTypes($yesterdayLast->event_type)
+            )));
+        }
+
+        return [
+            'last' => $todayLast ?? ($overnightOpen ? $yesterdayLast : null),
+            'allowed' => $allowed,
+        ];
+    }
+
+    /**
      * Relación con el modelo Absence, un día de asistencia puede tener una ausencia
      */
     public function absence()
