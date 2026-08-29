@@ -73,7 +73,7 @@ it('permite marcar salida pasada la medianoche de un turno que empezó el día a
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
     // currentStateFor() es lo que identify() usa para decidir qué botones mostrar
     // en el front-end (la identificación facial en sí no aplica en este test).
-    $state = AttendanceDay::currentStateFor($employee->id, Carbon::now());
+    $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->toContain('check_out');
 
     $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_out', 'source' => 'manual'])

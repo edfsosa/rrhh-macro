@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttendanceDay;
-use App\Models\AttendanceEvent;
 use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
 use App\Models\Terminal;
@@ -165,7 +164,7 @@ class AttendanceFaceMarkController extends Controller
             // Considera una posible jornada nocturna del día anterior todavía abierta
             // (ej: entrada 17:00 → todavía sin salida pasada la medianoche) — ver
             // AttendanceDay::currentStateFor().
-            $state = AttendanceDay::currentStateFor($employee->id, $now);
+            $state = AttendanceDay::currentStateFor($employee, $now);
             $last = $state['last'];
             $allowed = $state['allowed'];
 
@@ -333,8 +332,8 @@ class AttendanceFaceMarkController extends Controller
                 // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si
                 // sigue abierta y la transición pedida solo tiene sentido ahí (turno
                 // nocturno que cruza medianoche). Ver AttendanceDay::resolveForEvent().
-                ['day' => $day, 'last' => $last] = AttendanceDay::resolveForEvent(
-                    $employee->id,
+                ['day' => $day, 'last' => $last, 'allowed' => $allowed] = AttendanceDay::resolveForEvent(
+                    $employee,
                     $now,
                     $data['event_type'],
                     lockForUpdate: true,
@@ -352,8 +351,6 @@ class AttendanceFaceMarkController extends Controller
                 if ($day->status !== 'present') {
                     $day->update(['status' => 'present']);
                 }
-
-                $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (! in_array($data['event_type'], $allowed, true)) {
                     Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name}: evento '{$data['event_type']}' no permitido (último: ".($last ? $last->event_type : 'ninguno').')', [
@@ -665,25 +662,6 @@ class AttendanceFaceMarkController extends Controller
         }
 
         return $distance;
-    }
-
-    /**
-     * Reglas de transición válidas — delega a AttendanceEvent::allowedNextEventTypes(),
-     * compartida con AttendanceEventSyncService (sync de terminales offline) para no
-     * duplicar la máquina de estados en dos lugares.
-     */
-    protected function allowedNextEvents(?string $last): array
-    {
-        // CORRECCIÓN 20: Validar tipos de eventos conocidos
-        $validEventTypes = ['check_in', 'break_start', 'break_end', 'check_out'];
-
-        if ($last !== null && ! in_array($last, $validEventTypes, true)) {
-            Log::warning("Tipo de evento desconocido encontrado: {$last}");
-
-            return ['check_in']; // Fallback seguro
-        }
-
-        return AttendanceEvent::allowedNextEventTypes($last);
     }
 
     /** Traducciones de tipos de eventos a español */

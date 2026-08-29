@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AttendanceDay;
+use App\Models\Employee;
 use App\Models\Holiday;
 use App\Settings\PayrollSettings;
 use Illuminate\Support\Carbon;
@@ -421,17 +422,27 @@ class AttendanceCalculator
     /**
      * Resuelve el turno esperado para la fecha del día dado.
      *
+     * @return array{check_in: string|null, check_out: string|null, break_minutes: int|null}
+     */
+    private static function resolveExpectedShiftData(AttendanceDay $day): array
+    {
+        return self::resolveShiftDataFor($day->employee, Carbon::parse($day->date));
+    }
+
+    /**
+     * Resuelve el turno/horario efectivo de un empleado para una fecha dada, sin
+     * depender de que exista un AttendanceDay — usado tanto por
+     * resolveExpectedShiftData() (cálculo de horas) como por hasScheduledBreak()
+     * (decidir si ofrecer "Inicio de descanso" al marcar asistencia).
+     *
      * Jerarquía:
      *   1. Rotación activa (ShiftTemplate vía RotationService — incluye overrides)
      *   2. Horario fijo por día de semana (sistema anterior)
      *
      * @return array{check_in: string|null, check_out: string|null, break_minutes: int|null}
      */
-    private static function resolveExpectedShiftData(AttendanceDay $day): array
+    public static function resolveShiftDataFor(Employee $employee, \Carbon\Carbon $date): array
     {
-        $date = Carbon::parse($day->date);
-        $employee = $day->employee;
-
         // 1. Sistema de rotación (override > patrón)
         $shift = RotationService::getShiftForDate($employee, $date);
 
@@ -460,6 +471,18 @@ class AttendanceCalculator
         }
 
         return ['check_in' => null, 'check_out' => null, 'break_minutes' => null];
+    }
+
+    /**
+     * True si el turno/horario efectivo del empleado para la fecha tiene un
+     * descanso configurado (break_minutes > 0). Sin horario/rotación asignado,
+     * o con break_minutes = 0/null, no hay descanso — usado para decidir si
+     * ofrecer "Inicio de descanso" al marcar asistencia (ver
+     * AttendanceDay::resolveForEvent() / currentStateFor()).
+     */
+    public static function hasScheduledBreak(Employee $employee, \Carbon\Carbon $date): bool
+    {
+        return (int) (self::resolveShiftDataFor($employee, $date)['break_minutes'] ?? 0) > 0;
     }
 
     /**
