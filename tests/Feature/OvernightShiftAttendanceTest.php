@@ -63,12 +63,11 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-it('permite marcar salida pasada la medianoche de un turno que empezó el día anterior (flujo HTTP)', function () {
+it('permite marcar salida pasada la medianoche de un turno que empezó el día anterior', function () {
     $employee = makeOvernightEmployee();
 
     Carbon::setTestNow(Carbon::parse('2026-08-27 17:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])
-        ->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
     // currentStateFor() es lo que identify() usa para decidir qué botones mostrar
@@ -76,8 +75,7 @@ it('permite marcar salida pasada la medianoche de un turno que empezó el día a
     $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->toContain('check_out');
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_out', 'source' => 'manual'])
-        ->assertOk();
+    expect(markAttendanceEvent($employee, 'check_out')['ok'])->toBeTrue();
 
     $day = AttendanceDay::where('employee_id', $employee->id)->where('date', '2026-08-27')->first();
     expect($day)->not->toBeNull()
@@ -92,14 +90,13 @@ it('tras cerrar el turno nocturno, permite una nueva entrada más tarde ese mism
     $employee = makeOvernightEmployee();
 
     Carbon::setTestNow(Carbon::parse('2026-08-27 17:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_out', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_out')['ok'])->toBeTrue();
 
     Carbon::setTestNow(Carbon::parse('2026-08-28 17:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])
-        ->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     $newDay = AttendanceDay::where('employee_id', $employee->id)->where('date', '2026-08-28')->first();
     expect($newDay)->not->toBeNull()
@@ -111,14 +108,14 @@ it('una jornada abierta de hace 2+ días no se reabre automáticamente', functio
     $employee = makeOvernightEmployee();
 
     Carbon::setTestNow(Carbon::parse('2026-08-20 17:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     // 3 días después, sin haber marcado nada en el medio.
     Carbon::setTestNow(Carbon::parse('2026-08-23 01:00:00'));
-    $response = $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_out', 'source' => 'manual']);
+    $result = markAttendanceEvent($employee, 'check_out');
 
-    $response->assertUnprocessable();
-    expect($response->json('message'))->toContain('aún no tiene marcaciones hoy');
+    expect($result['ok'])->toBeFalse()
+        ->and(AttendanceDay::where('employee_id', $employee->id)->where('date', '2026-08-23')->exists())->toBeFalse();
 });
 
 it('AttendanceEventSyncService también respeta la jornada nocturna abierta al sincronizar offline', function () {

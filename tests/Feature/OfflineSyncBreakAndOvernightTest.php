@@ -102,7 +102,7 @@ it('status() permite marcar salida de un turno nocturno abierto el día anterior
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 
     Carbon::setTestNow(Carbon::parse('2026-08-27 17:00:00'));
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
     $response = $this->getJson("/api/v1/terminal/employees/{$employee->id}/status");
@@ -117,7 +117,7 @@ it('status() no ofrece "Inicio de descanso" sin horario asignado', function () {
     $terminal = Terminal::create(['name' => 'Terminal Status Test 2', 'branch_id' => $employee->branch_id]);
     Sanctum::actingAs($terminal, [Terminal::SYNC_ABILITY]);
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     $response = $this->getJson("/api/v1/terminal/employees/{$employee->id}/status");
 

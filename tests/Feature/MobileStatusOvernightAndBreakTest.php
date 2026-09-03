@@ -94,12 +94,7 @@ it('status móvil permite marcar salida de un turno nocturno abierto el día ant
     $employee = makeStatusTestEmployee();
 
     Carbon::setTestNow(Carbon::parse('2026-08-27 17:00:00'));
-    $this->postJson('/marcar', [
-        'employee_id' => $employee->id,
-        'event_type' => 'check_in',
-        'source' => 'manual',
-        'location' => ['lat' => -25.2867, 'lng' => -57.6478],
-    ])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
@@ -116,12 +111,7 @@ it('status móvil permite marcar salida de un turno nocturno abierto el día ant
 it('status móvil no ofrece "Inicio de descanso" sin horario asignado', function () {
     $employee = makeStatusTestEmployee();
 
-    $this->postJson('/marcar', [
-        'employee_id' => $employee->id,
-        'event_type' => 'check_in',
-        'source' => 'manual',
-        'location' => ['lat' => -25.2867, 'lng' => -57.6478],
-    ])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
     $response = $this->getJson('/api/v1/mobile/status');
@@ -134,12 +124,7 @@ it('status móvil ofrece "Inicio de descanso" con horario que lo contempla', fun
     $employee = makeStatusTestEmployee();
     assignStatusTestBreakSchedule($employee);
 
-    $this->postJson('/marcar', [
-        'employee_id' => $employee->id,
-        'event_type' => 'check_in',
-        'source' => 'manual',
-        'location' => ['lat' => -25.2867, 'lng' => -57.6478],
-    ])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
     $response = $this->getJson('/api/v1/mobile/status');
@@ -154,12 +139,7 @@ it('approve() reconstruye la salida de un turno nocturno rechazado por cruzar me
     $employee = makeStatusTestEmployee();
 
     Carbon::setTestNow(Carbon::parse('2026-08-27 17:00:00'));
-    $this->postJson('/marcar', [
-        'employee_id' => $employee->id,
-        'event_type' => 'check_in',
-        'source' => 'manual',
-        'location' => ['lat' => -25.2867, 'lng' => -57.6478],
-    ])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     // Salida rechazada (simula el estado pre-fix: quedó como fallo registrado).
     Carbon::setTestNow(Carbon::parse('2026-08-28 01:00:00'));
