@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AttendanceDay;
 use App\Models\Employee;
 use App\Services\AttendanceCalculator;
+use App\Settings\GeneralSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -42,10 +43,13 @@ class CheckMissingAttendance extends Command
         }
 
         // Obtener el umbral de tiempo para considerar ausencia
-        $thresholdMinutes = app(\App\Settings\GeneralSettings::class)->absence_threshold_minutes;
+        $thresholdMinutes = app(GeneralSettings::class)->absence_threshold_minutes;
         $this->info("⏱️  Umbral configurado: {$thresholdMinutes} minutos después de la hora de entrada");
 
-        // Obtener empleados activos con horario vigente (asignación nueva o campo legacy)
+        // Obtener empleados activos con horario u turno vigente para esta fecha — horario
+        // fijo (asignación nueva o campo legacy) o rotación (patrón asignado u override
+        // puntual). Antes de este fix, un empleado con rotación nunca generaba ausencia
+        // automática por más que faltara a marcar: la consulta no lo incluía.
         $employees = Employee::where('status', 'active')
             ->where(fn ($q) => $q
                 ->whereHas('scheduleAssignments', fn ($q) => $q->forDate($date))
@@ -53,6 +57,8 @@ class CheckMissingAttendance extends Command
                     ->where('day_of_week', $date->dayOfWeekIso)
                     ->where('is_active', true)
                 )
+                ->orWhereHas('rotationAssignments', fn ($q) => $q->forDate($date))
+                ->orWhereHas('shiftOverrides', fn ($q) => $q->where('override_date', $date->toDateString()))
             )
             ->with([
                 'scheduleAssignments.schedule.days',
@@ -116,24 +122,13 @@ class CheckMissingAttendance extends Command
             return 'skipped';
         }
 
-        // Obtener el horario del empleado para el día de la semana actual
-        $dayOfWeek = $date->dayOfWeekIso; // 1=Lunes, 7=Domingo
-        $scheduleDay = $employee->getScheduleForDate($date)?->days->where('day_of_week', $dayOfWeek)->first();
+        // Resuelve el turno/horario esperado para esta fecha — misma jerarquía que usa
+        // el cálculo de horas trabajadas (rotación > horario fijo), para no duplicar la
+        // lógica de resolución una tercera vez. check_in viene null si es franco
+        // (rotación o día inactivo del horario fijo) o si no hay horario/turno vigente.
+        $shiftData = AttendanceCalculator::resolveShiftDataFor($employee, $date);
+        $expectedCheckIn = $shiftData['check_in'];
 
-        // Verificar si es día libre o no tiene horario
-        if (! $scheduleDay) {
-            return 'skipped';
-        }
-
-        // Verificar si es día libre
-        if (! $scheduleDay->is_active) {
-            return 'skipped';
-        }
-
-        // Obtener hora de entrada esperada
-        $expectedCheckIn = $scheduleDay->start_time;
-
-        // Si no hay hora de entrada esperada, omitir
         if (! $expectedCheckIn) {
             return 'skipped';
         }
@@ -157,8 +152,8 @@ class CheckMissingAttendance extends Command
                     'status' => 'absent',
                     'is_calculated' => false,
                     'expected_check_in' => $expectedCheckIn,
-                    'expected_check_out' => $scheduleDay->end_time,
-                    'expected_break_minutes' => $scheduleDay->total_break_minutes,
+                    'expected_check_out' => $shiftData['check_out'],
+                    'expected_break_minutes' => $shiftData['break_minutes'],
                 ]);
 
                 // Aplicar cálculo para verificar vacaciones/permisos/feriados

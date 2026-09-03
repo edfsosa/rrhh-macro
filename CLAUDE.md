@@ -2010,6 +2010,7 @@ Acompañar siempre con `formatAuditFieldsForPresentation()` en el modelo para mo
 - Advance salary cap validation (mensual only) is in `Advance::approve()` — compares sum of all active advances against gross monthly salary
 - Mobile mode is for remote employees using their own device, **not** a shared kiosk
 - Terminal/kiosk mode is a shared device per branch
+- `attendance:check-missing` (deuda técnica conocida): corre cada 15 min entre 06:00-20:00 y solo evalúa la fecha de "hoy" contra "ahora" — nunca mira retroactivamente. Un empleado cuyo turno (horario fijo o rotación) arranca de noche (ej. 22:00) y falta esa noche **nunca** genera una ausencia automática: para cuando el comando vuelve a correr al día siguiente (06:00), ya está evaluando el horario/turno de ese nuevo día, no retrocede a revisar el turno de la noche anterior que nunca se marcó. Arreglarlo requiere que el comando también mire hacia atrás (el día previo), no solo "hoy" — pendiente, alcance mayor al soporte de rotación ya agregado (`AttendanceCalculator::resolveShiftDataFor()`).
 
 ===
 
