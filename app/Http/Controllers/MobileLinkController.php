@@ -143,6 +143,13 @@ class MobileLinkController extends Controller
 
         Cache::put($notifiedKey, true, now()->endOfDay());
 
-        User::all()->each(fn (User $user) => $user->notify(new MobileLinkThrottledNotification($ip, $lastCiAttempted)));
+        // Un fallo al notificar (ej. mailer mal configurado) no debe convertirse en un 500
+        // genérico para un empleado que ya está siendo bloqueado por el rate limiter — debe
+        // seguir viendo el mensaje 429 "límite alcanzado", no un error interno sin relación.
+        try {
+            User::all()->each(fn (User $user) => $user->notify(new MobileLinkThrottledNotification($ip, $lastCiAttempted)));
+        } catch (\Throwable $e) {
+            Log::warning("No se pudo notificar el límite diario de vinculación alcanzado (IP {$ip}): {$e->getMessage()}");
+        }
     }
 }

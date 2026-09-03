@@ -112,7 +112,18 @@ class FaceEnrollmentController extends Controller
                 'employee_id' => $enrollment->employee_id,
             ]);
 
-            User::all()->each(fn (User $user) => $user->notify(new FaceEnrollmentPendingApprovalNotification($enrollment)));
+            // La captura ya quedó persistida arriba — un fallo al notificar (ej. mailer
+            // mal configurado) no debe convertirse en un 500 que le diga al empleado que
+            // falló cuando en realidad su rostro ya se guardó correctamente (mismo gotcha
+            // corregido en Terminal::claimSanctumToken() / Employee::claimMobileToken()).
+            try {
+                User::all()->each(fn (User $user) => $user->notify(new FaceEnrollmentPendingApprovalNotification($enrollment)));
+            } catch (\Throwable $e) {
+                Log::warning("No se pudo notificar la captura facial pendiente de aprobación (enrollment #{$enrollment->id}): {$e->getMessage()}", [
+                    'enrollment_id' => $enrollment->id,
+                    'employee_id' => $enrollment->employee_id,
+                ]);
+            }
 
             // Retornar una respuesta JSON indicando éxito
             return response()->json([
