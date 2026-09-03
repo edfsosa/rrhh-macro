@@ -204,15 +204,24 @@ body {
     border-bottom-color: transparent;
     box-shadow: none;
 }
+/* En idle solo se atenúan la etiqueta "Modo Terminal" y el reloj chico del header (ya
+   duplicado por el reloj grande de la pantalla de reposo) — sucursal/empresa, logo y la
+   fila de meta (dispositivo, conectividad, últ. sync) quedan visibles siempre: es
+   justamente en reposo, sin nadie todavía frente a la cámara, cuando más tiempo pasan
+   en pantalla. */
 .terminal-header--idle .terminal-mode-badge,
-.terminal-header--idle .header-logo,
-.terminal-header--idle .terminal-location-badge,
 .terminal-header--idle .terminal-clock {
     opacity: 0;
     visibility: hidden;
     transition: opacity 400ms ease, visibility 400ms ease;
 }
 .terminal-header-brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.terminal-header-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
 .terminal-mode-badge {
     background: var(--c-primary-bg);
     color: var(--c-primary);
@@ -224,22 +233,48 @@ body {
     border-radius: var(--r);
     border: 1px solid rgba(13,148,136,.25);
     flex-shrink: 0;
+    align-self: flex-start;
+    margin-bottom: 2px;
 }
-/* Sucursal — empresa del terminal, visible también durante la identificación
-   activa (a diferencia del bloque idle-only en la pantalla de reposo). */
+/* Sucursal — empresa del terminal: título prominente del header, visible en todas las
+   pantallas (idle incluida). */
 .terminal-location-badge {
-    font-size: .8125rem;
-    font-weight: 500;
-    color: var(--c-muted);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--c-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
 }
+/* Fila secundaria bajo sucursal/empresa: dispositivo, conectividad, última sincronización. */
+.terminal-header-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+.terminal-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--c-muted);
+    white-space: nowrap;
+}
+.connectivity-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--c-success);
+    flex-shrink: 0;
+    transition: background var(--tr);
+}
+.connectivity-dot.is-offline { background: var(--c-danger); }
 /* Logo de la empresa junto al badge de sucursal — PNG con transparencia, se ve
    bien en ambos temas. object-fit: contain preserva la proporción original. */
 .header-logo {
-    height: 24px;
+    height: 32px;
     max-width: 120px;
     width: auto;
     object-fit: contain;
@@ -1048,6 +1083,7 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
    ============================================================ */
 @media (max-width: 640px) {
     .terminal-header      { padding: var(--sp-3) var(--sp-4); }
+    .terminal-location-badge { font-size: .9375rem; }
     .screen-body          { padding: var(--sp-4) var(--sp-3); gap: var(--sp-4); }
     .type-grid            { gap: var(--sp-3); }
     .terminal-type-btn    { padding: var(--sp-4); min-height: 90px; }
@@ -1072,6 +1108,9 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
     .terminal-header     { padding: var(--sp-2) var(--sp-4); }
     .clock-time          { font-size: 1.25rem; }
     .clock-date          { font-size: .7rem; }
+    /* Poco alto para la fila de meta (dispositivo/conectividad/sync) — se prioriza
+       sucursal/empresa, que sigue visible. */
+    .terminal-header-meta { display: none; }
     .screen-body         { padding: var(--sp-3) var(--sp-4); gap: var(--sp-3); }
     .terminal-type-btn   { min-height: 70px; padding: var(--sp-3) var(--sp-4); }
     .loading-card        { padding: var(--sp-5); }
