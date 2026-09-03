@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
 use App\Models\Employee;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,10 @@ use Illuminate\Http\Request;
  *
  * `today_events` (lista completa del día, no solo el último) alimenta la
  * pantalla "Mis marcaciones" en /marcar — a diferencia del resto de esta
- * respuesta, no tiene resolución local offline equivalente.
+ * respuesta, no tiene resolución local offline equivalente. Si todavía no
+ * hay eventos hoy pero la jornada de ayer sigue abierta (turno nocturno),
+ * muestra los eventos de esa jornada en su lugar — mismo criterio que
+ * AttendanceDay::currentStateFor().
  */
 class MobileStatusController extends Controller
 {
@@ -29,20 +33,28 @@ class MobileStatusController extends Controller
         /** @var Employee $employee */
         $employee = $request->user();
 
-        $today = now(config('app.timezone'))->toDateString();
+        $now = Carbon::now(config('app.timezone'));
 
-        $day = AttendanceDay::where('employee_id', $employee->id)->where('date', $today)->first();
-        $events = $day
-            ? AttendanceEvent::where('attendance_day_id', $day->id)->orderBy('recorded_at')->get(['event_type', 'recorded_at'])
+        $today = AttendanceDay::where('employee_id', $employee->id)->where('date', $now->toDateString())->first();
+        $todayEvents = $today
+            ? AttendanceEvent::where('attendance_day_id', $today->id)->orderBy('recorded_at')->get(['event_type', 'recorded_at'])
             : collect();
-        $last = $events->last();
+
+        $state = AttendanceDay::currentStateFor($employee, $now);
+
+        $displayEvents = $todayEvents;
+        if ($todayEvents->isEmpty() && $state['last'] !== null) {
+            $displayEvents = AttendanceEvent::where('attendance_day_id', $state['last']->attendance_day_id)
+                ->orderBy('recorded_at')
+                ->get(['event_type', 'recorded_at']);
+        }
 
         return response()->json([
             'ok' => true,
-            'last_event' => $last?->event_type,
-            'last_event_time' => $last?->recorded_at?->format('H:i'),
-            'allowed_events' => AttendanceEvent::allowedNextEventTypes($last?->event_type),
-            'today_events' => $events->map(fn (AttendanceEvent $event): array => [
+            'last_event' => $state['last']?->event_type,
+            'last_event_time' => $state['last']?->recorded_at?->format('H:i'),
+            'allowed_events' => $state['allowed'],
+            'today_events' => $displayEvents->map(fn (AttendanceEvent $event): array => [
                 'event_type' => $event->event_type,
                 'event_type_label' => AttendanceEvent::getEventTypeLabel($event->event_type),
                 'time' => $event->recorded_at->format('H:i'),
