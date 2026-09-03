@@ -162,6 +162,32 @@ body {
     padding: var(--sp-2) var(--sp-4);
 }
 
+/* Banner de migración — /terminal (legacy) con un terminal_code ya guardado localmente */
+.legacy-migration-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--c-warning-bg);
+    border-bottom: 1px solid var(--c-warning-ring);
+    color: var(--c-warning);
+    font-size: .8125rem;
+    font-weight: 600;
+    text-align: center;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 400ms ease, opacity 400ms ease, padding 400ms ease;
+}
+.legacy-migration-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
+.legacy-migration-banner a { color: inherit; text-decoration: underline; word-break: break-all; }
+.legacy-migration-banner.is-visible {
+    max-height: 80px;
+    opacity: 1;
+    padding: var(--sp-2) var(--sp-4);
+}
+
 .terminal-header {
     background: var(--c-surface);
     border-bottom: 1px solid var(--c-border);

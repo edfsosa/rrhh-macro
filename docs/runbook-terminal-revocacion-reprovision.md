@@ -55,6 +55,21 @@ Si el terminal no pasa a "En línea" en un tiempo razonable, verificar:
 
 ---
 
+## Migración de un terminal de `/terminal` (legacy) a `/terminal/{code}`
+
+Aplica a dispositivos que todavía tienen guardado el acceso viejo `/terminal` (sin código) — la arquitectura actual identifica a cada terminal por su código único en la URL (`/terminal/{code}`).
+
+**No hace falta reprovisionar.** El token Sanctum del dispositivo vive en su IndexedDB local, no depende de qué URL lo cargó — solo hay que actualizar el acceso guardado (bookmark, ícono "agregar a inicio") en el dispositivo físico.
+
+1. Si el dispositivo ya cargó `/terminal` (legacy) al menos una vez desde el fix de migración, va a mostrar un banner amarillo con el link directo a `/terminal/{code}` correcto (detectado automáticamente desde el `terminal_code` ya guardado en su IndexedDB, sin necesidad de red). Copiar esa URL.
+2. Si el banner no aparece (dispositivo nunca cargó la página, o el navegador bloquea IndexedDB), buscar la URL manualmente: **Filament → Asistencias → Terminales → (ver el terminal)** — la ficha muestra la URL completa y un QR para escanear directo desde el dispositivo.
+3. En el dispositivo físico, abrir esa URL y actualizar el acceso guardado:
+   - Si está instalado como PWA ("agregado a inicio"), quitar el ícono viejo y volver a agregarlo desde `/terminal/{code}`.
+   - Si es solo un bookmark del navegador, actualizarlo a la URL nueva.
+4. Confirmar que el dispositivo sigue funcionando con normalidad — no requiere volver a completar heartbeat/sync inicial, ya estaba provisionado.
+
+No hay urgencia de apurar esta migración dispositivo por dispositivo: `/terminal` (legacy) se mantiene activa mientras existan dispositivos sin migrar, y ambas URLs sirven al mismo terminal ya provisionado sin conflicto.
+
 ## Riesgos aceptados
 
 - **Biometría sin cifrar en el dispositivo perdido**: la caché de `employees_cache` (IndexedDB) incluye los descriptores faciales de los empleados de la sucursal, en texto plano — mismo nivel de exposición que el caché server-side (`Cache::remember('employees_face_descriptors', ...)`). Revocar el token detiene la sincronización futura, pero no borra lo que ya estaba cacheado en el dispositivo perdido. Si el dispositivo se recupera físicamente, no hace falta ninguna acción adicional — el token revocado ya impide que vuelva a sincronizar sin pasar por reprovisión.
