@@ -47,19 +47,67 @@ El sistema descuenta automáticamente los minutos de descanso al calcular las ho
 
 ## Asignar un horario a un empleado
 
-1. Abrir el perfil del empleado en **Empleados**
-2. Ir a la pestaña **Horarios**
-3. Clic en **Asignar horario**
-4. Seleccionar el horario y la **fecha de inicio** de la asignación
-5. Guardar
+La asignación se hace **desde el horario, no desde el perfil del empleado**:
+
+1. Ir a **Organización → Horarios**
+2. Abrir el horario a asignar
+3. En la pestaña **Empleados Asignados**, clic en **Asignar**
+4. Seleccionar uno o varios empleados (opcionalmente filtrando por sucursal) y confirmar
+
+> Si alguno de los empleados seleccionados ya tiene un horario vigente, se muestra una advertencia (⚠) — al confirmar, ese horario anterior se cierra automáticamente (fecha de fin = hoy) y el nuevo queda vigente desde hoy.
+
+Para quitar la asignación de un empleado sin darle otro horario, usar **Remover** en la fila del empleado (o la acción masiva "Remover seleccionados") — esto cierra la asignación con fecha de hoy, sin eliminar el historial.
 
 > Un empleado puede tener historial de asignaciones. El sistema usa automáticamente la asignación vigente en la fecha de cada marcación para calcular la asistencia.
 
 ## Cambiar el horario de un empleado
 
-No elimine la asignación anterior. En cambio, cree una **nueva asignación** con el nuevo horario y su fecha de inicio. El historial anterior queda preservado.
+No elimine la asignación anterior. En cambio, use **Asignar** en el horario nuevo — el sistema cierra automáticamente la asignación anterior (fecha de fin = hoy) al crear la nueva. El historial queda preservado.
 
 ## Notas importantes
 
 - Si un empleado no tiene horario asignado, sus marcaciones se registran pero **no se calculan** horas trabajadas ni ausencias automáticamente.
 - Un mismo horario puede asignarse a múltiples empleados.
+- Un empleado con un **patrón de rotación** asignado (ver sección siguiente) no necesita horario fijo — la rotación tiene prioridad sobre el horario fijo al calcular el turno del día.
+
+---
+
+# Patrones de Rotación
+
+Para empleados cuyo turno cambia según un ciclo (ej: 6 días de mañana, 1 franco, repetir), en lugar de un horario fijo se usa un **patrón de rotación**.
+
+## Conceptos clave
+
+- **Patrón de rotación:** ciclo ordenado de turnos (ej: Día 1 = Turno Mañana, Día 2 = Turno Mañana, ..., Día 7 = Franco). El ciclo se repite automáticamente una vez completado.
+- **Turno del ciclo:** cada día del patrón apunta a un turno ya creado en **Organización → Plantillas de turno** (`ShiftTemplate`) — incluyendo días de franco, que también se definen como un "turno" marcado como día de descanso.
+- **Asignación de rotación:** vínculo entre un empleado y un patrón, con fecha de inicio de vigencia y un **día de inicio del ciclo** (para que dos empleados con el mismo patrón puedan estar en días distintos del ciclo, ej. uno arranca en el Día 1 y otro en el Día 4).
+
+## Crear un patrón de rotación
+
+1. Ir a **Organización → Patrones de rotación**
+2. Clic en **Nuevo Patrón**
+3. Seleccionar la **empresa** y darle un nombre (ej: "3 Turnos Rotativos 21 días")
+4. En **Secuencia del ciclo**, agregar un ítem por cada día del ciclo y elegir el turno correspondiente — el orden de los ítems define el orden del ciclo (ítem 1 = Día 1, ítem 2 = Día 2, etc.). Se puede arrastrar para reordenar
+5. Guardar
+
+> Los turnos deben existir previamente en **Organización → Plantillas de turno**, filtrados por la misma empresa del patrón.
+
+## Asignar un patrón de rotación a un empleado
+
+1. Ir a **Organización → Patrones de rotación**
+2. Abrir el patrón a asignar
+3. En la pestaña **Empleados Asignados**, clic en **Asignar**
+4. Seleccionar uno o varios empleados (opcionalmente filtrando por sucursal)
+5. Elegir el **día de inicio** — a qué día del ciclo corresponde el día de hoy para estos empleados (ej: "Día 1: Turno Mañana" si arrancan desde el principio del ciclo)
+6. Confirmar
+
+> El día de inicio elegido se aplica igual a todos los empleados seleccionados en el mismo lote. Para que un empleado arranque en un día distinto del ciclo, asignarlo por separado.
+
+Igual que con los horarios: si un empleado ya tenía una rotación activa, se muestra una advertencia (⚠) y al confirmar la anterior se cierra automáticamente (fecha de fin = hoy).
+
+Para quitar la rotación de un empleado, usar **Remover** en la fila del empleado (o la acción masiva) — cierra la asignación con fecha de hoy sin eliminar el historial.
+
+## Notas importantes
+
+- Un patrón de rotación tiene prioridad sobre el horario fijo: si un empleado tiene ambos (no debería ser el caso normal, pero el sistema no lo impide), se usa la rotación.
+- Desactivar un patrón (**Desactivar** en el listado) no elimina las asignaciones existentes, pero los empleados con ese patrón dejan de tener turno calculado — usar con cuidado.
