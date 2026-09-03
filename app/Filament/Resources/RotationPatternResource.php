@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\RotationPatternResource\Pages;
+use App\Filament\Resources\RotationPatternResource\RelationManagers;
 use App\Models\Company;
 use App\Models\RotationPattern;
 use App\Models\ShiftTemplate;
@@ -213,6 +214,16 @@ class RotationPatternResource extends Resource
                     ->successNotificationTitle('Patrón desactivado'),
             ])
             ->defaultSort('name');
+    }
+
+    /**
+     * @return array<class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\EmployeesRelationManager::class,
+        ];
     }
 
     /**
