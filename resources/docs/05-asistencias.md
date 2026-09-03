@@ -12,7 +12,7 @@ Un dispositivo fijo en la sucursal (tablet o PC). Todos los empleados marcan des
 Cada terminal tiene su propia URL con un código único (ej: `/terminal/a3x9bc7q`). Ver sección **Gestión de Terminales** más abajo.
 
 ### Modo móvil
-El empleado usa su propio dispositivo (celular o tablet). Puede marcar desde cualquier lugar. Útil para empleados remotos o en campo.
+El empleado usa su propio dispositivo (celular o tablet). Puede marcar desde cualquier lugar. Útil para empleados remotos o en campo. A diferencia de la terminal compartida, cada dispositivo se vincula a un único empleado — ver la sección **Dispositivo personal (vinculación)** más abajo.
 
 ---
 
@@ -54,6 +54,54 @@ Si la URL de una terminal fue comprometida o el dispositivo fue reemplazado, usa
 ### Marcación en sucursal diferente
 
 Si un empleado marca desde una terminal de una sucursal distinta a la suya, el sistema registra el evento igualmente pero lo marca internamente como **marcación en sucursal diferente** (`branch_mismatch`). Esto permite detectar situaciones atípicas sin bloquear al empleado.
+
+---
+
+## Dispositivo personal (vinculación)
+
+A diferencia de la terminal compartida, el dispositivo personal (celular o tablet propio del empleado) se vincula a un único empleado y **no requiere que un administrador genere ningún enlace**: el propio empleado se vincula desde `/vincular-dispositivo`.
+
+### Cómo se vincula un empleado
+
+1. El empleado abre `/vincular-dispositivo` desde su celular
+2. Ingresa su **CI** y **fecha de nacimiento**
+3. Si los datos coinciden con un empleado activo, el sistema emite un token de sincronización para ese dispositivo
+4. El empleado ya puede usar `/marcar` desde su celular con reconocimiento facial, igual que en la terminal compartida
+
+> La CI + fecha de nacimiento **no reemplaza** el reconocimiento facial como control real — es solo el paso para que el dispositivo identifique a qué empleado pertenece. Cada marcación sigue exigiendo que el rostro coincida.
+
+### Un solo dispositivo vinculado a la vez
+
+Cada empleado puede tener **un único dispositivo activo**. Si vincula uno nuevo (por ejemplo, cambió de celular), el sistema:
+
+- Revoca automáticamente el acceso del dispositivo anterior
+- Notifica a todos los administradores del sistema (campanita + email)
+
+### Ver el historial de dispositivos
+
+Ir a **Asistencias → Dispositivos de Empleados** para ver todas las vinculaciones, pasadas y presentes, de todos los empleados. A diferencia de las Terminales, este historial es de **solo lectura por diseño**: los registros se crean automáticamente al vincularse, nunca a mano.
+
+| Columna | Descripción |
+|---------|-------------|
+| **Empleado** | Dueño del dispositivo |
+| **Estado** | Vinculado o Desvinculado |
+| **Dispositivo** | Marca y modelo, cuando el navegador los reporta automáticamente (no todos los navegadores lo hacen — por ejemplo, Safari/iPhone nunca) |
+| **Vinculado** | Fecha de vinculación |
+| **Desvinculado** | Fecha en que dejó de estar activo (vacío si sigue vinculado) |
+| **MAC** | Dirección MAC, si se cargó manualmente |
+
+Desde el detalle de un dispositivo se pueden completar a mano los datos que el navegador no reportó (marca, modelo, número de serie, MAC, notas) — igual que en la ficha de una Terminal.
+
+### Revocar un dispositivo
+
+Si un empleado perdió su celular o cambió de dispositivo sin avisar, un administrador puede revocar el acceso manualmente:
+
+1. Ir a **Asistencias → Dispositivos de Empleados**
+2. Localizar el dispositivo activo del empleado
+3. Clic en **Revocar**
+4. Confirmar
+
+Al revocar, el dispositivo pierde acceso de inmediato. El empleado deberá vincularse de nuevo con CI + fecha de nacimiento la próxima vez que quiera marcar desde el celular.
 
 ---
 
@@ -164,6 +212,56 @@ Después de editar, usar el botón **Recalcular** en el encabezado para actualiz
 Desde la sección **Marcaciones** del detalle del día, clic en el ícono de eliminar del evento.
 
 > ⚠️ Eliminar una marcación puede afectar el cálculo del día. Después de eliminar, usar el botón **Recalcular** para actualizar los totales.
+
+---
+
+## Revisión de fallos de marcación
+
+Cuando un intento de marcación (terminal o dispositivo personal) no puede completarse — rostro no reconocido, empleado no encontrado, o un **conflicto de sincronización** al subir eventos capturados offline — el sistema **nunca lo descarta en silencio**: queda registrado para revisión en **Asistencias → Fallos de Marcación**.
+
+### Tipos de fallo más comunes
+
+| Tipo | Cuándo ocurre |
+|------|---------------|
+| **Rostro no reconocido** | El rostro capturado no coincide con ningún empleado enrolado dentro del umbral configurado |
+| **Rostro ambiguo** | El rostro coincide con dos o más empleados sin diferencia suficiente entre ellos |
+| **Sin empleados enrolados** | La terminal no tiene ningún descriptor facial sincronizado todavía |
+| **Empleado no encontrado / inactivo** | El empleado fue desactivado o eliminado después de la vinculación del dispositivo |
+| **Sin sucursal asignada / sucursal sin coordenadas** | Falta configuración de ubicación necesaria para registrar la marcación |
+| **Secuencia de evento inválida** | Se intentó, por ejemplo, marcar una salida sin una entrada previa ese día |
+| **Conflicto al sincronizar (offline)** | El dispositivo capturó el evento sin conexión, pero para cuando volvió a tener red, otra marcación ya había cambiado el estado del empleado ese día (por ejemplo, alguien cargó la marcación manualmente mientras tanto) |
+
+### Revisar un fallo
+
+1. Ir a **Asistencias → Fallos de Marcación**
+2. Clic en un registro para ver el detalle completo: empleado (si se pudo identificar), sucursal, mensaje de error, IP, coordenadas GPS y metadatos adicionales
+3. Usar el botón **Diagnóstico** para ver una explicación en lenguaje simple de qué pudo haber causado el fallo
+
+### Aprobar un fallo (reconstruir la marcación)
+
+Solo disponible cuando el fallo trae datos suficientes para reconstruir el evento — típicamente los **conflictos de sincronización**, donde el dispositivo sí capturó una marcación válida en su momento, solo que el servidor la rechazó por el estado que tenía en ese instante.
+
+1. Abrir el fallo y clic en **Aprobar**
+2. Revisar (y ajustar si hace falta) el **tipo de evento** y la **fecha y hora**
+3. Agregar notas si corresponde
+4. Confirmar — el sistema crea la marcación de asistencia correspondiente y marca el fallo como **Aprobado**
+
+> El botón **Aprobar** solo aparece si el fallo puede resolverse. Fallos genéricos (rostro no reconocido, empleado no encontrado) no tienen suficiente información para reconstruir una marcación — en esos casos, si el empleado sí estuvo presente, usar la acción **Registrar asistencia** desde el módulo de Ausencias en su lugar.
+
+### Descartar un fallo
+
+Cuando el conflicto ya no aplica — por ejemplo, la marcación real se cargó manualmente por otro medio — se puede descartar sin crear ninguna marcación:
+
+1. Abrir el fallo (no aparece como acción de fila, solo desde la vista de detalle)
+2. Clic en **Descartar**
+3. Agregar notas si corresponde
+4. Confirmar
+
+> Descartar es una acción irreversible — no tiene "deshacer". Usarla solo cuando el fallo ya no requiere ninguna acción.
+
+### Filtros disponibles
+
+**Modo** (Terminal / Móvil / Desconocido), **Tipo de fallo**, **Sucursal**, **Estado de revisión** (Pendiente / Aprobado / Descartado) y **Período** (rango de fechas).
 
 ---
 
