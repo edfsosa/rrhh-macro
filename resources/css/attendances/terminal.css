@@ -510,6 +510,20 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
 .step-icon { display: none; }
 
 /* ============================================================
+   PANTALLA DE INICIO — "Toque para comenzar"
+   ============================================================ */
+.start-gate-card .terminal-btn { margin-top: var(--sp-2); }
+.start-gate-icon {
+    width: 72px; height: 72px;
+    margin: 0 auto var(--sp-6);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--c-primary-bg);
+    color: var(--c-primary);
+}
+.start-gate-icon svg { width: 32px; height: 32px; }
+
+/* ============================================================
    PANTALLA DE SELECCIÓN DE TIPO
    ============================================================ */
 .screen-eyebrow {

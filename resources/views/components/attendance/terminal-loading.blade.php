@@ -1,4 +1,4 @@
-<section id="loadingScreen" class="terminal-screen" role="region" aria-label="Cargando sistema">
+<section id="loadingScreen" class="terminal-screen hidden" role="region" aria-label="Cargando sistema">
     <div class="screen-body">
         <div class="loading-card">
             <div class="loading-spinner">

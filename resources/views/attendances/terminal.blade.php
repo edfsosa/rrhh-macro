@@ -68,6 +68,7 @@
         @endempty
 
         <main id="main-content">
+            <x-attendance.terminal-start-gate />
             <x-attendance.terminal-loading />
             <x-attendance.terminal-idle />
             <x-attendance.terminal-type-selector />
