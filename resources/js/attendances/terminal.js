@@ -114,6 +114,18 @@ document.addEventListener("DOMContentLoaded", () => {
         headerLogo.classList.remove("hidden");
     }
 
+    // Marca/modelo del dispositivo físico (device_brand/device_model en Terminal) — ambos
+    // son opcionales y siempre editables desde Filament, así que se omite el elemento por
+    // completo si el admin nunca los cargó, en vez de mostrar un texto vacío o "null null".
+    const headerDevice = document.getElementById("terminalHeaderDevice");
+    if (terminalData && headerDevice) {
+        const deviceLabel = [terminalData.device_brand, terminalData.device_model].filter(Boolean).join(" ");
+        if (deviceLabel) {
+            headerDevice.textContent = deviceLabel;
+            headerDevice.classList.remove("hidden");
+        }
+    }
+
     // ============================================================================
     // ESTADO GLOBAL
     // ============================================================================
@@ -1239,12 +1251,23 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     // CONECTIVIDAD
     // ============================================================================
-    const offlineBanner = document.getElementById("offlineBanner");
+    const offlineBanner    = document.getElementById("offlineBanner");
+    const connectivityDot  = document.getElementById("connectivityDot");
+    const connectivityLabel = document.getElementById("connectivityLabel");
 
+    /**
+     * A diferencia del banner (que solo aparece mientras el navegador está sin red),
+     * el indicador del header queda siempre visible — refleja `navigator.onLine`, no la
+     * conectividad real con el servidor (eso lo indica por separado "Últ. sync", más
+     * abajo: un dispositivo puede tener wifi pero sin salida a internet real).
+     */
     function setOffline(isOffline) {
-        if (!offlineBanner) return;
-        offlineBanner.classList.toggle("is-visible", isOffline);
-        offlineBanner.setAttribute("aria-hidden", String(!isOffline));
+        if (offlineBanner) {
+            offlineBanner.classList.toggle("is-visible", isOffline);
+            offlineBanner.setAttribute("aria-hidden", String(!isOffline));
+        }
+        if (connectivityDot)   connectivityDot.classList.toggle("is-offline", isOffline);
+        if (connectivityLabel) connectivityLabel.textContent = isOffline ? "Sin conexión" : "En línea";
     }
 
     // Estado inicial (por si la página carga sin red)
@@ -1284,6 +1307,31 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             updateIdleSyncStatus(navigator.onLine ? "Sincronizado" : "Sin conexión — usando datos locales");
         }
+        await refreshLastSyncLabel();
+    }
+
+    const terminalHeaderLastSync = document.getElementById("terminalHeaderLastSync");
+
+    /**
+     * Última vez que un heartbeat exitoso confirmó contacto real con el servidor
+     * (`last_heartbeat_at` en terminal_meta, escrito por heartbeat() en sync.js) — a
+     * diferencia del indicador "En línea"/"Sin conexión" (que solo refleja
+     * `navigator.onLine`), esto sirve para detectar un terminal con wifi pero sin
+     * conectividad real al backend. Se lee de IndexedDB en cada llamada, así que
+     * sobrevive a recargas de página sin depender del estado de esta sesión.
+     */
+    async function refreshLastSyncLabel() {
+        if (!terminalHeaderLastSync) return;
+        const lastHeartbeatAt = await getMeta("last_heartbeat_at");
+        if (!lastHeartbeatAt) {
+            terminalHeaderLastSync.classList.add("hidden");
+            return;
+        }
+        const time = new Date(lastHeartbeatAt).toLocaleTimeString("es-BO", {
+            hour: "2-digit", minute: "2-digit", hour12: false,
+        });
+        terminalHeaderLastSync.textContent = `Últ. sync: ${time}`;
+        terminalHeaderLastSync.classList.remove("hidden");
     }
 
     /**
@@ -1362,6 +1410,9 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             console.warn("Sincronización inicial falló (se reintentará en segundo plano):", error.message);
             updateIdleSyncStatus(navigator.onLine ? "Error al sincronizar" : "Sin conexión — usando datos locales");
+            // Mostrar igual el último sync exitoso conocido (de una sesión anterior, ya
+            // persistido en IndexedDB) aunque el de ahora haya fallado.
+            await refreshLastSyncLabel();
         }
 
         startBackgroundSync();

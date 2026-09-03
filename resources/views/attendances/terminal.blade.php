@@ -19,9 +19,19 @@
     <div class="terminal-container">
         <header class="terminal-header">
             <div class="terminal-header-brand">
-                <span class="terminal-mode-badge">Modo Terminal</span>
                 <img id="terminalHeaderLogo" class="header-logo hidden" alt="">
-                <span id="terminalHeaderLocation" class="terminal-location-badge"></span>
+                <div class="terminal-header-titles">
+                    <span class="terminal-mode-badge">Modo Terminal</span>
+                    <span id="terminalHeaderLocation" class="terminal-location-badge"></span>
+                    <div class="terminal-header-meta" id="terminalHeaderMeta">
+                        <span id="terminalHeaderDevice" class="terminal-meta-item hidden"></span>
+                        <span class="terminal-meta-item terminal-connectivity" id="terminalConnectivity">
+                            <span class="connectivity-dot" id="connectivityDot" aria-hidden="true"></span>
+                            <span id="connectivityLabel">En línea</span>
+                        </span>
+                        <span id="terminalHeaderLastSync" class="terminal-meta-item hidden"></span>
+                    </div>
+                </div>
                 <button type="button" id="btnThemeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -89,6 +99,8 @@
             branch_name: @json($terminal->branch?->name),
             company_name: @json($terminal->branch?->company?->name),
             company_logo: @json($terminal->branch?->company?->logo_thumbnail),
+            device_brand: @json($terminal->device_brand),
+            device_model: @json($terminal->device_model),
         };
     </script>
     @endisset
