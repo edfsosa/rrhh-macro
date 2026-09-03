@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AttendanceMarkFailure;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -46,10 +47,16 @@ Schedule::command('attendance:check-missing')
 
 /**
  * Limpiar registros de fallos de marcación con más de 30 días
- * Se ejecuta diariamente a las 02:00 para evitar crecimiento indefinido de la tabla
+ * Se ejecuta diariamente a las 02:00 para evitar crecimiento indefinido de la tabla.
+ *
+ * Solo elimina los ya revisados (approved/dismissed) — un fallo 'pending' de más
+ * de 30 días significa que nadie lo revisó todavía; borrarlo pierde para siempre
+ * la evidencia y la posibilidad de reconstruir esa marcación.
  */
 Schedule::call(function () {
-    $deleted = \App\Models\AttendanceMarkFailure::where('occurred_at', '<', now()->subDays(30))->delete();
+    $deleted = AttendanceMarkFailure::where('occurred_at', '<', now()->subDays(30))
+        ->whereIn('resolution_status', ['approved', 'dismissed'])
+        ->delete();
     if ($deleted > 0) {
         Log::info("Limpieza de fallos de marcación: {$deleted} registros eliminados");
     }
