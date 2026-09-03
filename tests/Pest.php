@@ -1,5 +1,11 @@
 <?php
 
+use App\Models\AttendanceDay;
+use App\Models\AttendanceEvent;
+use App\Models\Employee;
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -11,7 +17,7 @@
 |
 */
 
-pest()->extend(Tests\TestCase::class)
+pest()->extend(TestCase::class)
  // ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
     ->in('Feature');
 
@@ -41,7 +47,54 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Registra una marcación directamente vía AttendanceDay::resolveForEvent(),
+ * replicando la lógica que antes exponía el endpoint HTTP (ya eliminado)
+ * `POST /marcar` de AttendanceFaceMarkController::store() — la marcación
+ * online-síncrona quedó reemplazada por /api/v1/{terminal,mobile}/events/sync,
+ * pero varios tests de regresión de la máquina de estados de asistencia siguen
+ * necesitando una forma directa de "marcar un evento y ver si fue aceptado"
+ * sin pasar por HTTP.
+ *
+ * @return array{ok: bool, event?: AttendanceEvent, day?: AttendanceDay, last_event?: string|null}
+ */
+function markAttendanceEvent(Employee $employee, string $eventType, ?Carbon\Carbon $recordedAt = null): array
 {
-    // ..
+    $now = $recordedAt ?? Carbon\Carbon::now(config('app.timezone'));
+
+    try {
+        return DB::transaction(function () use ($employee, $eventType, $now) {
+            ['day' => $day, 'last' => $last, 'allowed' => $allowed] = AttendanceDay::resolveForEvent(
+                $employee,
+                $now,
+                $eventType,
+                lockForUpdate: true,
+            );
+
+            if (! $day) {
+                $day = AttendanceDay::firstOrCreate(
+                    ['employee_id' => $employee->id, 'date' => $now->toDateString()],
+                    ['status' => 'present']
+                );
+            }
+
+            if (! in_array($eventType, $allowed, true)) {
+                throw new RuntimeException('not_allowed');
+            }
+
+            if ($day->status !== 'present') {
+                $day->update(['status' => 'present']);
+            }
+
+            $event = $day->events()->create([
+                'event_type' => $eventType,
+                'recorded_at' => $now,
+                'source' => 'manual',
+            ]);
+
+            return ['ok' => true, 'event' => $event, 'day' => $day, 'last_event' => $last?->event_type];
+        });
+    } catch (RuntimeException) {
+        return ['ok' => false];
+    }
 }

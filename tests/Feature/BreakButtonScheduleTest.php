@@ -95,21 +95,20 @@ afterEach(function () {
 it('sin horario asignado, no ofrece ni acepta "Inicio de descanso"', function () {
     $employee = makeBreakTestEmployee();
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->not->toContain('break_start')
         ->and($state['allowed'])->toContain('check_out');
 
-    $response = $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'break_start', 'source' => 'manual']);
-    $response->assertUnprocessable();
+    expect(markAttendanceEvent($employee, 'break_start')['ok'])->toBeFalse();
 });
 
 it('con horario asignado pero sin descanso configurado (break_minutes = 0), tampoco lo ofrece', function () {
     $employee = makeBreakTestEmployee();
     assignScheduleWithBreak($employee, withBreak: false);
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->not->toContain('break_start');
@@ -119,13 +118,12 @@ it('con horario que sí tiene descanso configurado, ofrece y acepta "Inicio de d
     $employee = makeBreakTestEmployee();
     assignScheduleWithBreak($employee, withBreak: true);
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'check_in', 'source' => 'manual'])->assertOk();
+    expect(markAttendanceEvent($employee, 'check_in')['ok'])->toBeTrue();
 
     $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->toContain('break_start');
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'break_start', 'source' => 'manual'])
-        ->assertOk();
+    expect(markAttendanceEvent($employee, 'break_start')['ok'])->toBeTrue();
 });
 
 it('una vez iniciado el descanso, siempre se puede cerrar (break_end nunca se filtra)', function () {
@@ -152,6 +150,5 @@ it('una vez iniciado el descanso, siempre se puede cerrar (break_end nunca se fi
     $state = AttendanceDay::currentStateFor($employee, Carbon::now());
     expect($state['allowed'])->toBe(['break_end']);
 
-    $this->postJson('/marcar', ['employee_id' => $employee->id, 'event_type' => 'break_end', 'source' => 'manual'])
-        ->assertOk();
+    expect(markAttendanceEvent($employee, 'break_end')['ok'])->toBeTrue();
 });

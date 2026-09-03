@@ -39,11 +39,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::prefix('marcar')->name('mark.')->group(function () {
-    Route::get('/', [AttendanceFaceMarkController::class, 'show'])->name('show');
-    Route::post('/identificar', [AttendanceFaceMarkController::class, 'identify'])->name('identify');
-    Route::post('/', [AttendanceFaceMarkController::class, 'store'])->name('store');
-});
+Route::get('/marcar', [AttendanceFaceMarkController::class, 'show'])->name('mark.show');
 
 // Terminal legacy — mantener activa hasta migrar todos los dispositivos físicos
 Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.legacy');
