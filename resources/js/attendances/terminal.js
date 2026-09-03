@@ -752,7 +752,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         await registerMark(result.employee, allowedEvents[0]);
                     } else if (allowedEvents.length > 1) {
                         // Múltiples eventos válidos — mostrar selección al empleado
-                        showTypeSelectionForEmployee(result.employee, allowedEvents);
+                        showTypeSelectionForEmployee(result.employee, allowedEvents, result.last_event, result.last_event_time);
                     } else {
                         // Sin eventos disponibles — jornada ya completada
                         showDayComplete(result.employee);
@@ -790,7 +790,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     // SELECCIÓN DE TIPO POST-IDENTIFICACIÓN (solo si hay múltiples eventos válidos)
     // ============================================================================
-    function showTypeSelectionForEmployee(employee, allowedEvents) {
+    function showTypeSelectionForEmployee(employee, allowedEvents, lastEvent, lastEventTime) {
         terminalState.employee = employee;
 
         // Mostrar solo los botones de tipos permitidos para este empleado
@@ -814,6 +814,22 @@ document.addEventListener("DOMContentLoaded", () => {
         if (screenTitle)   screenTitle.textContent   = fullName ? `Hola, ${fullName}` : "Seleccione marcación";
         if (screenEyebrow) screenEyebrow.textContent = fullName ? "Empleado verificado ✓" : "Seleccione marcación";
 
+        // Recordatorio de la última marcación conocida — ayuda a elegir, por ejemplo,
+        // entre "Fin descanso" y "Salida" sin que el empleado tenga que recordarlo.
+        const lastMarkEl = document.getElementById("typeSelectionLastMark");
+        if (lastMarkEl) {
+            if (lastEvent) {
+                const lastEventName = eventTypeNames[lastEvent] || lastEvent;
+                lastMarkEl.textContent = lastEventTime
+                    ? `Última marcación: ${lastEventName}, ${lastEventTime}`
+                    : `Última marcación: ${lastEventName}`;
+                lastMarkEl.classList.remove("hidden");
+            } else {
+                lastMarkEl.textContent = "";
+                lastMarkEl.classList.add("hidden");
+            }
+        }
+
         showScreen("typeSelection");
     }
 
@@ -830,7 +846,14 @@ document.addEventListener("DOMContentLoaded", () => {
      * con un error cuando en realidad ya se guardó.
      */
     async function registerMark(employee, eventType) {
-        updateStatus("Registrando marcación...", "loading");
+        // Mensaje con el tipo de evento (no genérico) y tiempo suficiente para leerse
+        // (700ms) antes de pasar a la pantalla de éxito — sin esto, sobre todo en el
+        // registro automático (un único evento válido, sin que el empleado toque nada),
+        // el paso de "identificando" a "listo" era instantáneo y el empleado podía no
+        // darse cuenta de que el sistema ya había decidido y registrado por él.
+        const eventName = eventTypeNames[eventType] || eventType;
+        updateStatus(`Registrando: ${eventName}...`, "loading");
+        await sleep(700);
 
         const { client_event_id: clientEventId, recorded_at: recordedAt } = await enqueueMark(employee.id, eventType);
 

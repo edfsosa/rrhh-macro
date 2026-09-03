@@ -3,6 +3,10 @@
         <p class="screen-eyebrow" id="typeSelectionEyebrow">Empleado verificado</p>
         <h1 class="screen-title" id="typeSelectionTitle">Marcación</h1>
         <p class="screen-subtitle">Seleccione el tipo de marcación</p>
+        {{-- Recordatorio de la última marcación conocida — ayuda a elegir entre opciones
+             parecidas (ej. "Fin descanso" vs. "Salida") sin tener que recordarlo de memoria.
+             Vacío/oculto si no hay una marcación previa hoy. --}}
+        <p class="type-selection-last-mark hidden" id="typeSelectionLastMark"></p>
 
         <div class="type-grid">
             <button

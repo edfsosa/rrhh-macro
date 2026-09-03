@@ -527,6 +527,18 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
     color: var(--c-muted); text-align: center;
 }
 
+/* Recordatorio de última marcación — pantalla de selección de tipo */
+.type-selection-last-mark {
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--c-primary);
+    background: var(--c-primary-bg);
+    border: 1px solid rgba(13,148,136,.25);
+    border-radius: 99px;
+    padding: var(--sp-1) var(--sp-4);
+    text-align: center;
+}
+
 /* Grid 2×2 de tipos */
 .type-grid {
     display: grid;
