@@ -38,57 +38,9 @@ El módulo de Empleados gestiona todos los datos personales y laborales del pers
 
 El contrato activo define el **salario, cargo y fecha de ingreso** del empleado. Un empleado puede tener historial de contratos.
 
-### Campos del contrato
+Desde el perfil del empleado, pestaña **Contratos**, se puede crear el primer contrato o consultar el historial completo. Departamentos y cargos pueden crearse directamente desde el selector, sin salir del formulario.
 
-- **Tipo de contrato** (ver tabla abajo)
-- **Modalidad de trabajo:** presencial, remoto o híbrido
-- **Fecha de inicio** (obligatoria) y **fecha de fin** (solo para contratos a plazo o por obra)
-- **Días de prueba** (opcional)
-- **Tipo de remuneración:** Mensual o Por Jornal (diario)
-- **Salario:** monto en Guaraníes
-- **Frecuencia de nómina:** Mensual, Quincenal o Semanal
-- **Departamento y Cargo**
-- **Método de pago:** Tarjeta de Débito o Efectivo
-- **Notas**
-
-### Tipos de contrato
-
-| Tipo | Descripción |
-|------|-------------|
-| **Por Tiempo Indefinido** | Sin fecha de fin |
-| **Por Plazo Determinado** | Con fecha de fin definida |
-| **Por Obra Determinada** | Hasta completar una tarea específica |
-| **De Aprendizaje** | Contrato formativo |
-| **Pasantía** | Período de práctica |
-
-> Para contratos **Por Plazo Determinado** y **Por Obra Determinada** debe ingresarse la fecha de fin. Para los demás tipos, la fecha de fin no aplica.
-
-### Estados del contrato
-
-| Estado | Descripción |
-|--------|-------------|
-| **Vigente** | Contrato en curso |
-| **Vencido** | Fecha de fin superada sin renovar |
-| **Terminado** | Finalizado anticipadamente |
-| **Renovado** | Reemplazado por un nuevo contrato |
-
-Solo puede haber **un contrato vigente** a la vez por empleado.
-
-### Crear un contrato
-
-1. Abrir el empleado y ir a la pestaña **Contratos**
-2. Clic en **Nuevo contrato**
-3. Completar los campos (tipo, fechas, salario, cargo)
-4. Guardar
-
-> Departamentos y cargos pueden crearse directamente desde el selector, sin salir del formulario.
-
-### Documentos del contrato
-
-Desde la fila del contrato en la tabla:
-- **Generar PDF:** abre el contrato en PDF listo para imprimir o firmar
-- **Subir PDF firmado:** adjunta el documento firmado escaneado
-- **Descargar firmado:** descarga el PDF que fue subido anteriormente
+> Para el detalle completo de tipos de contrato, estados, ciclo de vida, plantillas de PDF y alertas de vencimiento, ver el capítulo **Contratos**.
 
 ---
 

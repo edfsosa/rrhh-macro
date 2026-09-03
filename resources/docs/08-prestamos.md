@@ -8,7 +8,7 @@ El módulo de préstamos permite otorgar créditos a empleados con descuento aut
 |--------|-------------|
 | **Pendiente** | Creado, aún no revisado. Puede editarse, aprobarse, rechazarse o cancelarse. |
 | **Aprobado** | Aprobado por el administrador. Pendiente de entrega del dinero al empleado. |
-| **Entregado** | El dinero fue entregado al empleado. Las cuotas se descuentan en la próxima nómina. |
+| **Desembolsado** | El dinero fue entregado al empleado. Las cuotas se descuentan en la próxima nómina. |
 | **Pagado** | Todas las cuotas fueron saldadas. Estado final automático. |
 | **Rechazado** | Rechazado por el administrador. Estado final. |
 | **Cancelado** | Cancelado antes de entregarse. Estado final. |
@@ -16,7 +16,7 @@ El módulo de préstamos permite otorgar créditos a empleados con descuento aut
 ## Ciclo de vida y acciones
 
 ```
-Pendiente → Aprobado → Entregado → Pagado (automático)
+Pendiente → Aprobado → Desembolsado → Pagado (automático)
           ↘ Rechazado
           ↘ Cancelado
 Aprobado  → Cancelado
@@ -28,10 +28,10 @@ Aprobado  → Cancelado
 - **Cancelar** — cancela la solicitud sin efecto en la nómina.
 
 **Desde Aprobado:**
-- **Marcar como Entregado** — confirma que el dinero llegó al empleado. A partir de este momento el sistema comienza a descontar las cuotas en cada nómina.
+- **Marcar Entregado** — confirma que el dinero llegó al empleado y pasa el préstamo a **Desembolsado**. A partir de este momento el sistema comienza a descontar las cuotas en cada nómina.
 - **Cancelar** — cancela el préstamo antes de entregar el dinero; las cuotas generadas se anulan.
 
-**Desde Entregado:**
+**Desde Desembolsado:**
 - Sin acciones de mutación. El préstamo sigue su curso hasta ser saldado.
 
 > El préstamo pasa a **Pagado** automáticamente al procesar en nómina la última cuota pendiente.
@@ -65,7 +65,7 @@ El valor por defecto se configura en **Ajustes → Nómina** (`Días hasta la pr
 
 ## Cuotas y descuento en nómina
 
-Las cuotas se generan automáticamente al **aprobar** el préstamo. Sin embargo, el descuento en nómina solo ocurre una vez que el préstamo pasa al estado **Entregado** — un préstamo aprobado pero no entregado **no** genera deducción.
+Las cuotas se generan automáticamente al **aprobar** el préstamo. Sin embargo, el descuento en nómina solo ocurre una vez que el préstamo pasa al estado **Desembolsado** — un préstamo aprobado pero no desembolsado **no** genera deducción.
 
 Al generar la nómina de un período, el sistema incluye automáticamente las cuotas vencidas de cada empleado. No es necesario agregarlas manualmente.
 
@@ -97,7 +97,7 @@ Donde `n` es la cantidad de cuotas. Con tasa 0%, la cuota es simplemente `Capita
 
 ## Contrato de préstamo en PDF
 
-Desde la vista del préstamo, el botón **Descargar PDF** genera el contrato del préstamo listo para imprimir o archivar. Disponible en los estados **Aprobado**, **Entregado** y **Pagado**.
+Desde la vista del préstamo, el botón **Descargar PDF** genera el contrato del préstamo listo para imprimir o archivar. Disponible en los estados **Aprobado**, **Desembolsado** y **Pagado**.
 
 ## Límites y validaciones
 
@@ -119,4 +119,4 @@ La cuota mensual no puede superar el porcentaje del salario definido en **Ajuste
 
 ### Un préstamo activo por empleado
 
-Un empleado solo puede tener un préstamo en estado **Pendiente**, **Aprobado** o **Entregado** a la vez. El sistema bloquea la creación de un segundo préstamo si ya existe uno activo.
+Un empleado solo puede tener un préstamo en estado **Pendiente**, **Aprobado** o **Desembolsado** a la vez. El sistema bloquea la creación de un segundo préstamo si ya existe uno activo.
