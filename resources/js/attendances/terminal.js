@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ELEMENTOS DEL DOM
     // ============================================================================
     const screens = {
+        startGate:      document.getElementById("startGateScreen"),
         loading:        document.getElementById("loadingScreen"),
         idle:           document.getElementById("idleScreen"),
         typeSelection:  document.getElementById("typeSelectionScreen"),
@@ -569,10 +570,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-                const detection = await faceapi
-                    .detectSingleFace(video, tinyOptions)
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
+                // Detector liviano (mismo usado en presenceCheckLoop) — este loop corre cada
+                // 200ms solo para decidir el color del óvalo y si hay un rostro lo bastante
+                // grande para intentar capturar. No necesita landmarks ni el descriptor de 128
+                // dimensiones (eso lo calcula aparte captureDescriptor() cuando ya hay un rostro
+                // detectado) — encadenar .withFaceLandmarks().withFaceDescriptor() acá corría la
+                // extracción más pesada de face-api.js 5 veces por segundo sin usar el resultado,
+                // el principal cuello de botella de CPU/GPU en tablets de gama baja.
+                const detection = await faceapi.detectSingleFace(video, lightOptions);
 
                 // Limpiar canvas — sin dibujo de bounding box ni landmarks
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
@@ -587,7 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (detection) {
                         // Feedback inmediato si la cara está muy chica — evita intentos de captura
                         // que fallarían igual al final del ciclo de 5 muestras
-                        const box = detection.detection.box;
+                        const box = detection.box;
                         const tooSmall = box.width < MIN_FACE_SIZE || box.height < MIN_FACE_SIZE;
                         terminalState.faceDetected = !tooSmall;
                         setTerminalVideoState(tooSmall ? "detecting" : "face-found");
@@ -1284,7 +1289,27 @@ document.addEventListener("DOMContentLoaded", () => {
     // INICIALIZACIÓN
     // ============================================================================
     console.log("Terminal de marcación inicializado");
-    showScreen("loading");
+
+    // checkLegacyTerminalMigration() no depende de un gesto — es solo informativo,
+    // se ejecuta apenas carga la página sin esperar el toque de inicio.
     checkLegacyTerminalMigration();
-    initializeSystem();
+
+    // Pantalla de inicio ("Toque para comenzar"): el resto del sistema (cámara,
+    // reconocimiento, idle con auto-despertar por presencia) recién arranca
+    // después de un toque explícito. Ese primer toque del día es lo que habilita
+    // el beep de confirmación (Web Audio) para todas las marcaciones manos-libres
+    // que vengan después — sin él, el caso más común (empleado se acerca, se
+    // reconoce y se marca solo, sin tocar nada) queda sin ningún sonido de
+    // confirmación porque el navegador nunca autorizó el audio.
+    const btnStartGate = document.getElementById("btnStartGate");
+    if (btnStartGate) {
+        btnStartGate.addEventListener("click", () => {
+            showScreen("loading");
+            initializeSystem();
+        }, { once: true });
+    } else {
+        // Fallback defensivo si el botón no está en el DOM — no debería pasar.
+        showScreen("loading");
+        initializeSystem();
+    }
 });
