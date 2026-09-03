@@ -313,17 +313,24 @@ class AttendanceMarkFailure extends Model
         $date = $recordedAt->copy()->timezone(config('app.timezone'))->toDateString();
 
         return DB::transaction(function () use ($employee, $eventType, $recordedAt, $date, $approvedById, $notes) {
-            $day = AttendanceDay::firstOrCreate(
-                ['employee_id' => $employee->id, 'date' => $date],
-                ['status' => 'present']
+            // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si sigue
+            // abierta y la transición pedida solo tiene sentido ahí (turno nocturno que
+            // cruza medianoche). Ver AttendanceDay::resolveForEvent(). Sin esto, un
+            // checkout de turno nocturno rechazado por AttendanceFaceMarkController
+            // nunca podía aprobarse acá tampoco — volvía a fallar con el mismo motivo.
+            ['day' => $day, 'last' => $last, 'allowed' => $allowed] = AttendanceDay::resolveForEvent(
+                $employee,
+                $recordedAt,
+                $eventType,
+                lockForUpdate: true,
             );
 
-            $last = AttendanceEvent::where('attendance_day_id', $day->id)
-                ->lockForUpdate()
-                ->latest('recorded_at')
-                ->first();
-
-            $allowed = AttendanceEvent::allowedNextEventTypes($last?->event_type);
+            if (! $day) {
+                $day = AttendanceDay::firstOrCreate(
+                    ['employee_id' => $employee->id, 'date' => $date],
+                    ['status' => 'present']
+                );
+            }
 
             if (! in_array($eventType, $allowed, true)) {
                 $lastLabel = $last ? AttendanceEvent::getEventTypeLabel($last->event_type) : 'ninguno';

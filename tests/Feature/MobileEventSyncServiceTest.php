@@ -8,8 +8,12 @@ use App\Models\Contract;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
+use App\Models\Schedule;
+use App\Models\ScheduleBreak;
+use App\Models\ScheduleDay;
 use App\Models\User;
 use App\Services\MobileEventSyncService;
+use App\Services\ScheduleAssignmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 
@@ -50,6 +54,31 @@ function makeMobileSyncEmployee(): Employee
     ]);
 
     return $employee->fresh();
+}
+
+/** Asigna un horario fijo con descanso configurado los 7 días de la semana. */
+function assignMobileSyncBreakSchedule(Employee $employee): void
+{
+    $schedule = Schedule::create(['name' => 'Horario Mobile Sync Test', 'shift_type' => 'diurno', 'description' => null]);
+
+    foreach (range(1, 7) as $dayOfWeek) {
+        $day = ScheduleDay::create([
+            'schedule_id' => $schedule->id,
+            'day_of_week' => $dayOfWeek,
+            'is_active' => true,
+            'start_time' => '07:00',
+            'end_time' => '22:00',
+        ]);
+
+        ScheduleBreak::create([
+            'schedule_day_id' => $day->id,
+            'name' => 'Almuerzo',
+            'start_time' => '12:00',
+            'end_time' => '13:00',
+        ]);
+    }
+
+    ScheduleAssignmentService::assign($employee, $schedule, now()->subYear());
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -163,6 +192,7 @@ it('rechaza como conflict un evento cuya secuencia ya no es válida en el servid
 
 it('aprobar un conflicto mobile reconstruye el evento con source mobile', function () {
     $employee = makeMobileSyncEmployee();
+    assignMobileSyncBreakSchedule($employee);
     $service = app(MobileEventSyncService::class);
 
     // El check_in ya está en el servidor.
