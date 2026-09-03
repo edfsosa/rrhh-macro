@@ -17,8 +17,11 @@
  *
  * Stores:
  * - mobile_meta            — key/value: api_token, own_employee (id/nombre/CI/
- *                             descriptor), config de reconocimiento facial,
- *                             offset de reloj, timestamps de sync.
+ *                             descriptor/has_scheduled_break — este último
+ *                             usado para filtrar "Inicio de descanso" en la
+ *                             resolución local sin red, ver queue.js),
+ *                             config de reconocimiento facial, offset de
+ *                             reloj, timestamps de sync.
  * - outbound_events        — keyPath 'client_event_id': cola de marcaciones
  *                             capturadas localmente. `status`: 'pending'
  *                             (por sincronizar) | 'conflict' (el servidor la

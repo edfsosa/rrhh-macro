@@ -10,6 +10,9 @@
  *                             cursores de sync, config de reconocimiento facial.
  * - employees_cache        — keyPath 'id': empleados activos con descriptor
  *                             facial, scopeados a la sucursal del terminal.
+ *                             Incluye `has_scheduled_break` (ver
+ *                             applyBreakFlags()), usado para filtrar "Inicio
+ *                             de descanso" en la resolución local sin red.
  * - outbound_events        — keyPath 'client_event_id': cola de marcaciones
  *                             capturadas localmente. `status`: 'pending'
  *                             (por sincronizar) | 'conflict' (el servidor la
@@ -146,6 +149,12 @@ export async function getCachedEmployees() {
     return db.getAll('employees_cache');
 }
 
+/** @param {number} employeeId @returns {Promise<object|undefined>} */
+export async function getCachedEmployee(employeeId) {
+    const db = await getDb();
+    return db.get('employees_cache', employeeId);
+}
+
 /**
  * Aplica un delta de sincronización de empleados: upsert de los modificados,
  * borrado de los tombstones.
@@ -160,6 +169,29 @@ export async function applyEmployeesDelta(employees, tombstones) {
     }
     for (const id of tombstones) {
         await tx.store.delete(id);
+    }
+    await tx.done;
+}
+
+/**
+ * Aplica el mapa `has_scheduled_break` (id → bool) a los empleados YA
+ * cacheados — a diferencia de `applyEmployeesDelta()`, esto se recalcula
+ * completo en cada sync (ver EmployeeDescriptorSyncService::breakFlagsForBranch()),
+ * no solo para los que cambiaron, porque el valor depende del día calendario
+ * y de asignaciones de horario que no tocan el registro del empleado. Un id
+ * que todavía no está en la caché (recién sincronizado en el mismo lote) se
+ * ignora silenciosamente — ya llegó con el campo puesto vía `applyEmployeesDelta()`.
+ * @param {Record<number, boolean>} breakFlags
+ */
+export async function applyBreakFlags(breakFlags) {
+    const db = await getDb();
+    const tx = db.transaction('employees_cache', 'readwrite');
+    for (const [idStr, hasScheduledBreak] of Object.entries(breakFlags || {})) {
+        const id = Number(idStr);
+        const employee = await tx.store.get(id);
+        if (employee) {
+            await tx.store.put({ ...employee, has_scheduled_break: hasScheduledBreak });
+        }
     }
     await tx.done;
 }

@@ -17,6 +17,7 @@ import {
     queueEvent,
     getPendingEvents,
     getEventsForEmployeeOnDate,
+    getCachedEmployee,
     removeQueuedEvent,
     markQueuedEventConflict,
     incrementQueuedEventAttempts,
@@ -32,25 +33,36 @@ import { submitEvents, fetchEmployeeStatus } from './sync.js';
  * AttendanceEvent::allowedNextEventTypes() en el backend. Se necesita acá
  * (además de en el servidor) para poder resolver localmente qué botones
  * mostrar cuando no hay red para preguntarle al servidor.
+ *
+ * `hasScheduledBreak` (ver AttendanceCalculator::hasScheduledBreak() /
+ * `employees_cache[id].has_scheduled_break`, cacheado en cada sync de
+ * empleados) quita 'break_start' cuando el horario del empleado no
+ * contempla descanso — 'break_end' nunca se filtra así: si ya está en
+ * pausa, siempre debe poder cerrarla.
  * @param {string|null} lastEventType
+ * @param {boolean} [hasScheduledBreak] - default true (mismo comportamiento que antes si no se pasa).
  * @returns {string[]}
  */
-export function allowedNextEventTypes(lastEventType) {
-    switch (lastEventType) {
-        case null:
-        case undefined:
-            return ['check_in'];
-        case 'check_in':
-            return ['break_start', 'check_out'];
-        case 'break_start':
-            return ['break_end'];
-        case 'break_end':
-            return ['break_start', 'check_out'];
-        case 'check_out':
-            return [];
-        default:
-            return ['check_in'];
-    }
+export function allowedNextEventTypes(lastEventType, hasScheduledBreak = true) {
+    const allowed = (() => {
+        switch (lastEventType) {
+            case null:
+            case undefined:
+                return ['check_in'];
+            case 'check_in':
+                return ['break_start', 'check_out'];
+            case 'break_start':
+                return ['break_end'];
+            case 'break_end':
+                return ['break_start', 'check_out'];
+            case 'check_out':
+                return [];
+            default:
+                return ['check_in'];
+        }
+    })();
+
+    return hasScheduledBreak ? allowed : allowed.filter((event) => event !== 'break_start');
 }
 
 /**
@@ -73,35 +85,65 @@ function localDateString(date = new Date()) {
     return `${year}-${month}-${day}`;
 }
 
+/** @returns {string} Fecha local del día anterior a `date`, en formato YYYY-MM-DD. */
+function previousLocalDateString(date) {
+    return localDateString(new Date(date.getTime() - 24 * 60 * 60 * 1000));
+}
+
 /**
  * Resuelve el estado de marcación de un empleado para hoy, combinando:
  * 1) el último estado que el servidor confirmó (cacheado en la última
- *    consulta online exitosa), con
+ *    consulta online exitosa — no está scopeado por fecha, así que ya
+ *    refleja un turno nocturno si el check_in se sincronizó en línea antes
+ *    de quedar offline), con
  * 2) los eventos que este mismo terminal ya encoló hoy para ese empleado pero
  *    el servidor todavía no confirmó — para no repetir ni saltear pasos
  *    mientras está offline.
+ * 3) si ninguno de los dos anteriores aporta un evento de HOY, revisa si hay
+ *    una jornada de AYER encolada localmente (no sincronizada, capturada
+ *    offline de punta a punta) que sigue abierta (su último evento no es
+ *    check_out) — mismo criterio que AttendanceDay::resolveForEvent() en el
+ *    servidor, para que un check_in nocturno capturado sin red no deje al
+ *    empleado sin poder marcar la salida al cruzar la medianoche.
  * @param {number} employeeId
  * @returns {Promise<{last_event: string|null, last_event_time: string|null, allowed_events: string[]}>}
  */
 export async function resolveEmployeeStatus(employeeId) {
     const cached = await getEmployeeStatusCache(employeeId);
-    const today = localDateString(await correctedNow());
-    const localEvents = (await getEventsForEmployeeOnDate(employeeId, today))
+    const now = await correctedNow();
+    const today = localDateString(now);
+
+    const todayEvents = (await getEventsForEmployeeOnDate(employeeId, today))
         .filter((event) => event.status === 'pending') // los en conflicto no cuentan como "ya registrados"
         .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
 
     let lastEvent = cached?.last_event ?? null;
     let lastEventTime = cached?.last_event_time ?? null;
 
-    for (const event of localEvents) {
-        lastEvent = event.event_type;
-        lastEventTime = new Date(event.recorded_at).toTimeString().slice(0, 5);
+    if (todayEvents.length > 0) {
+        for (const event of todayEvents) {
+            lastEvent = event.event_type;
+            lastEventTime = new Date(event.recorded_at).toTimeString().slice(0, 5);
+        }
+    } else if (lastEvent === null) {
+        const yesterdayEvents = (await getEventsForEmployeeOnDate(employeeId, previousLocalDateString(now)))
+            .filter((event) => event.status === 'pending')
+            .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+
+        const lastYesterday = yesterdayEvents[yesterdayEvents.length - 1];
+        if (lastYesterday && lastYesterday.event_type !== 'check_out') {
+            lastEvent = lastYesterday.event_type;
+            lastEventTime = new Date(lastYesterday.recorded_at).toTimeString().slice(0, 5);
+        }
     }
+
+    const employee = await getCachedEmployee(employeeId);
+    const hasScheduledBreak = employee?.has_scheduled_break ?? true;
 
     return {
         last_event: lastEvent,
         last_event_time: lastEventTime,
-        allowed_events: allowedNextEventTypes(lastEvent),
+        allowed_events: allowedNextEventTypes(lastEvent, hasScheduledBreak),
     };
 }
 
@@ -153,10 +195,11 @@ export async function enqueueMark(employeeId, eventType) {
     // no tiene forma de saber que ya se registró (el caché queda con el
     // último estado confirmado ANTES de esta marcación) y vuelve a ofrecer
     // los mismos eventos permitidos que antes de marcar.
+    const employee = await getCachedEmployee(employeeId);
     await setEmployeeStatusCache(employeeId, {
         last_event: eventType,
         last_event_time: recordedAt.toTimeString().slice(0, 5),
-        allowed_events: allowedNextEventTypes(eventType),
+        allowed_events: allowedNextEventTypes(eventType, employee?.has_scheduled_break ?? true),
     });
 
     return { client_event_id: clientEventId, recorded_at: recordedAt.toISOString() };

@@ -8,11 +8,15 @@ use App\Models\Contract;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
+use App\Models\Schedule;
+use App\Models\ScheduleBreak;
+use App\Models\ScheduleDay;
 use App\Models\Terminal;
 use App\Models\User;
 use App\Notifications\MobileDeviceLinkedNotification;
 use App\Notifications\MobileDeviceRelinkedNotification;
 use App\Notifications\MobileLinkThrottledNotification;
+use App\Services\ScheduleAssignmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
@@ -57,6 +61,35 @@ function makeLinkableEmployee(array $overrides = []): Employee
     ]);
 
     return $employee->fresh();
+}
+
+/**
+ * Asigna un horario fijo con descanso configurado los 7 días de la semana —
+ * necesario para que AttendanceDay::resolveForEvent() ofrezca 'break_start'
+ * (ver AttendanceCalculator::hasScheduledBreak()).
+ */
+function giveEmployeeBreakSchedule(Employee $employee): void
+{
+    $schedule = Schedule::create(['name' => 'Horario Con Descanso', 'shift_type' => 'diurno', 'description' => null]);
+
+    foreach (range(1, 7) as $dayOfWeek) {
+        $day = ScheduleDay::create([
+            'schedule_id' => $schedule->id,
+            'day_of_week' => $dayOfWeek,
+            'is_active' => true,
+            'start_time' => '07:00',
+            'end_time' => '22:00',
+        ]);
+
+        ScheduleBreak::create([
+            'schedule_day_id' => $day->id,
+            'name' => 'Almuerzo',
+            'start_time' => '12:00',
+            'end_time' => '13:00',
+        ]);
+    }
+
+    ScheduleAssignmentService::assign($employee, $schedule, now()->subYear());
 }
 
 // ─── Vinculación (/vincular-dispositivo) ───────────────────────────────────────
@@ -238,6 +271,7 @@ it('status devuelve el último evento y los eventos permitidos para el propio em
  */
 it('status devuelve la lista completa de eventos de hoy, no solo el último', function () {
     $employee = makeLinkableEmployee();
+    giveEmployeeBreakSchedule($employee);
     Sanctum::actingAs($employee, [Employee::MOBILE_SYNC_ABILITY]);
 
     $this->postJson('/api/v1/mobile/events/sync', [

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttendanceDay;
-use App\Models\AttendanceEvent;
 use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
 use App\Models\Terminal;
@@ -160,20 +159,14 @@ class AttendanceFaceMarkController extends Controller
             }
 
             // CORRECCIÓN 5: Usar timezone de la aplicación
-            $today = Carbon::now(config('app.timezone'))->toDateString();
+            $now = Carbon::now(config('app.timezone'));
 
-            $day = AttendanceDay::where('employee_id', $employee->id)
-                ->where('date', $today)
-                ->first();
-
-            $last = null;
-            if ($day) {
-                $last = AttendanceEvent::where('attendance_day_id', $day->id)
-                    ->latest('recorded_at')
-                    ->first();
-            }
-
-            $allowed = $this->allowedNextEvents($last?->event_type);
+            // Considera una posible jornada nocturna del día anterior todavía abierta
+            // (ej: entrada 17:00 → todavía sin salida pasada la medianoche) — ver
+            // AttendanceDay::currentStateFor().
+            $state = AttendanceDay::currentStateFor($employee, $now);
+            $last = $state['last'];
+            $allowed = $state['allowed'];
 
             $photoUrl = $employee->photo
                 ? Storage::url($employee->photo)
@@ -326,7 +319,8 @@ class AttendanceFaceMarkController extends Controller
         }
 
         // CORRECCIÓN 8: Usar timezone de la aplicación
-        $today = Carbon::now(config('app.timezone'))->toDateString();
+        $now = Carbon::now(config('app.timezone'));
+        $today = $now->toDateString();
 
         // Captura de fallos que ocurren dentro de la transacción.
         // recordFailure() NO puede llamarse dentro de DB::transaction() porque el INSERT
@@ -334,25 +328,29 @@ class AttendanceFaceMarkController extends Controller
         $pendingFailure = null;
 
         try {
-            $result = DB::transaction(function () use ($employee, $today, $data, $location, $terminal, &$pendingFailure) {
-                // Asegurar AttendanceDay del día (firstOrCreate es atómico)
-                $day = AttendanceDay::firstOrCreate(
-                    ['employee_id' => $employee->id, 'date' => $today],
-                    ['status' => 'present']
+            $result = DB::transaction(function () use ($employee, $today, $now, $data, $location, $terminal, &$pendingFailure) {
+                // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si
+                // sigue abierta y la transición pedida solo tiene sentido ahí (turno
+                // nocturno que cruza medianoche). Ver AttendanceDay::resolveForEvent().
+                ['day' => $day, 'last' => $last, 'allowed' => $allowed] = AttendanceDay::resolveForEvent(
+                    $employee,
+                    $now,
+                    $data['event_type'],
+                    lockForUpdate: true,
                 );
+
+                // Ninguna jornada existente permite la transición pedida — abrir la de hoy.
+                if (! $day) {
+                    $day = AttendanceDay::firstOrCreate(
+                        ['employee_id' => $employee->id, 'date' => $today],
+                        ['status' => 'present']
+                    );
+                }
 
                 // Si existe y el status no es 'present', actualizarlo
                 if ($day->status !== 'present') {
                     $day->update(['status' => 'present']);
                 }
-
-                // Bloquear lectura del último evento para evitar condiciones de carrera
-                $last = AttendanceEvent::where('attendance_day_id', $day->id)
-                    ->lockForUpdate()
-                    ->latest('recorded_at')
-                    ->first();
-
-                $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (! in_array($data['event_type'], $allowed, true)) {
                     Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name}: evento '{$data['event_type']}' no permitido (último: ".($last ? $last->event_type : 'ninguno').')', [
@@ -664,25 +662,6 @@ class AttendanceFaceMarkController extends Controller
         }
 
         return $distance;
-    }
-
-    /**
-     * Reglas de transición válidas — delega a AttendanceEvent::allowedNextEventTypes(),
-     * compartida con AttendanceEventSyncService (sync de terminales offline) para no
-     * duplicar la máquina de estados en dos lugares.
-     */
-    protected function allowedNextEvents(?string $last): array
-    {
-        // CORRECCIÓN 20: Validar tipos de eventos conocidos
-        $validEventTypes = ['check_in', 'break_start', 'break_end', 'check_out'];
-
-        if ($last !== null && ! in_array($last, $validEventTypes, true)) {
-            Log::warning("Tipo de evento desconocido encontrado: {$last}");
-
-            return ['check_in']; // Fallback seguro
-        }
-
-        return AttendanceEvent::allowedNextEventTypes($last);
     }
 
     /** Traducciones de tipos de eventos a español */

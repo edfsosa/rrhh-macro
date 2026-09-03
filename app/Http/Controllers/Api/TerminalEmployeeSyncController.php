@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceDay;
-use App\Models\AttendanceEvent;
 use App\Models\Employee;
 use App\Models\Terminal;
 use App\Services\EmployeeDescriptorSyncService;
@@ -75,18 +74,18 @@ class TerminalEmployeeSyncController extends Controller
             ], 404);
         }
 
-        $today = now(config('app.timezone'))->toDateString();
+        $now = Carbon::now(config('app.timezone'));
 
-        $day = AttendanceDay::where('employee_id', $employee->id)->where('date', $today)->first();
-        $last = $day
-            ? AttendanceEvent::where('attendance_day_id', $day->id)->latest('recorded_at')->first()
-            : null;
+        // Mismo criterio que AttendanceFaceMarkController::identify() — considera una
+        // posible jornada nocturna del día anterior todavía abierta y filtra
+        // 'break_start' si el horario del empleado no contempla descanso.
+        $state = AttendanceDay::currentStateFor($employee, $now);
 
         return response()->json([
             'ok' => true,
-            'last_event' => $last?->event_type,
-            'last_event_time' => $last?->recorded_at?->format('H:i'),
-            'allowed_events' => AttendanceEvent::allowedNextEventTypes($last?->event_type),
+            'last_event' => $state['last']?->event_type,
+            'last_event_time' => $state['last']?->recorded_at?->format('H:i'),
+            'allowed_events' => $state['allowed'],
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AttendanceCalculator;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -91,6 +92,133 @@ class AttendanceDay extends Model implements Auditable
     public function events(): HasMany
     {
         return $this->hasMany(AttendanceEvent::class);
+    }
+
+    /**
+     * Resuelve a qué jornada (AttendanceDay) debe asociarse un evento entrante,
+     * soportando turnos que cruzan medianoche (ej: entrada 17:00 → salida 01:00
+     * del día siguiente).
+     *
+     * Primero intenta la jornada del día calendario de `$recordedAt`. Si la
+     * transición pedida no es válida ahí (típicamente porque esa jornada no
+     * tiene marcaciones todavía), revisa la jornada del día calendario
+     * anterior: si sigue abierta (su último evento no es `check_out`) y la
+     * transición pedida sí es válida para ella, el evento continúa esa
+     * jornada en lugar de abrir una nueva. Nunca mira más de un día hacia
+     * atrás — una jornada abierta de hace 2+ días requiere revisión manual
+     * (ver `attendance:check-missing`), no se reabre automáticamente.
+     *
+     * "Inicio de descanso" además solo se considera válido si el turno/horario
+     * efectivo del empleado para el día en cuestión tiene un descanso
+     * configurado (ver `AttendanceCalculator::hasScheduledBreak()`) — "Fin de
+     * descanso" nunca se filtra así: si el empleado ya está en pausa, siempre
+     * puede cerrarla.
+     *
+     * @return array{day: ?self, last: ?AttendanceEvent, allowed: array<int, string>} `day` es null cuando debe crearse una jornada nueva para hoy (ninguna de las dos jornadas permite la transición pedida, o la de hoy sí la permite pero aún no existe). `allowed` ya viene filtrado por horario/descanso — usarlo para la validación final en el caller, no recalcular con AttendanceEvent::allowedNextEventTypes() directamente.
+     */
+    public static function resolveForEvent(Employee $employee, Carbon $recordedAt, string $requestedEventType, bool $lockForUpdate = false): array
+    {
+        $resolveLast = function (?self $day) use ($lockForUpdate) {
+            if (! $day) {
+                return null;
+            }
+
+            $query = AttendanceEvent::where('attendance_day_id', $day->id)->latest('recorded_at');
+
+            return $lockForUpdate ? $query->lockForUpdate()->first() : $query->first();
+        };
+
+        $today = static::where('employee_id', $employee->id)->where('date', $recordedAt->toDateString())->first();
+        $todayLast = $resolveLast($today);
+        $todayAllowed = static::filterAllowedByBreakSchedule(
+            AttendanceEvent::allowedNextEventTypes($todayLast?->event_type),
+            $employee,
+            $recordedAt
+        );
+
+        if (in_array($requestedEventType, $todayAllowed, true)) {
+            return ['day' => $today, 'last' => $todayLast, 'allowed' => $todayAllowed];
+        }
+
+        $yesterdayDate = $recordedAt->copy()->subDay();
+        $yesterday = static::where('employee_id', $employee->id)
+            ->where('date', $yesterdayDate->toDateString())
+            ->first();
+        $yesterdayLast = $resolveLast($yesterday);
+        $yesterdayAllowed = $yesterdayLast
+            ? static::filterAllowedByBreakSchedule(AttendanceEvent::allowedNextEventTypes($yesterdayLast->event_type), $employee, $yesterdayDate)
+            : [];
+
+        if ($yesterdayLast
+            && $yesterdayLast->event_type !== 'check_out'
+            && in_array($requestedEventType, $yesterdayAllowed, true)
+        ) {
+            return ['day' => $yesterday, 'last' => $yesterdayLast, 'allowed' => $yesterdayAllowed];
+        }
+
+        return ['day' => $today, 'last' => $todayLast, 'allowed' => $todayAllowed];
+    }
+
+    /**
+     * Quita 'break_start' del listado de transiciones permitidas si el turno del
+     * empleado para esa fecha no tiene descanso configurado. 'break_end' nunca
+     * se filtra — si ya empezó la pausa, siempre debe poder cerrarla.
+     *
+     * @param  array<int, string>  $allowed
+     * @return array<int, string>
+     */
+    private static function filterAllowedByBreakSchedule(array $allowed, Employee $employee, Carbon $date): array
+    {
+        if (! in_array('break_start', $allowed, true)) {
+            return $allowed;
+        }
+
+        if (AttendanceCalculator::hasScheduledBreak($employee, $date)) {
+            return $allowed;
+        }
+
+        return array_values(array_diff($allowed, ['break_start']));
+    }
+
+    /**
+     * Estado informativo (sin persistir nada) usado por `identify()` para mostrar
+     * al empleado qué puede marcar ahora, considerando una posible jornada
+     * nocturna del día anterior que sigue abierta. `allowed` es la unión de lo
+     * que permitiría continuar hoy y lo que permitiría cerrar/continuar esa
+     * jornada de ayer — refleja exactamente lo que `resolveForEvent()`
+     * aceptaría, sin decidir todavía a qué jornada se asociará.
+     *
+     * @return array{last: ?AttendanceEvent, allowed: array<int, string>}
+     */
+    public static function currentStateFor(Employee $employee, Carbon $recordedAt): array
+    {
+        $today = static::where('employee_id', $employee->id)->where('date', $recordedAt->toDateString())->first();
+        $todayLast = $today ? AttendanceEvent::where('attendance_day_id', $today->id)->latest('recorded_at')->first() : null;
+
+        $yesterdayDate = $recordedAt->copy()->subDay();
+        $yesterday = static::where('employee_id', $employee->id)
+            ->where('date', $yesterdayDate->toDateString())
+            ->first();
+        $yesterdayLast = $yesterday ? AttendanceEvent::where('attendance_day_id', $yesterday->id)->latest('recorded_at')->first() : null;
+
+        $overnightOpen = $yesterdayLast && $yesterdayLast->event_type !== 'check_out';
+
+        $allowed = static::filterAllowedByBreakSchedule(
+            AttendanceEvent::allowedNextEventTypes($todayLast?->event_type),
+            $employee,
+            $recordedAt
+        );
+        if ($overnightOpen) {
+            $allowed = array_values(array_unique(array_merge(
+                $allowed,
+                static::filterAllowedByBreakSchedule(AttendanceEvent::allowedNextEventTypes($yesterdayLast->event_type), $employee, $yesterdayDate)
+            )));
+        }
+
+        return [
+            'last' => $todayLast ?? ($overnightOpen ? $yesterdayLast : null),
+            'allowed' => $allowed,
+        ];
     }
 
     /**

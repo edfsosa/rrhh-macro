@@ -138,17 +138,22 @@ class AttendanceEventSyncService
         Carbon $recordedAt,
         string $date,
     ): array {
-        $day = AttendanceDay::firstOrCreate(
-            ['employee_id' => $employee->id, 'date' => $date],
-            ['status' => 'present']
+        // Resuelve a qué jornada asociar el evento — la de hoy, o la de ayer si sigue
+        // abierta y la transición pedida solo tiene sentido ahí (turno nocturno que
+        // cruza medianoche). Ver AttendanceDay::resolveForEvent().
+        ['day' => $day, 'last' => $last, 'allowed' => $allowed] = AttendanceDay::resolveForEvent(
+            $employee,
+            $recordedAt,
+            $eventData['event_type'],
+            lockForUpdate: true,
         );
 
-        $last = AttendanceEvent::where('attendance_day_id', $day->id)
-            ->lockForUpdate()
-            ->latest('recorded_at')
-            ->first();
-
-        $allowed = AttendanceEvent::allowedNextEventTypes($last?->event_type);
+        if (! $day) {
+            $day = AttendanceDay::firstOrCreate(
+                ['employee_id' => $employee->id, 'date' => $date],
+                ['status' => 'present']
+            );
+        }
 
         if (! in_array($eventData['event_type'], $allowed, true)) {
             Log::warning("Sync de terminal — evento '{$eventData['event_type']}' ya no es válido para el empleado {$employee->id} (último registrado: ".($last->event_type ?? 'ninguno').')', [
