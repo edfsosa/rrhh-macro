@@ -702,6 +702,76 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
 /* Botón cancelar — OCULTO */
 .terminal-btn.terminal-btn-secondary { display: none !important; }
 
+/* Link "¿No te reconoce? Buscar por CI" — aparece tras varios intentos fallidos */
+.manual-search-link {
+    background: none; border: none; cursor: pointer;
+    font-size: .8125rem; font-weight: 600;
+    color: var(--c-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: var(--sp-2);
+    align-self: center;
+}
+.manual-search-link:hover { color: var(--c-primary); }
+
+/* ============================================================
+   OVERLAY DE BÚSQUEDA MANUAL POR CI
+   ============================================================ */
+.manual-search-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--sp-4);
+    background: rgba(15,23,42,.55);
+    backdrop-filter: blur(2px);
+}
+.manual-search-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-3xl);
+    box-shadow: var(--sh-xl);
+    padding: var(--sp-8);
+    width: min(100%, 460px);
+    max-height: 85vh;
+    display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.manual-search-title { font-size: 1.25rem; font-weight: 700; color: var(--c-text); }
+.manual-search-subtitle { font-size: .8125rem; color: var(--c-muted); margin-top: calc(-1 * var(--sp-2)); }
+.manual-search-input {
+    width: 100%;
+    font-size: 1.125rem;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--c-border-s);
+    border-radius: var(--r-lg);
+    background: var(--c-bg);
+    color: var(--c-text);
+}
+.manual-search-input:focus { outline: 2px solid var(--c-primary); outline-offset: 1px; }
+
+.manual-search-results {
+    display: flex; flex-direction: column; gap: var(--sp-2);
+    overflow-y: auto;
+    max-height: 40vh;
+}
+.manual-search-result {
+    display: flex; align-items: center; gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    background: var(--c-bg);
+    cursor: pointer;
+    text-align: left;
+    font: inherit; color: inherit;
+}
+.manual-search-result:hover { border-color: var(--c-primary); background: var(--c-primary-bg); }
+.manual-search-result img {
+    width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+    background: var(--c-border);
+}
+.manual-search-result-name { font-weight: 600; color: var(--c-text); font-size: .9375rem; }
+.manual-search-result-ci { font-size: .8125rem; color: var(--c-muted); }
+
+.manual-search-empty { font-size: .875rem; color: var(--c-muted); text-align: center; padding: var(--sp-4) 0; }
+
 
 /* SVG dentro del icono de tipo */
 .type-icon svg { width: 22px; height: 22px; flex-shrink: 0; }
