@@ -53,6 +53,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnReload      = document.getElementById("btnReload");
     const btnThemeToggle = document.getElementById("btnThemeToggle");
 
+    // Búsqueda manual por CI (fallback cuando el reconocimiento facial falla seguido)
+    const btnManualSearch       = document.getElementById("btnManualSearch");
+    const manualSearchOverlay   = document.getElementById("manualSearchOverlay");
+    const manualSearchInput     = document.getElementById("manualSearchInput");
+    const manualSearchResults   = document.getElementById("manualSearchResults");
+    const manualSearchEmpty     = document.getElementById("manualSearchEmpty");
+    const btnManualSearchCancel = document.getElementById("btnManualSearchCancel");
+
     // Day complete screen elements
     const dayCompleteEmployeePhoto  = document.getElementById("dayCompleteEmployeePhoto");
     const dayCompleteEmployeeName   = document.getElementById("dayCompleteEmployeeName");
@@ -126,6 +134,8 @@ document.addEventListener("DOMContentLoaded", () => {
         isIdle:                 false,
         userHasInteracted:      false,  // vibración solo permitida tras gesto del usuario
         backgroundSyncStarted:  false,  // evita registrar los setInterval de sync más de una vez
+        consecutiveFailures:    0,      // intentos de reconocimiento fallidos seguidos — habilita la búsqueda manual por CI
+        manualCandidate:        null,   // empleado elegido en la búsqueda manual — acota identifyEmployee() a un único candidato
     };
 
     const tinyOptions  = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 });
@@ -133,6 +143,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     /** Tamaño mínimo de rostro en píxeles para aceptar una detección (drawLoop y captureDescriptor) */
     const MIN_FACE_SIZE = 100;
+
+    /** Intentos de reconocimiento fallidos seguidos antes de ofrecer la búsqueda manual por CI. */
+    const CONSECUTIVE_FAILURES_FOR_MANUAL_SEARCH = 2;
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -344,6 +357,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     function startIdentificationFlow() {
         resetIdleTimer();
+        // Cada vez que arranca un ciclo de identificación nuevo (nuevo empleado frente a
+        // la cámara) se vuelve al reconocimiento contra todos los candidatos — el estado
+        // de la búsqueda manual del empleado anterior no debe seguir acotando el match.
+        terminalState.consecutiveFailures = 0;
+        terminalState.manualCandidate = null;
+        hideManualSearchLink();
+        closeManualSearch();
         showScreen("identification");
         startAutoIdentification();
         setTerminalVideoState("detecting");
@@ -660,7 +680,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 return { ok: false, message: "Terminal sincronizando por primera vez, espere un momento." };
             }
 
-            const candidates = await getCachedEmployees();
+            // Si el empleado se identificó por la búsqueda manual de CI, acotar el match a
+            // ese único candidato — con un solo candidato, matchDescriptor() ya omite el
+            // chequeo de "gap" contra un segundo mejor (no aplica con N=1), pero el rostro
+            // capturado igual tiene que superar el umbral de distancia normal contra ESE
+            // descriptor: la búsqueda manual ayuda a encontrarse en la lista, no reemplaza
+            // la verificación facial.
+            const candidates = terminalState.manualCandidate
+                ? [terminalState.manualCandidate]
+                : await getCachedEmployees();
             const { employee, distance, reason } = matchDescriptor(descriptor, candidates, threshold, minGap);
 
             if (!employee) {
@@ -741,6 +769,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 if (result.ok && result.employee) {
+                    terminalState.consecutiveFailures = 0;
+                    terminalState.manualCandidate = null;
+                    hideManualSearchLink();
+
                     if (terminalState.userHasInteracted) navigator.vibrate?.(80);
                     stopAutoIdentification();
 
@@ -773,6 +805,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     setIdStatusDot("detecting");
                     updateStatus("Rostro no reconocido. Mantenga el rostro quieto frente a la cámara.");
                     console.log("No se pudo identificar");
+
+                    // Tras varios intentos fallidos seguidos, ofrecer la búsqueda manual por CI
+                    // en vez de dejar al empleado atrapado repitiendo el mismo intento sin salida.
+                    terminalState.consecutiveFailures++;
+                    if (terminalState.consecutiveFailures >= CONSECUTIVE_FAILURES_FOR_MANUAL_SEARCH) {
+                        showManualSearchLink();
+                    }
                 }
             } catch (error) {
                 await finishCaptureProgress("error");
@@ -790,6 +829,99 @@ document.addEventListener("DOMContentLoaded", () => {
             terminalState.identifyInterval = null;
         }
         stopCamera();
+    }
+
+    // ============================================================================
+    // BÚSQUEDA MANUAL POR CI — fallback cuando el reconocimiento facial falla seguido
+    // ============================================================================
+    /**
+     * NO reemplaza la verificación facial: elegir un candidato acá solo acota
+     * identifyEmployee() a esa única persona (ver terminalState.manualCandidate) — la
+     * cámara sigue activa y el empleado igual tiene que superar el umbral de distancia
+     * normal contra ese descriptor específico antes de que se registre cualquier marcación.
+     */
+    const MAX_MANUAL_SEARCH_RESULTS = 8;
+
+    function showManualSearchLink() {
+        if (btnManualSearch) btnManualSearch.classList.remove("hidden");
+    }
+
+    function hideManualSearchLink() {
+        if (btnManualSearch) btnManualSearch.classList.add("hidden");
+    }
+
+    function openManualSearch() {
+        if (!manualSearchOverlay) return;
+        manualSearchOverlay.classList.remove("hidden");
+        if (manualSearchInput) {
+            manualSearchInput.value = "";
+            manualSearchInput.focus();
+        }
+        renderManualSearchResults("");
+    }
+
+    function closeManualSearch() {
+        if (manualSearchOverlay) manualSearchOverlay.classList.add("hidden");
+    }
+
+    async function renderManualSearchResults(query) {
+        if (!manualSearchResults) return;
+        manualSearchResults.innerHTML = "";
+
+        const digits = (query || "").trim();
+        if (digits.length < 2) {
+            if (manualSearchEmpty) manualSearchEmpty.classList.add("hidden");
+            return;
+        }
+
+        const candidates = await getCachedEmployees();
+        const matches = candidates
+            .filter((employee) => employee.ci && String(employee.ci).includes(digits))
+            .slice(0, MAX_MANUAL_SEARCH_RESULTS);
+
+        if (manualSearchEmpty) manualSearchEmpty.classList.toggle("hidden", matches.length > 0);
+
+        matches.forEach((employee) => {
+            const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || "Empleado";
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "manual-search-result";
+            item.setAttribute("role", "option");
+            item.innerHTML = `
+                <img src="${employee.photo_thumbnail || "/images/default-avatar.png"}" alt="" aria-hidden="true">
+                <span>
+                    <span class="manual-search-result-name">${fullName}</span><br>
+                    <span class="manual-search-result-ci">CI: ${employee.ci}</span>
+                </span>
+            `;
+            item.addEventListener("click", () => selectManualCandidate(employee));
+            manualSearchResults.appendChild(item);
+        });
+    }
+
+    function selectManualCandidate(employee) {
+        terminalState.manualCandidate = employee;
+        terminalState.consecutiveFailures = 0;
+        hideManualSearchLink();
+        closeManualSearch();
+        updateStatus(`Mirá la cámara para confirmar que sos ${employee.first_name || "vos"}...`);
+    }
+
+    if (btnManualSearch) {
+        btnManualSearch.addEventListener("click", openManualSearch);
+    }
+    if (btnManualSearchCancel) {
+        btnManualSearchCancel.addEventListener("click", closeManualSearch);
+    }
+    if (manualSearchOverlay) {
+        manualSearchOverlay.addEventListener("click", (event) => {
+            if (event.target === manualSearchOverlay) closeManualSearch();
+        });
+    }
+    if (manualSearchInput) {
+        manualSearchInput.addEventListener("input", (event) => {
+            renderManualSearchResults(event.target.value);
+        });
     }
 
     // ============================================================================
