@@ -70,14 +70,14 @@ Los departamentos agrupan cargos dentro de una empresa. Cada empresa define sus 
 
 Los cargos (puestos de trabajo) pertenecen a un departamento. Pueden organizarse en jerarquía (un cargo puede tener un cargo superior).
 
-**Campos:** nombre, departamento, cargo superior (opcional para organigrama).
+**Campos:** nombre, departamento, **Reporta a** (cargo superior, opcional — define la jerarquía del organigrama).
 
 **Cómo crear un cargo:**
 
 1. Ir a **Organización → Cargos**
 2. Clic en **Nuevo cargo**
 3. Seleccionar el departamento e ingresar el nombre del cargo
-4. Si corresponde, seleccionar el **cargo superior** para construir la jerarquía del organigrama
+4. Si corresponde, seleccionar en **Reporta a** el cargo superior para construir la jerarquía del organigrama
 5. Guardar
 
 > Departamentos y cargos también pueden crearse directamente desde el formulario de contrato del empleado, sin salir de la pantalla.
@@ -89,4 +89,4 @@ Los cargos (puestos de trabajo) pertenecen a un departamento. Pueden organizarse
 El organigrama se genera automáticamente a partir de la jerarquía de cargos. Para verlo o descargarlo en PDF:
 
 1. Abrir la empresa en **Organización → Empresas**
-2. Usar la acción **Ver organigrama** en el encabezado de la página
+2. Usar la acción **Organigrama** en el encabezado de la página (también disponible como acción de fila desde el listado de empresas)
