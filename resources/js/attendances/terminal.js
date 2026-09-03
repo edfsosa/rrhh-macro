@@ -395,6 +395,34 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    /**
+     * Si esta página es /terminal (legacy, sin código) y el dispositivo ya tiene un
+     * terminal_code guardado en IndexedDB de una provisión anterior, muestra un banner
+     * con el link directo a /terminal/{code} — evita depender de que alguien busque el
+     * código en Filament para migrar el acceso guardado del dispositivo. No requiere
+     * red (el código ya vive localmente) ni bloquea el resto de la inicialización.
+     */
+    async function checkLegacyTerminalMigration() {
+        if (window.terminalData) return; // ya estamos en /terminal/{code}, nada que migrar
+
+        const banner = document.getElementById("legacyMigrationBanner");
+        const link = document.getElementById("legacyMigrationLink");
+        if (!banner || !link) return;
+
+        try {
+            const code = await getMeta("terminal_code");
+            if (!code) return;
+
+            const url = `${window.location.origin}/terminal/${code}`;
+            link.href = url;
+            link.textContent = url;
+            banner.classList.add("is-visible");
+            banner.setAttribute("aria-hidden", "false");
+        } catch (error) {
+            console.warn("No se pudo verificar el código de terminal guardado localmente:", error);
+        }
+    }
+
     async function initializeSystem() {
         try {
             updateLoadingProgress(10, "Verificando compatibilidad del navegador...", 1);
@@ -1257,5 +1285,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // ============================================================================
     console.log("Terminal de marcación inicializado");
     showScreen("loading");
+    checkLegacyTerminalMigration();
     initializeSystem();
 });
