@@ -18,26 +18,28 @@ Las ausencias registran los días en que un empleado no asistió sin justificaci
 
 1. Ir a **Empleados → Ausencias**
 2. Clic sobre la ausencia a revisar
-3. Desde el detalle, opciones disponibles según estado:
+3. Desde el detalle, según el estado actual, están disponibles:
 
-| Acción | Cuándo | Qué hace |
-|--------|--------|----------|
-| **Registrar asistencia** | Estado Pendiente | El empleado sí estuvo presente pero no marcó — crea las marcaciones y justifica la ausencia automáticamente |
-| **Justificar** | Estado Pendiente o Injustificada | El empleado no estuvo pero tiene razón válida — vincula un permiso aprobado que cubra la fecha |
-| **Marcar como injustificada** | Estado Pendiente | Confirma la ausencia sin justificación — genera deducción salarial automática |
+| Acción | Disponible desde | Qué hace |
+|--------|-------------------|----------|
+| **Registrar asistencia** | Pendiente o Injustificada | El empleado sí estuvo presente pero no marcó — crea las marcaciones y justifica la ausencia automáticamente (si había una deducción generada, se elimina) |
+| **Justificar** | Pendiente o Injustificada | El empleado no estuvo pero tiene razón válida — vincula (o crea) un permiso que cubra la fecha |
+| **Marcar Injustificada** | Pendiente o Justificada | Confirma la ausencia sin justificación y genera la deducción salarial |
+
+> Estas acciones son **reversibles entre sí**: por ejemplo, una ausencia ya marcada como Injustificada puede pasarse a Justificada, y en ese caso el sistema elimina automáticamente la deducción que había generado.
 
 ---
 
-## Justificar una ausencia manualmente
+## Justificar una ausencia
 
-Al justificar una ausencia es obligatorio vincularla a un **permiso aprobado** (Licencia) que cubra esa fecha. Si no existe ninguno, el sistema lo indica y deshabilita el campo.
+Al hacer clic en **Justificar**, el modal ofrece dos formas de resolver la ausencia:
 
-1. Abrir la ausencia y clic en **Justificar**
-2. En el modal, seleccionar el permiso aprobado correspondiente
-3. Agregar notas si aplica
-4. Confirmar
+- **Vincular a permiso ya existente** — si el empleado ya tiene un permiso **aprobado** que cubre esa fecha, se elige de la lista (el sistema los precarga automáticamente).
+- **Crear permiso nuevo ahora** — si no existe ninguno, se puede cargar uno en el momento sin salir del modal: tipo de permiso, fecha de fin (por defecto el mismo día) y motivo opcional. Al confirmar, el sistema crea el permiso, lo aprueba automáticamente y justifica la ausencia (y cualquier otra ausencia del mismo período que quede cubierta).
 
-> Para más información sobre permisos y licencias ver el capítulo **Permisos y Licencias**.
+> Si el empleado no tiene permisos aprobados para la fecha, el modal preselecciona automáticamente el modo "Crear permiso nuevo ahora".
+
+Para más información sobre permisos y licencias ver el capítulo **Permisos y Licencias**.
 
 ---
 
@@ -54,9 +56,24 @@ El descuento se aplica automáticamente en la siguiente nómina del empleado.
 
 ---
 
+## Acciones masivas y creación manual
+
+Desde el listado, seleccionando varias ausencias con el checkbox, están disponibles:
+
+- **Justificar seleccionadas** — justifica en bloque (requiere que cada una tenga cómo justificarse).
+- **Marcar injustificadas** — marca en bloque y genera las deducciones correspondientes.
+
+El listado también tiene pestañas para filtrar rápido: **Todas**, **Pendientes**, **Justificadas**, **Injustificadas**.
+
+**Nueva Ausencia** (botón del encabezado): permite crear manualmente el registro de ausencia para un día que el sistema ya marcó como ausente (`AttendanceDay` en estado "ausente") pero que todavía no tiene un registro de `Absence` asociado — un caso excepcional de limpieza de datos, no la forma normal en que se generan las ausencias.
+
+---
+
 ## Reporte de ausencias
 
-Ir a **Asistencias → Reportes de Asistencia**, pestaña **Ausencias**, para ver un resumen por período con:
+Ir a **Reportes → Reporte de Asistencia**, pestaña **Ausencias** (comparte pantalla con las pestañas Asistencias y Horas Extras y Tardanzas, con los mismos filtros de período, empresa, sucursal y departamento), para ver un resumen por período con:
 - Total de ausencias por empleado
 - Ausencias justificadas vs. injustificadas
 - Monto total de descuentos generados
+
+Desde ahí también se puede exportar el detalle y el resumen a Excel.
