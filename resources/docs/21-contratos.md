@@ -11,10 +11,11 @@ El módulo de contratos gestiona el ciclo de vida laboral de cada empleado, desd
 | **Borrador** | Creado pero no activado. Puede editarse o eliminarse. No genera nómina. |
 | **Vigente** | Contrato activo. El empleado participa en nómina normalmente. |
 | **Suspendido** | Contrato pausado temporalmente. Percepciones y deducciones desactivadas. |
-| **Por vencer** | Contrato vigente con fecha de fin próxima (según los días configurados en Ajustes). |
 | **Vencido** | La fecha de fin fue alcanzada. El empleado queda inactivo automáticamente. |
 | **Terminado** | Rescindido manualmente. El empleado queda inactivo automáticamente. |
 | **Renovado** | Reemplazado por un nuevo contrato. Estado final sin acciones disponibles. |
+
+> **"Por vencer" no es un estado real almacenado** — es una vista/filtro que muestra los contratos **Vigentes** cuya fecha de fin cae dentro de los días configurados en Ajustes Generales (`contract_alert_days`). El contrato sigue estando en estado Vigente hasta que vence de verdad.
 
 ---
 
@@ -24,10 +25,12 @@ El módulo de contratos gestiona el ciclo de vida laboral de cada empleado, desd
 2. Clic en **Nuevo Contrato**
 3. Completar los datos: empleado, tipo, fechas, salario, cargo, modalidad de trabajo
 4. Elegir cómo guardar:
-   - **Crear y activar** — el contrato queda Vigente de inmediato
+   - **Crear** — el contrato queda Vigente de inmediato
    - **Guardar borrador y previsualizar** — queda en Borrador para revisar el PDF antes de activar
 
-> Solo se muestran empleados activos sin contrato vigente o en borrador.
+> Solo se muestran empleados activos sin contrato vigente o en borrador. El sistema también valida esto al guardar: si el empleado ya tiene un contrato Vigente, bloquea la creación.
+
+> **Art. 53 CLT — duración máxima:** los contratos de tipo **Por Plazo Determinado** y **De Aprendizaje** no pueden exceder 1 año entre la fecha de inicio y la de fin — el sistema lo valida y bloquea el guardado si se excede.
 
 ---
 
@@ -36,10 +39,10 @@ El módulo de contratos gestiona el ciclo de vida laboral de cada empleado, desd
 | Tipo | Descripción |
 |------|-------------|
 | **Por Tiempo Indefinido** | Sin fecha de fin. No tiene vencimiento automático. |
-| **A Plazo Fijo** | Con fecha de fin obligatoria. Art. 53 CLT: máximo 2 renovaciones antes de convertirse en indefinido. |
+| **Por Plazo Determinado** | Con fecha de fin obligatoria, máximo 1 año (Art. 53 CLT). La segunda renovación se convierte automáticamente en Indefinido. |
 | **Por Obra Determinada** | Vigente hasta completar la obra indicada. |
-| **De Aprendizaje** | Para formación profesional. |
-| **De Pasantía** | Para prácticas estudiantiles. |
+| **De Aprendizaje** | Para formación profesional. Máximo 1 año, igual que Plazo Determinado. |
+| **Pasantía** | Para prácticas estudiantiles. |
 
 ---
 
@@ -62,11 +65,13 @@ Al pasar a **Vencido** o **Terminado**, el empleado queda **Inactivo** automáti
 ## Acciones disponibles
 
 ### Desde la tabla de contratos
+Agrupadas en el menú **Más acciones** (⋮) de cada fila:
 - **Suspender / Reactivar** — disponible por fila según estado
 - **Renovar** — solo contratos Vigentes de tipo distinto a Indefinido
-- **Terminar** — solo contratos Vigentes
+- **Terminar** — solo contratos Vigentes. Al confirmar, la notificación incluye un botón **Crear Liquidación** con acceso directo al formulario de liquidación del empleado
 - **Generar PDF** — genera el PDF del contrato según la plantilla de la empresa
-- **Subir / Descargar Firmado** — para adjuntar el PDF escaneado con firmas
+- **Subir / Reemplazar Firmado** — para adjuntar el PDF escaneado con firmas (el label cambia a "Reemplazar" si ya hay uno subido)
+- **Descargar Firmado**
 
 ### Acciones masivas (bulk)
 Seleccioná varios contratos con el checkbox y usá el menú de acciones masivas:
