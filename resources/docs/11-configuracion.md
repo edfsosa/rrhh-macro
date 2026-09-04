@@ -8,33 +8,28 @@ Esta sección cubre los ajustes que afectan el comportamiento global del sistema
 
 Acceder desde **Configuración → Configuración General**.
 
-### Información de la empresa
+> Esta pantalla **no** contiene los datos de la empresa (nombre, logo, RUC, dirección, etc.) — esos se cargan por separado, por cada empresa, en **Organización → Empresas**, y son los que aparecen en los encabezados de los PDFs. Configuración General solo tiene parámetros globales de comportamiento del sistema, listados abajo.
 
-Estos datos aparecen en los encabezados de todos los PDFs generados:
+### Configuración Laboral
 
-- **Nombre de la empresa**
-- **Logo** (se sube desde aquí; formatos JPG, PNG, WEBP, SVG)
-- **RUC, número patronal IPS**
-- **Dirección, teléfono, email, ciudad**
+- **Zona horaria:** `America/Asunción` por defecto (también se puede elegir entre otros husos horarios de la región).
+- **Tolerancia para ausencia:** minutos de gracia después de la hora de entrada antes de que el sistema marque al empleado como ausente (por defecto 30 minutos).
 
-> Esta configuración es independiente de los datos cargados en **Organización → Empresas**. Es la información que aparece en los documentos del sistema.
+### Configuración de Contratos
 
-### Configuración laboral
+- **Días de anticipación para alertas:** cuántos días antes del vencimiento de un contrato a plazo el sistema muestra la alerta (por defecto 30).
 
-- **Zona horaria:** por defecto `America/Asuncion`
-- **Horas laborales por semana:** referencia para cálculos internos (default: 40)
+### Reconocimiento Facial
 
-### Configuración de préstamos
+- **Validez del enlace de registro:** horas que tiene el empleado para completar la captura facial desde que se genera el enlace (por defecto 48 horas).
+- **Umbral de reconocimiento:** distancia máxima aceptada para dar por válido un match facial — cuanto menor, más estricto (por defecto 0.45; rango recomendado 0.35–0.60).
+- **Gap mínimo de confianza:** diferencia mínima requerida entre el mejor candidato y el segundo, para evitar confundir rostros parecidos (por defecto 0.10).
 
-- **Monto máximo de préstamo:** límite por operación de préstamo
+> Estos dos últimos parámetros se ajustan revisando los fallos de marcación registrados en `Asistencia → Fallos de Marcación` (ver capítulo de Asistencias).
 
-### Configuración de contratos
+### Terminales de Marcación
 
-- **Días de alerta antes del vencimiento:** cantidad de días de anticipación con que el sistema notifica que un contrato a plazo está por expirar
-
-### Registro facial
-
-- **Horas de validez del token:** tiempo que tiene el empleado para completar la captura facial desde que se genera el enlace. Al vencer el token, debe generarse uno nuevo.
+- **Umbral de desconexión:** horas sin un heartbeat exitoso antes de que el panel marque un terminal como desconectado (por defecto 2 horas).
 
 ---
 
@@ -47,45 +42,87 @@ Acceder desde **Configuración → Configuración de Nómina**.
 | Parámetro | Valor por defecto |
 |-----------|-------------------|
 | Horas mensuales | 240 |
-| Horas diarias | 8 |
-| Días por mes | 30 |
+| Horas por jornada | 8 |
+| Días laborales/mes | 30 |
 
 ### Horas de trabajo — Jornada Nocturna
 
 | Parámetro | Valor por defecto |
 |-----------|-------------------|
 | Horas mensuales | 210 |
-| Horas diarias | 7 |
+| Horas por jornada | 7 |
 
 ### Horas de trabajo — Jornada Mixta
 
-Configurable según las necesidades de la empresa.
+| Parámetro | Valor por defecto |
+|-----------|-------------------|
+| Horas mensuales | 225 |
+| Horas por jornada | 7.5 |
 
 ### Multiplicadores de horas extra
 
 | Tipo | Multiplicador por defecto |
 |------|--------------------------|
-| Hora extra diurna | 1.5× |
-| Hora extra nocturna | 1.67× |
-| Hora extra en feriado | 2.0× |
-
-Estos valores determinan el recargo pagado sobre el valor de la hora normal.
+| HE Diurnas | 1.5× (+50%) |
+| HE Nocturnas (día regular) | 2.6× (1.30 × 2.0 sobre base diurna) |
+| HE Diurnas Feriado/Domingo | 2.0× (+100%) |
+| HE Nocturnas Feriado/Domingo | 2.6× (1.30 × 2.0 sobre base diurna) |
 
 ### Límites de horas extra
 
-- **Máximo de horas extra diarias:** para detectar anomalías en el cálculo
+- **Máximo de horas extra por día:** por defecto 3 hrs (Art. 202 CLT).
+- **Máximo de horas extra por semana:** por defecto 9 hrs (Art. 202 CLT).
 
 ### Liquidación / Finiquito
 
-- **Tasa IPS empleado (%):** porcentaje de descuento del empleado
-- **Código IPS:** código de la deducción IPS en el sistema
-- **Días de indemnización por año de servicio:** base para el cálculo de indemnización en despido injustificado
+- **Aporte IPS Obrero (%):** por defecto 9%.
+- **Código deducción IPS:** código de la deducción en el catálogo (por defecto `IPS001`).
+- **Días de indemnización por año:** por defecto 15 días/año.
+
+### Salarios Mínimos Legales
+
+- **Salario mínimo mensual:** para trabajadores mensualizados.
+- **Salario mínimo diario (jornaleros):** monto diario independiente, no es 1/30 del mensual.
+
+> Actualizar estos dos montos ante cada resolución del Ministerio de Trabajo.
+
+### Bonificación Familiar
+
+- **Porcentaje por hijo:** % del salario mínimo mensual pagado por hijo a cargo (por defecto 5%). Aplica a empleados con hijos que ganen hasta 2 salarios mínimos (Arts. 253–262 CLT).
+
+### IRP — Impuesto a la Renta Personal
+
+- **Umbral anual gravado:** renta anual a partir de la cual se retiene IRP (por defecto Gs. 80.000.000).
+- **Tasa IRP:** porcentaje retenido sobre la renta gravada (por defecto 10%).
+
+> La empresa actúa como agente de retención (Ley 2421/04).
+
+### Préstamos
+
+- **Monto máximo de préstamo**
+- **Tope de cuota (% salario):** por defecto 25% (Art. 245 CLT)
+- **Máximo de cuotas:** por defecto 60
+- **Tasa de interés máxima:** por defecto 100% anual
+- **Días hasta primera cuota (default):** valor sugerido al crear un préstamo
+
+### Adelantos de Salario
+
+- **Porcentaje máximo por adelanto:** por defecto 50%
+- **Máximo de adelantos por período:** 0 = sin límite
+
+> El sistema valida que `cantidad máxima × porcentaje` no supere el 100% del salario. Ver el capítulo **Adelantos de Salario** para el detalle de uso.
+
+### Retiros de Mercadería
+
+- **Monto máximo por retiro:** por defecto Gs. 10.000.000
+- **Máximo de cuotas:** por defecto 24
+- **Días hasta primera cuota:** por defecto 30
 
 ### Vacaciones
 
-- **Días mínimos consecutivos:** mínimo de días que debe tener una solicitud de vacaciones
-- **Antigüedad mínima:** años de servicio requeridos para tener derecho a vacaciones
-- **Días hábiles:** días de la semana que se cuentan como hábiles (típicamente lunes a viernes)
+- **Mínimo días consecutivos:** fraccionamiento mínimo por solicitud (por defecto 6).
+- **Años mínimos de servicio:** antigüedad requerida para tener derecho a vacaciones (por defecto 1).
+- **Días hábiles para vacaciones:** días de la semana que cuentan como hábiles al calcular el período — por defecto **Lunes a Sábado** (no lunes a viernes).
 
 ---
 
@@ -96,7 +133,7 @@ Acceder desde **Configuración → Usuarios**.
 ### Crear un usuario
 
 1. Clic en **Nuevo usuario**
-2. Ingresar nombre, email y contraseña
+2. Ingresar nombre completo, correo electrónico y contraseña (con confirmación)
 3. Guardar
 
 Cada usuario puede gestionar su propio perfil (nombre, email, contraseña, foto) desde el menú de perfil en la esquina del panel.
@@ -112,27 +149,33 @@ Los feriados se usan para:
 - Aplicar el multiplicador de horas extra en feriado
 - Evitar generar ausencias en días que corresponden a feriado
 
-### Feriados nacionales de Paraguay (referencia)
+### Cargar Feriados Nacionales (un clic)
+
+El botón **Cargar Feriados Nacionales** agrega automáticamente, para el año actual, los feriados nacionales de Paraguay precargados en el sistema (no duplica los que ya existan):
 
 | Fecha | Nombre |
 |-------|--------|
 | 01/01 | Año Nuevo |
-| 03/01 | Día de San Blas |
-| 02/25 | Día de la Identidad Paraguaya |
-| 05/01 | Día del Trabajador |
-| 06/12 | Día de la Paz del Chaco |
-| 08/15 | Fundación de Asunción |
-| 09/29 | Batalla de Boquerón |
-| 10/12 | Día de la Raza |
-| 11/01 | Día de Todos los Santos |
-| 12/08 | Virgen de la Inmaculada Concepción |
-| 12/25 | Navidad |
-| Semana Santa | Jueves y Viernes Santos (fecha variable) |
+| 01/03 | Día de los Héroes |
+| 01/05 | Día del Trabajador |
+| 15/05 | Día de la Independencia Nacional |
+| 12/06 | Paz del Chaco |
+| 15/08 | Fundación de Asunción |
+| 29/09 | Día de la Victoria de Boquerón |
+| 08/12 | Día de la Virgen de Caacupé |
+| 25/12 | Navidad |
 
-### Cargar feriados
+> Esta lista fija no incluye feriados de fecha variable (ej. Semana Santa) — esos deben cargarse manualmente cada año.
 
-1. Clic en **Nuevo feriado**
-2. Ingresar nombre y fecha
+### Otras acciones del listado
+
+- **Eliminar Feriados Pasados** — borra todos los feriados anteriores al año actual (acción irreversible, útil para limpiar el historial).
+- **Copiar al Próximo Año** — duplica todos los feriados del año actual al año siguiente (respetando la misma fecha, un año después), sin duplicar los que ya existan.
+
+### Cargar un feriado manualmente
+
+1. Clic en **Nuevo Feriado**
+2. Ingresar fecha y nombre
 3. Guardar
 
-> Se recomienda cargar los feriados del año completo al inicio de cada año.
+> Se recomienda usar **Cargar Feriados Nacionales** al inicio de cada año y completar manualmente los feriados de fecha variable (Semana Santa) y cualquier feriado local o extraordinario.
