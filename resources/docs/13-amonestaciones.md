@@ -31,25 +31,26 @@ El módulo de Amonestaciones permite registrar formalmente las sanciones discipl
    - **Tipo** (Verbal, Escrita o Grave)
    - **Motivo** (categoría predefinida)
    - **Descripción del hecho** (detalle libre)
-   - **Observaciones** (opcional)
 4. Guardar
 
-> La fecha de emisión y el emisor se registran automáticamente con la fecha actual y el usuario logueado.
+> La fecha de emisión y el emisor se registran automáticamente con la fecha actual y el usuario logueado. Este formulario **no** tiene un campo de observaciones adicionales — para eso, cargar la amonestación desde el perfil del empleado (ver abajo).
 
 ### Desde el perfil del empleado
 
 1. Abrir el perfil del empleado
 2. Ir a la pestaña **Amonestaciones**
 3. Clic en **Nueva Amonestación**
-4. Completar el formulario y guardar
+4. Completar el formulario — acá sí hay un campo adicional **Observaciones adicionales** (opcional) — y guardar
 
-## Editar una amonestación
+## Editar o eliminar una amonestación
 
 Desde la vista de detalle, clic en **Editar**. En el formulario de edición están disponibles adicionalmente:
 
-- **Fecha de emisión** — si se necesita corregir la fecha
+- **Fecha de emisión** — si se necesita corregir la fecha (no permite fechas futuras)
 - **Emitida por** — si se necesita cambiar el emisor
 - **Documento Firmado** — para adjuntar el PDF escaneado con la firma del empleado
+
+Una amonestación no tiene ciclo de vida ni estados — es un registro documental permanente. Si se cargó por error, se puede **Eliminar** desde el encabezado de la pantalla de edición (acción irreversible, sin confirmación adicional más allá del modal estándar).
 
 ## Documento PDF
 
@@ -82,4 +83,7 @@ El listado permite filtrar por:
 
 ## Exportar a Excel
 
-Desde el encabezado del listado, el botón **Exportar Excel** descarga un archivo con todas las amonestaciones registradas, incluyendo: Empleado, CI, Tipo, Motivo, Descripción, Fecha de emisión, Emitida por, Observaciones, Creado y Editado.
+Hay dos formas de exportar:
+
+- **Exportar Excel** (encabezado del listado) — descarga **todas** las amonestaciones registradas, incluyendo: Empleado, CI, Tipo, Motivo, Descripción, Fecha de emisión, Emitida por, Observaciones, Creado y Editado.
+- **Exportar a Excel** (acción masiva sobre la tabla) — exporta solo las amonestaciones seleccionadas con el checkbox.
