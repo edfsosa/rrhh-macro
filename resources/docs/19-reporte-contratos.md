@@ -36,7 +36,7 @@ Todos los contratos activos, ordenados desde el más antiguo. La columna **Antig
 
 | Color | Rango |
 |-------|-------|
-| Rojo | Menos de 1 año |
+| Gris | Menos de 1 año |
 | Naranja | 1 a 5 años |
 | Azul | 5 a 10 años |
 | Verde | 10 años o más |
@@ -60,12 +60,24 @@ Contratos terminados, ordenados por fecha de rescisión más reciente. Muestra l
 
 ## Filtros disponibles
 
+Los filtros cambian según el tab activo — no todos los tabs muestran los mismos:
+
 | Filtro | Aplica a |
 |--------|---------|
 | **Empresa** (si hay >1 activa) | Todos los tabs |
 | **Sucursal** | Todos los tabs |
+| **Tipo de contrato** | Todos salvo "Sin Contrato" |
+| **Tipo de salario** (Mensual / Jornal) | Todos salvo "Sin Contrato" |
+| **Departamento** | Todos salvo "Sin Contrato" (en cascada con Empresa) |
+| **Cargo** | Todos salvo "Sin Contrato" (en cascada con Departamento) |
 | **Vencer en** (30 / 60 / 90 días) | Solo "Por Vencer" y "Período de Prueba" |
 | **Rescindidos en los últimos** (3 / 6 / 12 meses) | Solo "Rescindidos" |
+| **Período de inicio** (rango de fechas) | "Por Vencer", "Todos Activos", "Por Antigüedad", "Rescindidos" |
+| **Período de vencimiento** (rango de fechas) | Solo "Por Vencer" |
+| **Período de rescisión** (rango de fechas) | Solo "Rescindidos" |
+| **Registrado en el sistema** (rango de fechas) | Solo "Sin Contrato" |
+
+> Los filtros Empresa → Sucursal y Departamento → Cargo son en cascada: cambiar el filtro padre limpia el hijo.
 
 ---
 
@@ -75,6 +87,7 @@ Disponible en todos los tabs desde el encabezado:
 
 1. Clic en **Exportar PDF** o **Exportar Excel**
 2. Seleccionar las **columnas a incluir** — las opciones son dinámicas según el tab activo
-3. Confirmar
+3. En PDF, la **orientación** (Vertical/Horizontal) se ajusta automáticamente según la cantidad de columnas elegidas (Vertical hasta 6 columnas, Horizontal para más) — se puede cambiar manualmente
+4. Confirmar
 
-Las columnas disponibles cambian según el tab (por ejemplo, "Días Restantes" solo aparece en "Por Vencer" y "Período de Prueba").
+Las columnas disponibles cambian según el tab (por ejemplo, "Días Restantes" solo aparece en "Por Vencer" y "Período de Prueba"). Si solo hay una empresa activa, la columna/opción "Empresa" no se ofrece.
