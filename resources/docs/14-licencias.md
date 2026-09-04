@@ -22,8 +22,8 @@ El sistema distingue dos modalidades que coexisten en el mismo módulo:
 | **Reposo Médico** | Licencia por enfermedad o accidente |
 | **Vacaciones** | Días de descanso remunerado |
 | **Día Libre** | Día de descanso eventual |
-| **Permiso por Maternidad** | Ley 5508/15 |
-| **Permiso por Paternidad** | Por nacimiento de hijo |
+| **Licencia de Maternidad** | Ley 5508/15 |
+| **Licencia de Paternidad** | Por nacimiento de hijo |
 | **Sin Goce de Sueldo** | Permiso sin retribución |
 | **Otro** | Cualquier otro tipo de permiso |
 
@@ -32,7 +32,7 @@ El sistema distingue dos modalidades que coexisten en el mismo módulo:
 ## Registrar un permiso por días completos
 
 1. Ir a **Empleados → Licencias**
-2. Clic en **Nuevo permiso**
+2. Clic en **Nueva Licencia**
 3. Completar:
    - **Empleado** y **Tipo de licencia**
    - **Fecha de inicio** y **Fecha de fin**
@@ -45,7 +45,7 @@ El sistema distingue dos modalidades que coexisten en el mismo módulo:
 ## Registrar un permiso parcial por horas
 
 1. Ir a **Empleados → Licencias**
-2. Clic en **Nuevo permiso**
+2. Clic en **Nueva Licencia**
 3. Completar los datos generales (empleado, tipo y fecha)
 4. Expandir la sección **Permiso por horas (opcional)**
 5. Ingresar la **Hora de inicio** y la **Hora de fin** — el sistema calcula la duración en tiempo real
@@ -111,7 +111,7 @@ Al aprobar un permiso **por días completos**, el sistema busca todas las ausenc
 
 > ⚠️ Los permisos **parciales por horas** **no justifican ausencias**. El empleado estuvo presente ese día — solo se ausentó unas horas. La justificación automática aplica únicamente a permisos de día completo.
 
-Para más información sobre ausencias ver la sección **Ausencias** en este mismo archivo o en **Vacaciones y Ausencias**.
+Para más información sobre ausencias, ver el capítulo **Ausencias**.
 
 ---
 
@@ -121,8 +121,8 @@ Al registrar el permiso se puede adjuntar un documento (certificado médico, sol
 
 | Campo | Detalle |
 |-------|---------|
-| **Formatos aceptados** | PDF, JPG, PNG, GIF |
-| **Tamaño máximo** | 10 MB |
+| **Formatos aceptados** | PDF o cualquier imagen (JPG, PNG, GIF, WEBP, etc.) |
+| **Tamaño máximo** | 5 MB |
 | **Obligatorio en** | Reposo Médico |
 
 El documento se puede descargar desde el detalle del permiso o desde la pestaña **Licencias** del perfil del empleado.
