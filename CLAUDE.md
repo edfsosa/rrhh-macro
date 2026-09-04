@@ -55,7 +55,7 @@ Two separate axes that converge in `Contract`:
 | Deductions | `DeductionCalculator`, `EmployeeDeduction` |
 | Extra hours | `ExtraHourCalculator` |
 | Rest day | `RestDayCalculator` — pago del día de descanso semanal remunerado |
-| Absence penalty | `AbsencePenaltyCalculator` — descuentos por ausencias injustificadas |
+| Tardiness penalty | `AbsencePenaltyCalculator` — descuento por minutos de tardanza aprobados por RR.HH. (**no** procesa ausencias injustificadas — ver nota abajo) |
 | Family bonus | `FamilyBonusCalculator` — bonificación familiar IPS |
 | Loans | `Loan`, `LoanInstallment`, `LoanInstallmentCalculator` |
 | Advances | `Advance`, `AdvanceCalculator` |
@@ -83,11 +83,19 @@ El orden de ejecución de calculadoras dentro de `generateForPeriod()` / `genera
 5. advanceCalculator              — adelantos aprobados → genera EmployeeDeductions (ADE001)
 6. merchandiseInstallmentCalculator — cuotas de retiros de mercadería → genera EmployeeDeductions (MER001)
 7. deductionCalculator            — todas las deducciones (incluye las recién creadas por 4, 5 y 6)
-8. absencePenaltyCalculator       — penalidades por ausencias
+8. absencePenaltyCalculator       — descuento por tardanzas aprobadas (minutos de atraso, no ausencias)
 9. familyBonusCalculator          — bonificación familiar IPS
 ```
 
 Los pasos 4, 5 y 6 deben correr **antes** que el paso 7 porque crean los `EmployeeDeduction` puntuales que `DeductionCalculator` luego procesa de forma uniforme.
+
+**`AbsencePenaltyCalculator` — nombre engañoso, no penaliza ausencias:** pese al nombre, solo procesa días con `tardiness_deduction_approved = true` (tardanzas aprobadas por RR.HH.), para empleados de tiempo completo. Las **ausencias injustificadas** (día completo) no pasan por este calculator ni por el pipeline de nómina en ese paso — se generan directo como `EmployeeDeduction` (código `AUS-INJ`, creado on-demand la primera vez que se necesita) desde `Absence::markAsUnjustified()` cuando RR.HH. revisa la ausencia en `AbsenceResource`, y de ahí las recoge el `deductionCalculator` del paso 7 como cualquier otra deducción del empleado.
+
+### Módulo de Deducciones (catálogo)
+
+**Tipos reales (`Deduction.type`):** `legal` (default — IPS, IRP), `judicial` (embargos, alimentaria), `voluntary` (seguros, cooperativas), `loan` (cuotas de préstamo/adelanto/mercadería — `PRE001`, `ADE001`, `MER001`), `other`. Son 5, no 4 — no confundir "loan" con una categoría genérica de "deuda".
+
+**`is_mandatory` no asigna retroactivamente:** marcar una deducción como obligatoria **no** la aplica a los empleados que ya existen. Solo se asigna automáticamente a **empleados nuevos** al crearlos (`EmployeeObserver` llama `Employee::assignMandatoryDeductions()`). Para aplicarla a un empleado existente hay que usar la acción manual "Asignar obligatorias" desde su pestaña de Deducciones (`EmployeeDeductionsRelationManager`).
 
 ### Módulo de Préstamos
 
@@ -253,7 +261,7 @@ Registro documental de amonestaciones laborales emitidas a empleados. **Sin inte
 **Sin ciclo de vida:** una amonestación creada existe como registro permanente. Se edita si hay error, se elimina si fue incorrecta.
 
 **Deuda técnica — integración futura con nómina:**
-La opción acordada es **suspensión disciplinaria**: agregar `suspension_days int default 0` a `warnings`. Al guardar una amonestación con suspensión > 0, crear registros de `Absence` para esos días. `AbsencePenaltyCalculator` los procesa en nómina sin cambios en el pipeline.
+La opción acordada es **suspensión disciplinaria**: agregar `suspension_days int default 0` a `warnings`. Al guardar una amonestación con suspensión > 0, crear registros de `Absence` para esos días y marcarlos como injustificados (`Absence::markAsUnjustified()`), que generan su deducción `AUS-INJ` de la forma estándar — sin cambios en el pipeline de nómina. (Nota: no es `AbsencePenaltyCalculator` quien las procesaría — ese calculator solo maneja tardanzas, ver "Tardiness penalty" en Módulos arriba.)
 
 **Formulario de creación:** `issued_at` e `issued_by_id` se inyectan automáticamente en `CreateWarning::mutateFormDataBeforeCreate()` — no aparecen en el form de create, sí en edit. La sección "Documento Firmado" también es `->visibleOn('edit')`.
 
@@ -269,21 +277,29 @@ La opción acordada es **suspensión disciplinaria**: agregar `suspension_days i
 
 ### Módulo de Liquidación
 
-Liquidación de haberes por desvinculación del empleado. Se calcula manualmente desde `LiquidacionResource`.
+Liquidación de haberes por desvinculación del empleado. Se calcula manualmente desde `LiquidacionResource` (`LiquidacionService`).
 
-**Ciclo de vida:** `draft` → `calculate()` → `calculated` → `close()` → `closed`
+**Ciclo de vida:** `draft` → `calculate()` → `calculated` → `close()` → `closed`. Crear la liquidación **no** calcula los montos — quedan en `draft` hasta ejecutar `calculate()` como acción separada. `calculate()` también puede volver a correrse sobre una liquidación ya `calculated` (acción "Recalcular"): borra los `LiquidacionItem` existentes (incluidas ediciones manuales) y recalcula todo desde cero.
 
-- `calculate()`: calcula todos los ítems (preaviso, indemnización, vacaciones proporcionales, aguinaldo proporcional, salario pendiente, descuentos por ausencias, préstamos pendientes) y persiste en `LiquidacionItem`. El empleado sigue activo.
+- `calculate()`: calcula todos los ítems aplicables y persiste en `LiquidacionItem`. El empleado sigue activo.
 - `close()`: marca la liquidación como cerrada, el contrato como `terminated` y el empleado como `inactive`. También cancela todos los préstamos pendientes.
 
+**Período de prueba y preaviso ya otorgado — exclusiones:** si la antigüedad es menor o igual a `trial_days` del contrato (default 30), **no** corresponden Preaviso, Indemnización ni Vacaciones proporcionales (solo salario pendiente y aguinaldo proporcional). El campo `preaviso_otorgado` (toggle en el form) anula el pago de Preaviso aunque el tipo de terminación sea Despido Injustificado, si el empleador ya avisó con anticipación.
+
 **Cálculos incluidos:**
-- Preaviso (días según años de servicio, Art. CLT)
-- Indemnización (proporcional a años y salario promedio de los últimos 6 meses)
-- Vacaciones proporcionales al período trabajado
+- Preaviso (días según años de servicio, Art. CLT) — solo Despido Injustificado, fuera de período de prueba, sin preaviso ya otorgado
+- Indemnización (proporcional a años y salario promedio de los últimos 6 meses, no el salario actual) — solo Despido Injustificado, fuera de período de prueba
+- **Indemnización adicional por Estabilidad Laboral Propia (Art. 95 CLT):** si el empleado tiene 10+ años de antigüedad en un Despido Injustificado, se agrega una segunda línea por el mismo monto de la indemnización (indemnización doble)
+- Vacaciones proporcionales al período trabajado (sobre el salario promedio de 6 meses)
 - Aguinaldo proporcional al año en curso
 - Salario pendiente (días trabajados en el último período sin nómina generada)
-- Descuentos por ausencias injustificadas
-- Saldo de préstamos activos (se cancelan al cerrar)
+- Descuentos: ausencias injustificadas, IPS 9% (**solo si el empleado tiene la deducción de IPS activa en su perfil** — si no, se omite y se advierte al crear la liquidación), saldo de préstamos/adelantos activos (se cancelan al cerrar)
+
+**Validaciones al crear (bloquean):** empleado ya con liquidación activa (`draft`/`calculated`), sin contrato activo, salario del contrato en Gs. 0. **Avisos no bloqueantes:** empleada bajo protección de maternidad (Ley 5508/15), empleado sin deducción IPS activa.
+
+**Editar una liquidación calculada:** si se cambia `termination_type` o `preaviso_otorgado`, revierte automáticamente a `draft` (borra ítems y PDF) — debe recalcularse.
+
+**Ítems editables manualmente:** desde `ItemsRelationManager` se pueden editar/eliminar ítems individuales (no crear nuevos) mientras no esté `closed`. Cualquier edición recalcula los totales pero invalida el PDF (`pdf_path = null`) — requiere regenerarlo.
 
 ### Módulo de Aguinaldo
 
@@ -300,6 +316,22 @@ Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un
 ### Módulo de Vacaciones
 
 **Pago con nómina (`payment_method = 'with_payroll'`):** `PayrollService::resolveVacationPays()` paga la remuneración vacacional **completa como pago único** en el período de nómina que contiene el `start_date` de la vacación — **no se prorratea** aunque el `end_date` caiga en el período de nómina siguiente. Es una convención intencional (lump sum al inicio de la vacación), no un bug. `Vacation.payment_status` es un enum simple `unpaid`/`paid` — no rastrea montos parciales, así que implementar prorrateo real requeriría un cambio de modelo de datos, no solo de lógica.
+
+### Módulo de Contratos
+
+**Estados reales (`Contract.status`):** `draft` → `active` → `suspended` / `expired` / `terminated` / `renewed`. **"Por vencer" no es un estado almacenado** — es un filtro/vista sobre contratos `active` cuya `end_date` cae dentro de los días configurados en `GeneralSettings.contract_alert_days`; el contrato sigue en `active` hasta que vence de verdad (`contracts:expire`, corre a las 00:05).
+
+**Tipos:** `indefinido`, `plazo_fijo` ("Por Plazo Determinado"), `obra_determinada`, `aprendizaje`, `pasantia`. `Contract::requiresEndDate()` exige `end_date` para todos salvo `indefinido`.
+
+**Art. 53 CLT — duración máxima:** los contratos `plazo_fijo` y `aprendizaje` no pueden exceder 1 año entre `start_date` y `end_date` — validado y bloqueado en `CreateContract::mutateFormDataBeforeCreate()`.
+
+**Art. 53 CLT — renovación forzada a indefinido:** `Contract::renew()` cuenta las renovaciones previas (`status = 'renewed'`) del mismo empleado y tipo `plazo_fijo`; en la **segunda renovación**, el nuevo contrato se crea como `indefinido` automáticamente (sin `end_date`). `wouldBecomeIndefiniteOnRenewal()` predice esto para mostrar el aviso en el modal antes de confirmar.
+
+**Validación al crear:** no se puede crear un contrato si el empleado ya tiene uno `active` (el Select de empleados ya los excluye, más una validación de backend que bloquea igual).
+
+**Terminar contrato → Liquidación:** `ContractService::terminate()` solo actualiza el contrato; la notificación posterior a terminar incluye un botón "Crear Liquidación" con link directo al formulario de `LiquidacionResource` para ese empleado (no se crea automáticamente).
+
+**Cascada de estado del empleado:** al pasar a `expired` o `terminated`, `ContractObserver` marca al empleado `inactive` — salvo que tenga otro contrato `active` (ver convención "Observer para cascada de estados" más abajo).
 
 ### Módulo de Asistencia — Marcación Offline (Terminal y Dispositivo Personal)
 
@@ -487,7 +519,8 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 - `resources/js/enrollments/capture-face.js` — employee self-enrollment
 
 ### Status Enums
-- Employee/Contract: `active`, `inactive`, `draft`, `suspended`
+- Employee: `active`, `inactive`, `draft`, `suspended`
+- Contract: `draft` → `active` → `suspended` / `expired` / `terminated` / `renewed` (distinto del de Employee — no confundir; "por vencer" no es un estado, ver Módulo de Contratos)
 - Payroll: `draft` → `processing` → `approved` → `paid`
 - Loans: `pending` → `approved` → `paid` / `rejected` / `cancelled`
 - Advances: `pending` → `approved` → `disbursed` → `paid` / `rejected` / `cancelled`
