@@ -41,10 +41,11 @@ Desde el listado o el detalle, usar el campo **Activo**. Una percepción inactiv
 
 | Tipo | Descripción |
 |------|-------------|
-| **Legal** | Obligaciones legales (IPS, IRP) |
-| **Deuda** | Cuotas de préstamos, adelantos y retiros de mercadería |
-| **Judicial** | Embargos dispuestos por orden judicial |
-| **Voluntaria** | Descuentos optativos acordados con el empleado (seguros, sindicato, etc.) |
+| **Legal** | Obligaciones legales (IPS, IRP) — también el tipo por defecto (ej. `IPS001`, `AUS-INJ`) |
+| **Judicial** | Embargos judiciales, alimentaria |
+| **Voluntaria** | Descuentos optativos acordados con el empleado (seguros, cooperativas, ej. `LIC001`) |
+| **Préstamo / Adelanto** | Cuotas de préstamos, adelantos de salario y retiros de mercadería (`PRE001`, `ADE001`, `MER001`) |
+| **Otros** | Cualquier otro descuento que no encaje en los tipos anteriores |
 
 ### Crear una deducción
 
@@ -55,8 +56,8 @@ Desde el listado o el detalle, usar el campo **Activo**. Una percepción inactiv
    - **Tipo** de deducción
    - **Tipo de cálculo:** Monto Fijo (Gs.) o Porcentaje del salario
    - **Monto** o **porcentaje**
-   - **Deducción Obligatoria:** si está activo, se asigna automáticamente a todos los empleados
-   - **Aplicar tope legal Art. 245 CLT** (solo visible en tipo Judicial): limita el embargo al 25% del salario sobre el mínimo legal; desactivar para prestaciones alimentarias
+   - **Deducción Obligatoria:** marca la deducción como obligatoria — no la asigna retroactivamente a empleados existentes. Se asigna automáticamente solo a **empleados nuevos** al crearlos; a un empleado ya existente hay que asignársela con la acción **Asignar obligatorias** desde su pestaña de Deducciones
+   - **Aplicar tope legal Art. 245 CLT** (solo visible en tipo Judicial): limita el embargo al 25% del excedente del salario mínimo; desactivar para prestaciones alimentarias
 4. Guardar
 
 ---
@@ -79,7 +80,7 @@ Desde el perfil del empleado:
 
 ### Asignación masiva
 
-Desde el detalle de la percepción o deducción:
+Desde el detalle de la percepción o deducción (acción disponible solo si el concepto está **Activo**):
 
 1. Clic en **Asignar a Todos**
 2. Filtrar opcionalmente por empresa y/o sucursal
@@ -110,6 +111,7 @@ El sistema usa códigos reservados para descuentos generados automáticamente. N
 | `ADE001` | Adelantos de salario |
 | `MER001` | Cuotas de retiros de mercadería |
 | `LIC001` | Descuento por permiso parcial |
+| `AUS-INJ` | Ausencias injustificadas (se crea automáticamente la primera vez que se necesita, si no existe) |
 
 ---
 
@@ -128,7 +130,7 @@ El sistema usa códigos reservados para descuentos generados automáticamente. N
 
 | Filtro | Opciones |
 |--------|----------|
-| Tipo de Deducción | Legal / Deuda / Judicial / Voluntaria |
+| Tipo de Deducción | Legal / Judicial / Voluntaria / Préstamo-Adelanto / Otros |
 | Tipo de Cálculo | Monto Fijo / Porcentaje |
 | Obligatorio | Todos / Obligatorios / No Obligatorios |
 | Estado | Todos / Activos / Inactivos |
