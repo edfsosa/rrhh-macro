@@ -75,4 +75,4 @@ El PDF incluye el encabezado de la empresa, el nombre del período, los filtros 
 2. En el modal seleccionar las **columnas a incluir**
 3. Clic en **Exportar**
 
-El archivo incluye una hoja con la tabla principal. El nombre del archivo lleva la fecha y hora de generación.
+El archivo incluye una hoja con la tabla principal y una **fila de totales** al final (suma de las columnas monetarias seleccionadas: Salario Base, Percepciones, IPS, Descuentos por Deuda, Judiciales, Voluntarias, Deducciones y Neto). El nombre del archivo lleva la fecha y hora de generación.
